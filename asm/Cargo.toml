@@ -1,0 +1,16 @@
+[package]
+name = "glayout"
+version = "0.1.0"
+authors = ["LastLeaf <bqfu@163.com>"]
+
+[lib]
+name = "glayout"
+path = "src/lib.rs"
+
+[[bin]]
+name = "glayout-main"
+path = "src/main.rs"
+
+[dependencies]
+lazy_static = "1.0"
+downcast-rs = "1.0"
