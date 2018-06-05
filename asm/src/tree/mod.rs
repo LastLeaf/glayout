@@ -1,131 +1,116 @@
-use std::ptr;
 use std::rc::Rc;
-use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut};
-
-// TODO when a node is removed, its ctx is dangling; should be impl like Rc
+use std::cell::{Cell, RefCell, Ref, RefMut};
 
 // tree node
 
 pub struct TreeNode<T> {
-    children: Vec<*mut TreeNode<T>>,
-    parent: *mut TreeNode<T>,
-    content: T
+    children: RefCell<Vec<TreeNodeRc<T>>>,
+    parent: Cell<Option<TreeNodeRc<T>>>,
+    content: RefCell<T>
 }
-
-unsafe impl<T> Send for TreeNode<T> { }
-unsafe impl<T> Sync for TreeNode<T> { }
 
 impl<T> TreeNode<T> {
     pub fn new(content: T) -> Self {
         TreeNode {
-            children: vec!(),
-            parent: ptr::null_mut(),
-            content,
+            children: RefCell::new(vec!()),
+            parent: Cell::new(None),
+            content: RefCell::new(content),
         }
     }
 }
 
 // tree node ref
 
-pub struct TreeNodeCtx<T> {
-    pointer: *mut TreeNode<T>,
-    // this ref is neither Send nor Sync, so add an Rc here
-    phantom_data: PhantomData<Rc<T>>
+pub struct TreeNodeRc<T> {
+    rc: Rc<TreeNode<T>>
 }
 
-impl<T> From<*mut TreeNode<T>> for TreeNodeCtx<T> {
-    fn from(pointer: *mut TreeNode<T>) -> TreeNodeCtx<T> {
-        TreeNodeCtx {
-            pointer,
-            phantom_data: PhantomData
+impl<T> Clone for TreeNodeRc<T> {
+    fn clone(&self) -> Self {
+        Self {
+            rc: self.rc.clone()
         }
     }
 }
 
-impl<'a, T> From<&'a mut TreeNode<T>> for TreeNodeCtx<T> {
-    fn from(ref_val: &'a mut TreeNode<T>) -> TreeNodeCtx<T> {
-        TreeNodeCtx {
-            pointer: ref_val as *mut TreeNode<T>,
-            phantom_data: PhantomData
-        }
-    }
-}
-
-impl<T> TreeNodeCtx<T> {
-    pub fn release_memory(&mut self) {
+impl<T> From<Box<TreeNode<T>>> for TreeNodeRc<T> {
+    fn from(boxed: Box<TreeNode<T>>) -> TreeNodeRc<T> {
         unsafe {
-            let node = &mut *self.pointer;
-            node.children.shrink_to_fit()
-        }
-    }
-    pub fn len(&self) {
-        unsafe {
-            let node = &mut *self.pointer;
-            node.children.len();
-        }
-    }
-    pub fn get_parent(&mut self) -> Option<TreeNodeCtx<T>> {
-        unsafe {
-            let node = &mut *self.pointer;
-            if node.parent.is_null() {
-                return None
+            TreeNodeRc {
+                rc: Rc::from_raw(Box::into_raw(boxed))
             }
-            Some(TreeNodeCtx::from(node.parent))
         }
     }
-    pub fn get_child(&mut self, index: usize) -> Option<TreeNodeCtx<T>> {
-        unsafe {
-            let node = &mut *self.pointer;
-            Some(TreeNodeCtx::from(node.children[index]))
+}
+
+impl<T> TreeNodeRc<T> {
+    pub fn new(content: T) -> Self {
+        Self {
+            rc: Rc::new(TreeNode::new(content))
         }
     }
-    pub fn append(&mut self, mut child: Box<TreeNode<T>>) {
-        unsafe {
-            let node = &mut *self.pointer;
-            child.parent = self.pointer;
-            node.children.push(Box::into_raw(child))
-        }
+    pub fn release_memory(&mut self) {
+        let mut children = self.rc.children.borrow_mut();
+        children.shrink_to_fit()
     }
-    pub fn insert(&mut self, mut child: Box<TreeNode<T>>, position: usize) {
-        unsafe {
-            let node = &mut *self.pointer;
-            child.parent = self.pointer;
-            node.children.insert(position, Box::into_raw(child))
-        }
+    pub fn get(&self) -> Ref<T> {
+        self.rc.content.borrow()
     }
-    pub fn remove(&mut self, position: usize) -> Box<TreeNode<T>> {
-        unsafe {
-            let node = &mut *self.pointer;
-            let child = node.children.remove(position);
-            (*child).parent = ptr::null_mut();
-            Box::from_raw(child)
-        }
+    pub fn get_mut(&mut self) -> RefMut<T> {
+        self.rc.content.borrow_mut()
+    }
+    pub fn as_ptr(&mut self) -> *mut T {
+        self.rc.content.as_ptr()
+    }
+    pub fn len(&self) -> usize {
+        let children = self.rc.children.borrow();
+        children.len()
+    }
+    pub fn has_parent(&mut self) -> bool {
+        let p = self.rc.parent.replace(None);
+        let ret = match p {
+            None => false,
+            Some(ref _x) => true
+        };
+        self.rc.parent.set(p);
+        ret
+    }
+    pub fn get_parent(&mut self) -> TreeNodeRc<T> {
+        let p = self.rc.parent.replace(None);
+        let ret = match p {
+            None => panic!(),
+            Some(ref x) => {
+                (*x).clone()
+            }
+        };
+        self.rc.parent.set(p);
+        ret
+    }
+    pub fn get_child(&mut self, index: usize) -> TreeNodeRc<T> {
+        let children = self.rc.children.borrow_mut();
+        children[index].clone()
+    }
+    pub fn append(&mut self, child: TreeNodeRc<T>) {
+        child.rc.parent.set(Some((*self).clone()));
+        let mut children = self.rc.children.borrow_mut();
+        children.push(child);
+    }
+    pub fn insert(&mut self, child: TreeNodeRc<T>, position: usize) {
+        child.rc.parent.set(Some((*self).clone()));
+        let mut children = self.rc.children.borrow_mut();
+        children.insert(position, child);
+    }
+    pub fn remove(&mut self, position: usize) -> TreeNodeRc<T> {
+        let mut children = self.rc.children.borrow_mut();
+        let child = children.remove(position);
+        child.rc.parent.set(None);
+        child
     }
     pub fn iter_children(&mut self) -> TreeNodeIter<T> {
-        TreeNodeIter::new(self, TreeNodeIterSearchType::NoChildren)
+        TreeNodeIter::new(self.clone(), TreeNodeIterSearchType::NoChildren)
     }
     pub fn dfs(&mut self, search_type: TreeNodeIterSearchType) -> TreeNodeIter<T> {
-        TreeNodeIter::new(self, search_type)
-    }
-}
-
-impl<T> Deref for TreeNodeCtx<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
-        unsafe {
-            let node = &mut *self.pointer;
-            &node.content
-        }
-    }
-}
-
-impl<T> DerefMut for TreeNodeCtx<T> {
-    fn deref_mut(&mut self) -> &mut T {
-        unsafe {
-            let node = &mut *self.pointer;
-            &mut node.content
-        }
+        TreeNodeIter::new(self.clone(), search_type)
     }
 }
 
@@ -137,41 +122,40 @@ pub enum TreeNodeIterSearchType {
     ChildrenLast,
 }
 
-struct TreeNodeIter<T> {
+pub struct TreeNodeIter<T> {
     search_type: TreeNodeIterSearchType,
     cur_index: usize,
-    cur_ctx: TreeNodeCtx<T>,
+    cur_rc: TreeNodeRc<T>,
     index_stack: Vec<usize>,
-    ctx_stack: Vec<TreeNodeCtx<T>>,
+    rc_stack: Vec<TreeNodeRc<T>>,
 }
 
 impl<T> TreeNodeIter<T> {
-    fn new(ctx: &mut TreeNodeCtx<T>, search_type: TreeNodeIterSearchType) -> Self {
+    fn new(rc: TreeNodeRc<T>, search_type: TreeNodeIterSearchType) -> Self {
         TreeNodeIter {
             search_type,
             cur_index: 0,
-            cur_ctx: ctx,
+            cur_rc: rc,
             index_stack: vec![],
-            ctx_stack: vec![],
+            rc_stack: vec![],
         }
     }
 }
 
 impl<T> Iterator for TreeNodeIter<T> {
-    type Item = TreeNodeCtx<T>;
-    fn next(&mut self) -> Option<TreeNodeCtx<T>> {
-        self.cur_index += 1;
-        unsafe {
-            let node = &mut *self.pointer;
-            if self.cur_index >= node.children.len() {
-                if self.ctx_stack.len() > 0 {
-                    self.cur_ctx = self.ctx_stack.pop();
-                    self.cur_index = self.index_stack.pop();
-                }
-            } else {
-                // initial state
-                self.index_stack.push(0)
-            }
-        }
+    type Item = TreeNodeRc<T>;
+    fn next(&mut self) -> Option<TreeNodeRc<T>> {
+        unimplemented!();
+        // self.cur_index += 1;
+        // let node = self.cur_rc.rc;
+        // if self.cur_index >= node.children.len() {
+        //     if self.rc_stack.len() > 0 {
+        //         self.cur_rc = self.rc_stack.pop();
+        //         self.cur_index = self.index_stack.pop();
+        //     }
+        // } else {
+        //     // initial state
+        //     self.index_stack.push(0)
+        // }
     }
 }

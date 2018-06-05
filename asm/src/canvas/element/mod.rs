@@ -26,7 +26,7 @@ pub struct Element {
 }
 
 impl Element {
-    pub fn new(_ctx: &mut CanvasConfig, content: Box<ElementContent>) -> Self {
+    pub fn new(_cfg: &mut CanvasConfig, content: Box<ElementContent>) -> Self {
         Element {
             left: 0.,
             top: 0.,
@@ -41,7 +41,7 @@ impl Element {
     pub fn draw(&self) {
         self.content.draw(self);
         // TODO need impl
-        // tree_node_ctx.children.iter().for_each(|child| {
+        // tree_node_rc.children.iter().for_each(|child| {
         //     child.get().draw();
         // });
     }
@@ -60,39 +60,39 @@ impl fmt::Display for Element {
 }
 
 macro_rules! __element_children {
-    ($ctx:expr, $v:ident, $t:ident, ) => {};
-    ($ctx:expr, $v:ident, $t:ident, $k:ident = $a:expr; $($r:tt)*) => {
-        $v.$k = $a;
-        __element_children! ($ctx, $v, $t, $($r)*);
+    ($cfg:expr, $v:ident, $t:ident, ) => {};
+    ($cfg:expr, $v:ident, $t:ident, $k:ident = $a:expr; $($r:tt)*) => {
+        $v.get_mut().$k = $a;
+        __element_children! ($cfg, $v, $t, $($r)*);
     };
-    ($ctx:expr, $v:ident, $t:ident, . $k:ident = $a:expr; $($r:tt)*) => {
-        $v.get_content_mut::<$t>().$k = $a;
-        __element_children! ($ctx, $v, $t, $($r)*);
+    ($cfg:expr, $v:ident, $t:ident, . $k:ident = $a:expr; $($r:tt)*) => {
+        $v.get_mut().get_content_mut::<$t>().$k = $a;
+        __element_children! ($cfg, $v, $t, $($r)*);
     };
-    ($ctx:expr, $v:ident, $t:ident, . $k:ident ( $($a:expr),* ); $($r:tt)*) => {
-        $v.get_content_mut::<$t>().$k($($a),*);
-        __element_children! ($ctx, $v, $t, $($r)*);
+    ($cfg:expr, $v:ident, $t:ident, . $k:ident ( $($a:expr),* ); $($r:tt)*) => {
+        $v.get_mut().get_content_mut::<$t>().$k($($a),*);
+        __element_children! ($cfg, $v, $t, $($r)*);
     };
-    ($ctx:expr, $v:ident, $t:ident, $e:ident; $($r:tt)*) => {
-        __element_children! ($ctx, $v, $t, $e {}; $($r)*);
+    ($cfg:expr, $v:ident, $t:ident, $e:ident; $($r:tt)*) => {
+        __element_children! ($cfg, $v, $t, $e {}; $($r)*);
     };
-    ($ctx:expr, $v:ident, $t:ident, $e:ident { $($c:tt)* }; $($r:tt)*) => {
-        let mut temp_element_child = __element_tree! ( $ctx, $e { $($c)* });
+    ($cfg:expr, $v:ident, $t:ident, $e:ident { $($c:tt)* }; $($r:tt)*) => {
+        let mut temp_element_child = __element_tree! ( $cfg, $e { $($c)* });
         $v.append(temp_element_child);
-        __element_children! ($ctx, $v, $t, $($r)*);
+        __element_children! ($cfg, $v, $t, $($r)*);
     }
 }
 
 macro_rules! __element_tree {
-    ($ctx:expr, $e:ident) => {
-        __element_tree! ($ctx, $e {})
+    ($cfg:expr, $e:ident) => {
+        __element_tree! ($cfg, $e {})
     };
-    ($ctx:expr, $e:ident { $($c:tt)* }) => {{
-        let mut temp_content = Box::new($e::new($ctx));
-        let mut temp_element = Box::new(TreeNode::new(Element::new($ctx, temp_content)));
+    ($cfg:expr, $e:ident { $($c:tt)* }) => {{
+        let mut temp_content = Box::new($e::new($cfg));
+        let mut temp_element = TreeNodeRc::new(Element::new($cfg, temp_content));
         {
-            let mut _temp_element_inner = TreeNodeCtx::from(temp_element.as_mut());
-            __element_children! ($ctx, _temp_element_inner, $e, $($c)*);
+            let mut _temp_element_inner = temp_element.clone();
+            __element_children! ($cfg, _temp_element_inner, $e, $($c)*);
         }
         temp_element
     }}
@@ -100,15 +100,15 @@ macro_rules! __element_tree {
 
 #[macro_export]
 macro_rules! element {
-    ([$ctx:expr] $($c:tt)*) => {{
-        __element_tree! ($ctx, $($c)*)
+    ([$cfg:expr] $($c:tt)*) => {{
+        __element_tree! ($cfg, $($c)*)
     }}
 }
 
 pub mod test {
     use super::{Element, EmptyElement, Image};
     use super::super::Canvas;
-    use super::super::super::tree::{TreeNode, TreeNodeCtx};
+    use super::super::super::tree::{TreeNodeRc};
 
     pub fn test() -> i32 {
         let canvas = Canvas::new(1);
@@ -134,7 +134,7 @@ pub mod test {
             };
             elem
         };
-        let mut root_elem = context.get_root_ctx();
+        let mut root_elem = context.get_root();
         root_elem.append(elem);
         return 0;
     }

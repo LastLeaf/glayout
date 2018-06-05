@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 use super::frame;
-use super::tree::{TreeNode, TreeNodeCtx};
+use super::tree::{TreeNodeRc};
 
 mod element;
 mod config;
@@ -11,8 +11,12 @@ pub type EmptyElement = element::EmptyElement;
 
 pub struct CanvasContext {
     canvas_config: CanvasConfig,
-    root_element: Box<TreeNode<Element>>,
+    root_element: TreeNodeRc<Element>,
 }
+
+// TODO use a new way to do this
+unsafe impl Send for CanvasContext { }
+unsafe impl Sync for CanvasContext { }
 
 #[derive(Clone)]
 pub struct Canvas {
@@ -62,8 +66,8 @@ impl Drop for CanvasContext {
 impl frame::Frame for CanvasContext {
     fn frame(&mut self, _timestamp: f64) -> bool {
         self.clear();
-        let root_element_ctx = self.get_root_ctx();
-        root_element_ctx.draw();
+        let mut root_element_rc = self.get_root();
+        root_element_rc.get_mut().draw();
         return true;
     }
 }
@@ -81,8 +85,8 @@ impl CanvasContext {
     pub fn clear(&mut self) {
         lib!(clear(self.canvas_config.index));
     }
-    pub fn get_root_ctx(&mut self) -> TreeNodeCtx<Element> {
-        TreeNodeCtx::from(self.root_element.as_mut())
+    pub fn get_root(&mut self) -> TreeNodeRc<Element> {
+        self.root_element.clone()
     }
 }
 
