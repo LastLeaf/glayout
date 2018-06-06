@@ -1,11 +1,11 @@
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::cell::{Cell, RefCell, Ref, RefMut};
 
 // tree node
 
 pub struct TreeNode<T> {
     children: RefCell<Vec<TreeNodeRc<T>>>,
-    parent: Cell<Option<TreeNodeRc<T>>>,
+    parent: Cell<Option<TreeNodeWeak<T>>>,
     content: RefCell<T>
 }
 
@@ -25,10 +25,22 @@ pub struct TreeNodeRc<T> {
     rc: Rc<TreeNode<T>>
 }
 
+pub struct TreeNodeWeak<T> {
+    weak: Weak<TreeNode<T>>
+}
+
 impl<T> Clone for TreeNodeRc<T> {
     fn clone(&self) -> Self {
         Self {
             rc: self.rc.clone()
+        }
+    }
+}
+
+impl<T> Clone for TreeNodeWeak<T> {
+    fn clone(&self) -> Self {
+        Self {
+            weak: self.weak.clone()
         }
     }
 }
@@ -43,25 +55,51 @@ impl<T> From<Box<TreeNode<T>>> for TreeNodeRc<T> {
     }
 }
 
+impl<T> TreeNodeWeak<T> {
+    pub fn upgrade(&self) -> Option<TreeNodeRc<T>> {
+        let opt = self.weak.upgrade();
+        match opt {
+            None => None,
+            Some(x) => {
+                Some(TreeNodeRc {
+                    rc: x
+                })
+            }
+        }
+    }
+}
+
 impl<T> TreeNodeRc<T> {
     pub fn new(content: T) -> Self {
         Self {
             rc: Rc::new(TreeNode::new(content))
         }
     }
+    pub fn downgrade(&self) -> TreeNodeWeak<T> {
+        TreeNodeWeak {
+            weak: Rc::downgrade(&self.rc)
+        }
+    }
     pub fn release_memory(&mut self) {
         let mut children = self.rc.children.borrow_mut();
         children.shrink_to_fit()
     }
+
+    // content operators
     pub fn get(&self) -> Ref<T> {
         self.rc.content.borrow()
     }
     pub fn get_mut(&mut self) -> RefMut<T> {
         self.rc.content.borrow_mut()
     }
+    pub fn ctx<F>(&mut self, f: &F) where F: Fn(&mut T) {
+        f(&mut *self.rc.content.borrow_mut())
+    }
     pub fn as_ptr(&mut self) -> *mut T {
         self.rc.content.as_ptr()
     }
+
+    // tree manipulation
     pub fn len(&self) -> usize {
         let children = self.rc.children.borrow();
         children.len()
@@ -70,7 +108,12 @@ impl<T> TreeNodeRc<T> {
         let p = self.rc.parent.replace(None);
         let ret = match p {
             None => false,
-            Some(ref _x) => true
+            Some(ref x) => {
+                match x.upgrade() {
+                    None => false,
+                    Some(ref _x) => true
+                }
+            }
         };
         self.rc.parent.set(p);
         ret
@@ -84,19 +127,19 @@ impl<T> TreeNodeRc<T> {
             }
         };
         self.rc.parent.set(p);
-        ret
+        ret.upgrade().unwrap()
     }
     pub fn get_child(&mut self, index: usize) -> TreeNodeRc<T> {
         let children = self.rc.children.borrow_mut();
         children[index].clone()
     }
     pub fn append(&mut self, child: TreeNodeRc<T>) {
-        child.rc.parent.set(Some((*self).clone()));
+        child.rc.parent.set(Some(self.downgrade()));
         let mut children = self.rc.children.borrow_mut();
         children.push(child);
     }
     pub fn insert(&mut self, child: TreeNodeRc<T>, position: usize) {
-        child.rc.parent.set(Some((*self).clone()));
+        child.rc.parent.set(Some(self.downgrade()));
         let mut children = self.rc.children.borrow_mut();
         children.insert(position, child);
     }
@@ -106,38 +149,44 @@ impl<T> TreeNodeRc<T> {
         child.rc.parent.set(None);
         child
     }
+
+    // iterator generators
     pub fn iter_children(&mut self) -> TreeNodeIter<T> {
-        TreeNodeIter::new(self.clone(), TreeNodeIterSearchType::NoChildren)
+        TreeNodeIter::new(self.clone())
     }
-    pub fn dfs(&mut self, search_type: TreeNodeIterSearchType) -> TreeNodeIter<T> {
-        TreeNodeIter::new(self.clone(), search_type)
+    pub fn dfs<F>(&mut self, search_type: TreeNodeSearchType, f: &F) where F: Fn(&mut T) {
+        let mut children = self.rc.children.borrow_mut();
+        for child in children.iter_mut() {
+            if search_type == TreeNodeSearchType::ChildrenFirst {
+                child.dfs(search_type, f);
+            }
+            f(&mut *child.rc.content.borrow_mut());
+            if search_type == TreeNodeSearchType::ChildrenLast {
+                child.dfs(search_type, f);
+            }
+        }
     }
 }
 
-// iterator
-
-pub enum TreeNodeIterSearchType {
+#[derive(Clone, Copy, PartialEq)]
+pub enum TreeNodeSearchType {
     NoChildren,
     ChildrenFirst,
     ChildrenLast,
 }
 
+// iterator
+
 pub struct TreeNodeIter<T> {
-    search_type: TreeNodeIterSearchType,
     cur_index: usize,
-    cur_rc: TreeNodeRc<T>,
-    index_stack: Vec<usize>,
-    rc_stack: Vec<TreeNodeRc<T>>,
+    node_rc: TreeNodeRc<T>,
 }
 
 impl<T> TreeNodeIter<T> {
-    fn new(rc: TreeNodeRc<T>, search_type: TreeNodeIterSearchType) -> Self {
+    fn new(node_rc: TreeNodeRc<T>) -> Self {
         TreeNodeIter {
-            search_type,
             cur_index: 0,
-            cur_rc: rc,
-            index_stack: vec![],
-            rc_stack: vec![],
+            node_rc,
         }
     }
 }
@@ -145,17 +194,10 @@ impl<T> TreeNodeIter<T> {
 impl<T> Iterator for TreeNodeIter<T> {
     type Item = TreeNodeRc<T>;
     fn next(&mut self) -> Option<TreeNodeRc<T>> {
-        unimplemented!();
-        // self.cur_index += 1;
-        // let node = self.cur_rc.rc;
-        // if self.cur_index >= node.children.len() {
-        //     if self.rc_stack.len() > 0 {
-        //         self.cur_rc = self.rc_stack.pop();
-        //         self.cur_index = self.index_stack.pop();
-        //     }
-        // } else {
-        //     // initial state
-        //     self.index_stack.push(0)
-        // }
+        if self.cur_index >= self.node_rc.len() {
+            return None;
+        }
+        self.cur_index += 1;
+        return Some(self.node_rc.get_child(self.cur_index - 1));
     }
 }

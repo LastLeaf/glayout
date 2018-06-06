@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 use super::frame;
-use super::tree::{TreeNodeRc};
+use super::tree::{TreeNodeRc, TreeNodeSearchType};
 
 mod element;
 mod config;
@@ -67,7 +67,9 @@ impl frame::Frame for CanvasContext {
     fn frame(&mut self, _timestamp: f64) -> bool {
         self.clear();
         let mut root_element_rc = self.get_root();
-        root_element_rc.get_mut().draw();
+        root_element_rc.dfs(TreeNodeSearchType::ChildrenLast, &|element: &mut Element| {
+            element.draw();
+        });
         return true;
     }
 }
