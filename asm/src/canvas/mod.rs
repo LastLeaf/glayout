@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 use super::frame;
 use super::tree::{TreeNodeRc, TreeNodeSearchType};
+use super::utils::PretendSend;
 
 mod element;
 mod config;
@@ -11,12 +12,8 @@ pub type EmptyElement = element::EmptyElement;
 
 pub struct CanvasContext {
     canvas_config: CanvasConfig,
-    root_element: TreeNodeRc<Element>,
+    root_element: PretendSend<TreeNodeRc<Element>>,
 }
-
-// TODO use a new way to do this
-unsafe impl Send for CanvasContext { }
-unsafe impl Sync for CanvasContext { }
 
 #[derive(Clone)]
 pub struct Canvas {
@@ -39,7 +36,7 @@ impl Canvas {
         };
         let arc_ctx = Arc::new(Mutex::new(CanvasContext {
             canvas_config,
-            root_element,
+            root_element: PretendSend::new(root_element),
         }));
         frame::bind(arc_ctx.clone());
         return Canvas {
