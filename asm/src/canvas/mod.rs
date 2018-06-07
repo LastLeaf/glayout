@@ -3,7 +3,7 @@ use super::frame;
 use super::tree::{TreeNodeRc, TreeNodeSearchType};
 use super::utils::PretendSend;
 
-mod element;
+pub mod element;
 mod config;
 
 pub type CanvasConfig = config::CanvasConfig;
@@ -86,35 +86,5 @@ impl CanvasContext {
     }
     pub fn get_root(&mut self) -> TreeNodeRc<Element> {
         self.root_element.clone()
-    }
-}
-
-pub mod test {
-    use std::sync::{Arc, Mutex};
-    use super::Canvas;
-    use super::super::frame::animation::{TimingAnimation, AnimationObject, LinearTiming};
-
-    pub fn test() -> i32 {
-        let mut canvas = Canvas::new(0);
-
-        canvas.context(|ctx| {
-            ctx.set_canvas_size(400, 300);
-        });
-
-        struct BackgroundColorAni(Canvas);
-        impl TimingAnimation for BackgroundColorAni {
-            fn progress(&mut self, current_value: f64, _current_time: f64, _total_time: f64) {
-                self.0.context(|ctx| {
-                    ctx.set_clear_color(0., current_value as f32, current_value as f32, 1.);
-                })
-            }
-        }
-
-        let ani_obj = Arc::new(Mutex::new(AnimationObject::new(Box::new(LinearTiming::new(BackgroundColorAni(canvas.clone()), 0., 1.)))));
-        AnimationObject::exec(ani_obj, 0, 3000.);
-
-        let mut err = 0;
-        err += super::element::test::test();
-        return err;
     }
 }

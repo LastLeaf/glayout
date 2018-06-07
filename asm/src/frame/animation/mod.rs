@@ -52,11 +52,3 @@ impl AnimationObject {
         super::bind(arc_ani);
     }
 }
-
-pub mod test {
-    pub fn test() -> i32 {
-        let mut err = 0;
-        err += super::linear_timing::test::test();
-        return err;
-    }
-}

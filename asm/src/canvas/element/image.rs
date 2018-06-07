@@ -1,6 +1,6 @@
 use std::ffi::CString;
 use super::super::CanvasConfig;
-use super::Element;
+use super::ElementStyle;
 
 #[derive(Debug)]
 pub struct Image {
@@ -28,13 +28,13 @@ impl super::ElementContent for Image {
     fn name(&self) -> &'static str {
         "Image"
     }
-    fn draw(&self, elem: &Element) {
+    fn draw(&self, style: &ElementStyle) {
         // do nothing
         // println!("Attempted to draw an Image");
         if self.loader.is_some() {
             return
         }
-        lib!(tex_draw(self.canvas_index, 0, self.image_id, elem.left, elem.top, elem.width, elem.height, elem.left, elem.top, elem.width, elem.height));
+        lib!(tex_draw(self.canvas_index, 0, self.image_id, style.left, style.top, style.width, style.height, style.left, style.top, style.width, style.height));
         lib!(tex_draw_end(self.canvas_index));
     }
 }

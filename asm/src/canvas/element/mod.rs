@@ -1,49 +1,41 @@
 #![macro_use]
 
-use downcast_rs::Downcast;
+mod style;
+pub type ElementStyle = style::ElementStyle;
 
 mod empty_element;
 mod image;
 pub type EmptyElement = empty_element::EmptyElement;
 pub type Image = image::Image;
 
+use downcast_rs::Downcast;
 use std::fmt;
 use super::CanvasConfig;
 
 pub trait ElementContent: Downcast + Send + fmt::Debug {
     fn name(&self) -> &'static str;
-    fn draw(&self, element: &Element);
+    fn draw(&self, style: &ElementStyle);
 }
 
 impl_downcast!(ElementContent);
 
 pub struct Element {
-    pub left: f64,
-    pub top: f64,
-    pub width: f64,
-    pub height: f64,
-    content: Box<ElementContent>
+    style: ElementStyle,
+    content: Box<ElementContent>,
 }
 
 impl Element {
     pub fn new(_cfg: &mut CanvasConfig, content: Box<ElementContent>) -> Self {
         Element {
-            left: 0.,
-            top: 0.,
-            width: 0.,
-            height: 0.,
-            content
+            style: ElementStyle::new(),
+            content,
         }
     }
     pub fn name(&self) -> &'static str {
         self.content.name()
     }
     pub fn draw(&self) {
-        self.content.draw(self);
-        // TODO need impl
-        // tree_node_rc.children.iter().for_each(|child| {
-        //     child.get().draw();
-        // });
+        self.content.draw(&self.style);
     }
     pub fn get_content_ref<T: ElementContent>(&self) -> &T {
         self.content.downcast_ref::<T>().unwrap()
@@ -62,7 +54,7 @@ impl fmt::Display for Element {
 macro_rules! __element_children {
     ($cfg:expr, $v:ident, $t:ident, ) => {};
     ($cfg:expr, $v:ident, $t:ident, $k:ident = $a:expr; $($r:tt)*) => {
-        $v.get_mut().$k = $a;
+        $v.get_mut().style.$k = $a;
         __element_children! ($cfg, $v, $t, $($r)*);
     };
     ($cfg:expr, $v:ident, $t:ident, . $k:ident = $a:expr; $($r:tt)*) => {
@@ -103,39 +95,4 @@ macro_rules! element {
     ([$cfg:expr] $($c:tt)*) => {{
         __element_tree! ($cfg, $($c)*)
     }}
-}
-
-pub mod test {
-    use super::{Element, EmptyElement, Image};
-    use super::super::Canvas;
-    use super::super::super::tree::{TreeNodeRc};
-
-    pub fn test() -> i32 {
-        let canvas = Canvas::new(1);
-        let arc_context = canvas.get_context();
-        let mut context = arc_context.lock().unwrap();
-        let elem = {
-            let cfg = context.get_canvas_config();
-            let elem = element! {
-                 [cfg] EmptyElement {
-                    left = 10.;
-                    top = 20.;
-                    EmptyElement;
-                    EmptyElement {
-                        EmptyElement;
-                        top = 20.;
-                    };
-                    Image {
-                        width = 100.;
-                        height = 100.;
-                        .load("../resources/lastleaf.png");
-                    };
-                }
-            };
-            elem
-        };
-        let mut root_elem = context.get_root();
-        root_elem.append(elem);
-        return 0;
-    }
 }
