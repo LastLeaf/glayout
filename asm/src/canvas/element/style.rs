@@ -1,3 +1,4 @@
+#[derive(Default)]
 pub struct ElementStyle {
     pub left: f64,
     pub top: f64,
@@ -7,11 +8,6 @@ pub struct ElementStyle {
 
 impl ElementStyle {
     pub fn new() -> Self {
-        ElementStyle {
-            left: 0.,
-            top: 0.,
-            width: 0.,
-            height: 0.,
-        }
+        ElementStyle { ..Default::default() }
     }
 }

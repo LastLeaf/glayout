@@ -1,11 +1,11 @@
 use std::sync::{Arc, Mutex};
-use super::super::glayout::frame::animation::{AnimationObject, TimingAnimation};
-use super::super::glayout::frame::animation::{LinearTiming};
+use glayout::frame::animation::{AnimationObject, TimingAnimation};
+use glayout::frame::animation::{LinearTiming};
 
 pub struct TestAnimation();
 impl TimingAnimation for TestAnimation {
     fn progress(&mut self, _current_value: f64, _current_time: f64, _total_time: f64) {
-        println!("Animation progress: {}", _current_value);
+        debug!("Animation progress: {}", _current_value);
     }
 }
 

@@ -1,5 +1,3 @@
-#![macro_use]
-
 use std::ops::{Deref, DerefMut};
 
 // NOTE PretendSend is only safe to use in single-threaded env.

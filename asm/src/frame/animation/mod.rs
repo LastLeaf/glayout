@@ -23,6 +23,9 @@ pub struct AnimationObject {
 
 impl super::Frame for AnimationObject {
     fn frame(&mut self, timestamp: f64) -> bool {
+        if self.start_time < 0. {
+            self.start_time = timestamp;
+        }
         if self.total_time <= timestamp - self.start_time && self.current_frame >= self.total_frames {
             self.animation.end(self.total_frames, self.total_time);
             return false;
@@ -36,7 +39,7 @@ impl super::Frame for AnimationObject {
 impl AnimationObject {
     pub fn new(ani: Box<Animation>) -> Self {
         AnimationObject {
-            start_time: 0.,
+            start_time: -1.,
             total_time: 0.,
             current_frame: 0,
             total_frames: 0,

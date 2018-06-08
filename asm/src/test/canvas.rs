@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
-use super::super::glayout::canvas::Canvas;
-use super::super::glayout::frame::animation::{TimingAnimation, AnimationObject, LinearTiming};
+use glayout::canvas::Canvas;
+use glayout::frame::animation::{TimingAnimation, AnimationObject, LinearTiming};
 
 pub fn init() {
     register_test_case!(module_path!(), {

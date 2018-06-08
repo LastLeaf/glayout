@@ -16,6 +16,6 @@ impl super::ElementContent for EmptyElement {
     }
     fn draw(&self, _elem: &ElementStyle) {
         // do nothing
-        // println!("Attempted to draw an EmptyElement");
+        debug!("Attempted to draw an EmptyElement");
     }
 }

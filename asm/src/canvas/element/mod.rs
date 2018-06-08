@@ -20,7 +20,7 @@ pub trait ElementContent: Downcast + Send + fmt::Debug {
 impl_downcast!(ElementContent);
 
 pub struct Element {
-    style: ElementStyle,
+    pub style: ElementStyle,
     content: Box<ElementContent>,
 }
 
@@ -51,6 +51,7 @@ impl fmt::Display for Element {
     }
 }
 
+#[macro_export]
 macro_rules! __element_children {
     ($cfg:expr, $v:ident, $t:ident, ) => {};
     ($cfg:expr, $v:ident, $t:ident, $k:ident = $a:expr; $($r:tt)*) => {
@@ -75,6 +76,7 @@ macro_rules! __element_children {
     }
 }
 
+#[macro_export]
 macro_rules! __element_tree {
     ($cfg:expr, $e:ident) => {
         __element_tree! ($cfg, $e {})

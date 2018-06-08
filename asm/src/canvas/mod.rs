@@ -30,7 +30,7 @@ impl Canvas {
             tex_max_draws: lib!(tex_get_max_draws()) as i32,
             image_id_inc: 1,
         };
-        println!("Canvas binded: tex_size {}; tex_count {}; tex_max_draws {}", canvas_config.tex_size, canvas_config.tex_count, canvas_config.tex_max_draws);
+        log!("Canvas binded: tex_size {}; tex_count {}; tex_max_draws {}", canvas_config.tex_size, canvas_config.tex_count, canvas_config.tex_max_draws);
         let root_element = element! {
             [&mut canvas_config] EmptyElement
         };

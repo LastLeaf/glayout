@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate lazy_static;
 
+#[macro_use]
 extern crate glayout;
 
 use std::ffi::CStr;
@@ -16,13 +17,18 @@ pub fn get_string_from_c_char(char_arr: *const c_char) -> String {
 }
 
 #[no_mangle]
-pub extern "C" fn run_test_case(name_c_char: *const c_char) {
-    let name = get_string_from_c_char(name_c_char);
+pub extern "C" fn load_test_cases() {
+    test::init();
+}
+
+#[no_mangle]
+pub extern "C" fn run_test_case(name_c_char: i32) {
+    let name = get_string_from_c_char(name_c_char as *const c_char);
+    log!("Running test case: {}", name);
     run_test_case!(name);
 }
 
 fn main() {
     glayout::init();
-    test::init();
     glayout::main_loop();
 }

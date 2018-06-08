@@ -2,6 +2,8 @@ use std::ffi::CString;
 use super::super::CanvasConfig;
 use super::ElementStyle;
 
+// basic image element
+
 #[derive(Debug)]
 pub struct Image {
     canvas_index: i32,
@@ -30,7 +32,7 @@ impl super::ElementContent for Image {
     }
     fn draw(&self, style: &ElementStyle) {
         // do nothing
-        // println!("Attempted to draw an Image");
+        debug!("Attempted to draw an Image");
         if self.loader.is_some() {
             return
         }
@@ -38,6 +40,8 @@ impl super::ElementContent for Image {
         lib!(tex_draw_end(self.canvas_index));
     }
 }
+
+// image loader
 
 #[derive(Debug)]
 pub struct ImageLoader {
