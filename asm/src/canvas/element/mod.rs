@@ -14,9 +14,9 @@ use downcast_rs::Downcast;
 use std::fmt;
 use super::CanvasConfig;
 
-pub trait ElementContent: Downcast + Send + fmt::Debug {
+pub trait ElementContent: Downcast + Send {
     fn name(&self) -> &'static str;
-    fn draw(&self, style: &ElementStyle);
+    fn draw(&mut self, style: &ElementStyle, bounding_rect: &BoundingRect);
 }
 
 impl_downcast!(ElementContent);
@@ -38,8 +38,8 @@ impl Element {
     pub fn name(&self) -> &'static str {
         self.content.name()
     }
-    pub fn draw(&self) {
-        self.content.draw(&self.style);
+    pub fn draw(&mut self) {
+        self.content.draw(&self.style, &self.bounding_rect);
     }
     pub fn get_content_ref<T: ElementContent>(&self) -> &T {
         self.content.downcast_ref::<T>().unwrap()

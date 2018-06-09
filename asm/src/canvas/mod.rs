@@ -23,13 +23,12 @@ pub struct Canvas {
 impl Canvas {
     pub fn new(index: i32) -> Self {
         lib!(bind_canvas(index));
-        let mut canvas_config = CanvasConfig {
+        let mut canvas_config = CanvasConfig::new(
             index,
-            tex_size: lib!(tex_get_size(index)) as i32,
-            tex_count: lib!(tex_get_count(index)) as i32,
-            tex_max_draws: lib!(tex_get_max_draws()) as i32,
-            image_id_inc: 1,
-        };
+            lib!(tex_get_size(index)) as i32,
+            lib!(tex_get_count(index)) as i32,
+            lib!(tex_get_max_draws()) as i32
+        );
         log!("Canvas binded: tex_size {}; tex_count {}; tex_max_draws {}", canvas_config.tex_size, canvas_config.tex_count, canvas_config.tex_max_draws);
         let root_element = element! {
             [&mut canvas_config] EmptyElement

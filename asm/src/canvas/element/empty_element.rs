@@ -1,5 +1,5 @@
 use super::super::CanvasConfig;
-use super::ElementStyle;
+use super::{ElementStyle, BoundingRect};
 
 #[derive(Debug)]
 pub struct EmptyElement {}
@@ -14,7 +14,7 @@ impl super::ElementContent for EmptyElement {
     fn name(&self) -> &'static str {
         "EmptyElement"
     }
-    fn draw(&self, _elem: &ElementStyle) {
+    fn draw(&mut self, _style: &ElementStyle, _bounding_rect: &BoundingRect) {
         // do nothing
         debug!("Attempted to draw an EmptyElement");
     }

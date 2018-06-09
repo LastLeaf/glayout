@@ -24,7 +24,7 @@ pub fn get_log_level_num() -> i32 {
 macro_rules! debug {
     ($($c:tt)*) => {
         if $crate::utils::log_level::get_log_level_num() <= -1 {
-            print!("[GLayout] [debug] ");
+            print!("[glayout] [debug] ");
             println!($($c)*);
         }
     }
@@ -34,7 +34,7 @@ macro_rules! debug {
 macro_rules! log {
     ($($c:tt)*) => {
         if $crate::utils::log_level::get_log_level_num() <= 0 {
-            print!("[GLayout] [log] ");
+            print!("[glayout] [log] ");
             println!($($c)*);
         }
     }
@@ -44,7 +44,7 @@ macro_rules! log {
 macro_rules! info {
     ($($c:tt)*) => {
         if $crate::utils::log_level::get_log_level_num() <= 1 {
-            print!("[GLayout] [info] ");
+            print!("[glayout] [info] ");
             println!($($c)*);
         }
     }
@@ -54,7 +54,7 @@ macro_rules! info {
 macro_rules! warn {
     ($($c:tt)*) => {
         if $crate::utils::log_level::get_log_level_num() <= 2 {
-            print!("[GLayout] [warn] ");
+            print!("[glayout] [warn] ");
             println!($($c)*);
         }
     }
@@ -64,7 +64,7 @@ macro_rules! warn {
 macro_rules! error {
     ($($c:tt)*) => {
         if $crate::utils::log_level::get_log_level_num() <= 3 {
-            print!("[GLayout] [error] ");
+            print!("[glayout] [error] ");
             println!($($c)*);
         }
     }

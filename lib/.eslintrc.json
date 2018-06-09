@@ -96,7 +96,7 @@
     "no-shadow-restricted-names": 2,
     "no-shadow": 0,
     "no-undefined": 0,
-    "no-unused-vars": [1, { "args": "none" }],
+    "no-unused-vars": [1, { "args": "all" }],
     "no-use-before-define": [2, { "functions": false, "classes": false }],
 
     "callback-return": [2, ["callback", "cb", "done", "next"]],

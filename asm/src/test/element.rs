@@ -4,7 +4,13 @@ use glayout::tree::TreeNodeRc;
 
 pub fn init() {
     register_test_case!(module_path!(), {
-        let canvas = Canvas::new(0);
+        let mut canvas = Canvas::new(0);
+
+        canvas.context(|ctx| {
+            ctx.set_canvas_size(800, 800);
+            ctx.set_clear_color(0.5, 0.5, 0.5, 1.);
+        });
+
         let arc_context = canvas.get_context();
         let mut context = arc_context.lock().unwrap();
         let elem = {
@@ -19,9 +25,9 @@ pub fn init() {
                         top = 20.;
                     };
                     Image {
-                        width = 100.;
-                        height = 100.;
-                        .load("../resources/lastleaf.png");
+                        width = 400.;
+                        height = 400.;
+                        .load("../resources/test.png");
                     };
                 }
             };
