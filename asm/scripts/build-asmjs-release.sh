@@ -1,3 +1,8 @@
 #!/bin/sh
 
-EMMAKEN_CFLAGS="-s WASM=0 -s SINGLE_FILE=1 -s EXTRA_EXPORTED_RUNTIME_METHODS=[\'UTF8ToString\',\'stringToUTF8\'] --js-library ../lib/bin/interfaces-release.js --pre-js scripts/pre.js --post-js scripts/post.js --llvm-lto 3 -O3 -Os --closure 1" cargo build --target=asmjs-unknown-emscripten --release
+SCRIPT=$(readlink -f "$0")
+SCRIPTPATH=$(dirname "$SCRIPT")
+
+export EMMAKEN_CFLAGS="-s WASM=0 -s SINGLE_FILE=1 -s EXTRA_EXPORTED_RUNTIME_METHODS=[\'UTF8ToString\',\'stringToUTF8\'] --js-library $SCRIPTPATH/../../lib/bin/interfaces-release.js --pre-js $SCRIPTPATH/pre.js --post-js $SCRIPTPATH/post.js --llvm-lto 3 -O3 -Os --closure 1"
+
+cargo build --target=asmjs-unknown-emscripten --release

@@ -1,20 +1,26 @@
 #![macro_use]
 
-use std::cell::Cell;
+use std::cell::UnsafeCell;
 
 lazy_static! {
-    static ref LOG_LEVEL_NUM: super::PretendSend<Cell<i32>> = super::PretendSend::new(Cell::new(0));
+    static ref LOG_LEVEL_NUM: super::PretendSend<UnsafeCell<Box<i32>>> = super::PretendSend::new(UnsafeCell::new(Box::new(0)));
 }
 
+#[allow(dead_code)]
 pub fn set_log_level_num(num: i32) {
-    (*LOG_LEVEL_NUM).set(num);
+    unsafe {
+        **LOG_LEVEL_NUM.get() = num;
+    }
 }
 
 #[inline]
 pub fn get_log_level_num() -> i32 {
-    (*LOG_LEVEL_NUM).get()
+    unsafe {
+        **LOG_LEVEL_NUM.get()
+    }
 }
 
+#[allow(unused_macros)]
 macro_rules! debug {
     ($($c:tt)*) => {
         if $crate::utils::log_level::get_log_level_num() <= -1 {
@@ -24,6 +30,7 @@ macro_rules! debug {
     }
 }
 
+#[allow(unused_macros)]
 macro_rules! log {
     ($($c:tt)*) => {
         if $crate::utils::log_level::get_log_level_num() <= 0 {
@@ -33,6 +40,7 @@ macro_rules! log {
     }
 }
 
+#[allow(unused_macros)]
 macro_rules! info {
     ($($c:tt)*) => {
         if $crate::utils::log_level::get_log_level_num() <= 1 {
@@ -42,6 +50,7 @@ macro_rules! info {
     }
 }
 
+#[allow(unused_macros)]
 macro_rules! warn {
     ($($c:tt)*) => {
         if $crate::utils::log_level::get_log_level_num() <= 2 {
@@ -51,6 +60,7 @@ macro_rules! warn {
     }
 }
 
+#[allow(unused_macros)]
 macro_rules! error {
     ($($c:tt)*) => {
         if $crate::utils::log_level::get_log_level_num() <= 3 {

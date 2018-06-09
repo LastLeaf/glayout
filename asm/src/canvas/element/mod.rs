@@ -2,10 +2,12 @@
 
 mod style;
 pub type ElementStyle = style::ElementStyle;
+mod bounding_rect;
+pub type BoundingRect = bounding_rect::BoundingRect;
 
 mod empty_element;
-mod image;
 pub type EmptyElement = empty_element::EmptyElement;
+mod image;
 pub type Image = image::Image;
 
 use downcast_rs::Downcast;
@@ -21,6 +23,7 @@ impl_downcast!(ElementContent);
 
 pub struct Element {
     pub style: ElementStyle,
+    bounding_rect: BoundingRect,
     content: Box<ElementContent>,
 }
 
@@ -28,6 +31,7 @@ impl Element {
     pub fn new(_cfg: &mut CanvasConfig, content: Box<ElementContent>) -> Self {
         Element {
             style: ElementStyle::new(),
+            bounding_rect: BoundingRect::new(),
             content,
         }
     }

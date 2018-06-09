@@ -14,6 +14,7 @@ pub struct TestManager { }
 
 impl TestManager {
     pub fn register(name: String, f: Box<TestCaseFn>) {
+        let name = String::from(name.splitn(2, "test::").nth(1).unwrap());
         debug!("Registering test case: {}", name);
         TEST_CASE_MAP.lock().unwrap().insert(name, f);
     }

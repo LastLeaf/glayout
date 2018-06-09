@@ -17,6 +17,12 @@ pub fn get_string_from_c_char(char_arr: *const c_char) -> String {
 }
 
 #[no_mangle]
+pub extern "C" fn set_test_log_level_num(num: i32) {
+    // NOTE static values are not shared between cargo targets, so the log level for glayout_main is separated
+    utils::log_level::set_log_level_num(num);
+}
+
+#[no_mangle]
 pub extern "C" fn load_test_cases() {
     test::init();
 }
