@@ -10,7 +10,7 @@ use super::{ElementStyle, BoundingRect};
 pub struct Image {
     canvas_index: i32,
     tex_id: i32,
-    waiting_loader: bool,
+    need_update: bool,
     loader: PretendSend<Option<Rc<RefCell<ImageLoader>>>>,
     natural_width: i32,
     natural_height: i32,
@@ -21,7 +21,7 @@ impl Image {
         Image {
             canvas_index: cfg.index,
             tex_id: cfg.alloc_tex_id(), // TODO change to dynamic
-            waiting_loader: false,
+            need_update: true,
             loader: PretendSend::new(None),
             natural_width: 0,
             natural_height: 0,
@@ -31,7 +31,7 @@ impl Image {
         // NOTE this method should be called if manually updated loader
         self.natural_width = 0;
         self.natural_height = 0;
-        self.waiting_loader = true;
+        self.need_update = true;
     }
     pub fn set_loader(&mut self, loader: Rc<RefCell<ImageLoader>>) {
         self.need_update_from_loader();
@@ -45,7 +45,7 @@ impl Image {
         ImageLoader::load(self.loader.as_mut().unwrap().clone(), url);
     }
     pub fn update_tex(&mut self) {
-        self.waiting_loader = false;
+        self.need_update = false;
         lib!(tex_from_image(self.canvas_index, self.tex_id, self.loader.as_ref().unwrap().borrow().get_img_id()));
     }
 }
@@ -55,7 +55,7 @@ impl super::ElementContent for Image {
         "Image"
     }
     fn draw(&mut self, style: &ElementStyle, bounding_rect: &BoundingRect) {
-        if self.waiting_loader {
+        if self.need_update {
             if self.loader.is_none() {
                 return
             }
@@ -68,6 +68,7 @@ impl super::ElementContent for Image {
                 self.natural_width = size.0;
                 self.natural_height = size.1;
             }
+            // NOTE for simplexity, tex generation is delayed to closest animation frame
             self.update_tex();
         }
         debug!("Attempted to draw an Image at ({}, {}) size ({}, {})", style.left, style.top, style.width, style.height);

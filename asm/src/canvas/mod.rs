@@ -5,6 +5,7 @@ use super::utils::PretendSend;
 
 pub mod element;
 mod config;
+mod character;
 
 pub type CanvasConfig = config::CanvasConfig;
 pub type Element = element::Element;

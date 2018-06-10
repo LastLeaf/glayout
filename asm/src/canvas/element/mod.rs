@@ -9,6 +9,8 @@ mod empty_element;
 pub type EmptyElement = empty_element::EmptyElement;
 mod image;
 pub type Image = image::Image;
+mod text;
+pub type Text = text::Text;
 
 use downcast_rs::Downcast;
 use std::fmt;
