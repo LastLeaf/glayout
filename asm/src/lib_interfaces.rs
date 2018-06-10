@@ -21,11 +21,13 @@ extern {
     pub fn tex_get_count(canvasIndex: i32) -> i32;
     pub fn tex_get_max_draws() -> i32;
     pub fn tex_delete(canvasIndex: i32, texId: i32);
-    pub fn tex_draw(canvasIndex: i32, drawIndex: i32, texId: i32, texX: f64, texY: f64, texW: f64, texH: f64, x: f64, y: f64, w: f64, h: f64);
+    pub fn tex_draw(canvasIndex: i32, drawIndex: i32, texId: i32, normalizedTexX: f64, normalizedTexY: f64, normalizedTexW: f64, normalizedTexH: f64, x: f64, y: f64, w: f64, h: f64);
     pub fn tex_draw_end(canvasIndex: i32, drawCount: i32);
 
     pub fn image_load_url(id: i32, url: *mut c_char, cbPtr: *mut Box<Callback>);
     pub fn image_unload(id: i32);
+    pub fn image_get_natural_width(id: i32) -> i32;
+    pub fn image_get_natural_height(id: i32) -> i32;
     pub fn tex_from_image(canvasIndex: i32, texId: i32, imgId: i32);
 
     pub fn text_bind_font_family(id: i32, fontFamily: *mut c_char);
