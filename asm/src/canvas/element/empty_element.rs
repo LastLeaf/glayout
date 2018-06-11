@@ -16,6 +16,6 @@ impl super::ElementContent for EmptyElement {
     }
     fn draw(&mut self, _style: &ElementStyle, _bounding_rect: &BoundingRect) {
         // do nothing
-        debug!("Attempted to draw an EmptyElement");
+        // debug!("Attempted to draw an EmptyElement");
     }
 }

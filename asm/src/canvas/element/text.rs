@@ -11,7 +11,7 @@ pub struct Text {
     canvas_index: i32,
     character_manager: PretendSend<Rc<RefCell<CharacterManager>>>,
     text: String,
-    characters: PretendSend<Vec<Rc<Character>>>,
+    characters: PretendSend<Box<[Rc<Character>]>>,
     need_update: bool,
 }
 
@@ -21,7 +21,7 @@ impl Text {
             canvas_index: cfg.index,
             character_manager: PretendSend::new(cfg.get_character_manager()),
             text: String::from(""),
-            characters: PretendSend::new(vec![]),
+            characters: PretendSend::new(Box::new([])),
             need_update: true,
         }
     }

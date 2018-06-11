@@ -3,12 +3,14 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use super::super::super::utils::PretendSend;
 use super::super::CanvasConfig;
+use super::super::resource::ResourceManager;
 use super::{ElementStyle, BoundingRect};
 
 // basic image element
 
 pub struct Image {
     canvas_index: i32,
+    resource_manager: PretendSend<Rc<RefCell<ResourceManager>>>,
     tex_id: i32,
     need_update: bool,
     loader: PretendSend<Option<Rc<RefCell<ImageLoader>>>>,
@@ -20,7 +22,8 @@ impl Image {
     pub fn new(cfg: &mut CanvasConfig) -> Self {
         Image {
             canvas_index: cfg.index,
-            tex_id: cfg.alloc_tex_id(), // TODO change to dynamic
+            resource_manager: PretendSend::new(cfg.get_resource_manager()),
+            tex_id: -1,
             need_update: true,
             loader: PretendSend::new(None),
             natural_width: 0,
@@ -40,12 +43,15 @@ impl Image {
     pub fn load<T: Into<Vec<u8>>>(&mut self, url: T) {
         self.need_update_from_loader();
         if self.loader.is_none() {
-            self.set_loader(Rc::new(RefCell::new(ImageLoader::new())))
+            self.set_loader(Rc::new(RefCell::new(ImageLoader::new_with_resource_manager(self.resource_manager.clone()))))
         }
         ImageLoader::load(self.loader.as_mut().unwrap().clone(), url);
     }
     pub fn update_tex(&mut self) {
         self.need_update = false;
+        if self.tex_id < 0 {
+            self.tex_id = self.resource_manager.borrow_mut().alloc_tex_id()
+        }
         lib!(tex_from_image(self.canvas_index, self.tex_id, self.loader.as_ref().unwrap().borrow().get_img_id()));
     }
 }
@@ -71,7 +77,7 @@ impl super::ElementContent for Image {
             // NOTE for simplexity, tex generation is delayed to closest animation frame
             self.update_tex();
         }
-        debug!("Attempted to draw an Image at ({}, {}) size ({}, {})", style.left, style.top, style.width, style.height);
+        // debug!("Attempted to draw an Image at ({}, {}) size ({}, {})", style.left, style.top, style.width, style.height);
         lib!(tex_draw(self.canvas_index, 0, self.tex_id, 0., 0., 1., 1., style.left, style.top, style.width, style.height));
         lib!(tex_draw_end(self.canvas_index, 1));
     }
@@ -94,14 +100,18 @@ pub struct ImageLoader {
 }
 
 impl ImageLoader {
-    pub fn new() -> Self {
+    pub fn new(cfg: &mut CanvasConfig) -> Self {
+        Self::new_with_resource_manager(cfg.get_resource_manager())
+    }
+    pub fn new_with_resource_manager(resource_manager: Rc<RefCell<ResourceManager>>) -> Self {
         ImageLoader {
             status: ImageLoaderStatus::NotLoaded,
-            img_id: CanvasConfig::alloc_image_id(),
+            img_id: resource_manager.borrow_mut().alloc_image_id(),
             width: 0,
             height: 0,
         }
     }
+
     pub fn get_img_id(&self) -> i32 {
         self.img_id
     }
