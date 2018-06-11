@@ -43,7 +43,8 @@ impl Image {
     pub fn load<T: Into<Vec<u8>>>(&mut self, url: T) {
         self.need_update_from_loader();
         if self.loader.is_none() {
-            self.set_loader(Rc::new(RefCell::new(ImageLoader::new_with_resource_manager(self.resource_manager.clone()))))
+            let rm = (*self.resource_manager).clone();
+            self.set_loader(Rc::new(RefCell::new(ImageLoader::new_with_resource_manager(rm))));
         }
         ImageLoader::load(self.loader.as_mut().unwrap().clone(), url);
     }

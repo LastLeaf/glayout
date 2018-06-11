@@ -1,5 +1,5 @@
 use glayout::canvas::Canvas;
-use glayout::canvas::element::{Element, EmptyElement, Image};
+use glayout::canvas::element::{Element, EmptyElement, Image, Text};
 use glayout::tree::TreeNodeRc;
 
 pub fn init() {
@@ -20,14 +20,17 @@ pub fn init() {
                     left = 10.;
                     top = 20.;
                     EmptyElement;
-                    EmptyElement {
-                        EmptyElement;
-                        top = 20.;
-                    };
                     Image {
                         width = 400.;
                         height = 400.;
                         .load("../resources/test.png");
+                    };
+                    EmptyElement {
+                        Text {
+                            font_size = 50;
+                            .set_text("Hello Lena~");
+                        };
+                        top = 20.;
                     };
                 }
             };

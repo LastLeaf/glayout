@@ -21,8 +21,8 @@ impl CanvasConfig {
             tex_size,
             tex_count,
             tex_max_draws,
-            resource_manager: PretendSend::new(resource_manager),
-            character_manager: PretendSend::new(Rc::new(RefCell::new(CharacterManager::new(index, resource_manager.clone())))),
+            resource_manager: PretendSend::new(resource_manager.clone()),
+            character_manager: PretendSend::new(Rc::new(RefCell::new(CharacterManager::new(index, resource_manager)))),
         }
     }
 
