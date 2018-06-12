@@ -38,7 +38,7 @@ pub struct Character {
     font_style: FontStyle,
     font_size: f64,
     width: Cell<f64>,
-    tex_id: Cell<i32>
+    tex_id: Cell<i32>,
 }
 
 impl Character {
@@ -95,7 +95,8 @@ impl CharacterManager {
     }
 
     fn draw_to_tex(&self, characters: &mut Vec<Rc<Character>>, whole_string: String, font_size: i32) {
-        let mut left = 0;
+        // TODO change to draw each char independently
+        let mut left = 0.;
         characters.iter().for_each(|character| {
             let mut s = String::new();
             s.push(character.unicode);
@@ -105,14 +106,14 @@ impl CharacterManager {
             left += width;
         });
         let total_width = left;
-        lib!(text_draw_in_canvas(CString::new(whole_string).unwrap().into_raw(), total_width, font_size));
-        let mut left = 0;
+        lib!(text_draw_in_canvas(CString::new(whole_string).unwrap().into_raw(), total_width.ceil() as i32, font_size));
+        let mut left = 0.;
         let mut index = 0;
         characters.iter().for_each(|character| {
             let tex_id = self.resource_manager.borrow_mut().alloc_tex_id();
             character.alloc_tex(tex_id);
-            let width = character.get_width() as i32;
-            lib!(tex_from_text(self.canvas_index, tex_id, left, 0, width, font_size));
+            let width = character.get_width();
+            lib!(tex_from_text(self.canvas_index, tex_id, left as i32, 0, width as i32, font_size));
             left += width;
             index += 1;
         });

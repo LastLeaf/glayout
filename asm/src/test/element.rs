@@ -23,14 +23,14 @@ pub fn init() {
                     Image {
                         width = 400.;
                         height = 400.;
-                        .load("../resources/test.png");
+                        .load("../resources/lastleaf.png");
                     };
                     EmptyElement {
                         Text {
-                            font_size = 50;
+                            font_size = 32;
                             .set_text("Hello Lena~");
                         };
-                        top = 20.;
+                        top = 750.;
                     };
                 }
             };

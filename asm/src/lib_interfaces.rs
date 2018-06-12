@@ -33,7 +33,7 @@ extern {
     pub fn text_bind_font_family(id: i32, fontFamily: *mut c_char);
     pub fn text_unbind_font_family(id: i32);
     pub fn text_set_font(fontSize: i32, fontFamilyId: i32, italic: i32, bold: i32);
-    pub fn text_get_width(text: *mut c_char) ->i32;
+    pub fn text_get_width(text: *mut c_char) -> f64;
     pub fn text_draw_in_canvas(text: *mut c_char, width: i32, height: i32);
     pub fn tex_from_text(canvasIndex: i32, texId: i32, x: i32, y: i32, width: i32, height: i32);
 }
