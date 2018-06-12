@@ -5,7 +5,7 @@ pub struct ElementStyle {
     pub width: f64,
     pub height: f64,
     pub font_family: String,
-    pub font_size: i32,
+    pub font_size: f64,
 }
 
 impl ElementStyle {
