@@ -66,10 +66,11 @@ impl super::ElementContent for Text {
         let mut left = style.left;
         self.characters.iter().for_each(|character| {
             let height = style.font_size;
-            let width = character.get_width() *self.size_ratio;
-            lib!(tex_draw(self.canvas_index, 0, character.get_tex_id(), 0., 0., 1., 1., left, style.top, width, height));
+            let text_width = character.get_width() * self.size_ratio;
+            let text_left = character.get_left() * self.size_ratio;
+            lib!(tex_draw(self.canvas_index, 0, character.get_tex_id(), text_left / 4096., 0., text_width / 4096., height / 4096., left, style.top, text_width, height));
             lib!(tex_draw_end(self.canvas_index, 1));
-            left += width;
+            left += text_width;
         });
     }
 }

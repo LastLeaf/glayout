@@ -37,6 +37,7 @@ pub struct Character {
     font_family_id: i32,
     font_style: FontStyle,
     font_size: f64,
+    left: Cell<f64>,
     width: Cell<f64>,
     tex_id: Cell<i32>,
 }
@@ -49,6 +50,7 @@ impl Character {
             font_size: font_size as f64,
             font_style,
             width: Cell::new(0.),
+            left: Cell::new(0.),
             tex_id: Cell::new(-1),
         }
     }
@@ -64,6 +66,14 @@ impl Character {
     #[inline]
     pub fn get_width(&self) -> f64 {
         self.width.get()
+    }
+    #[inline]
+    fn set_left(&self, left: f64) {
+        self.left.set(left);
+    }
+    #[inline]
+    pub fn get_left(&self) -> f64 {
+        self.left.get()
     }
     #[inline]
     fn alloc_tex(&self, tex_id: i32) {
@@ -97,26 +107,20 @@ impl CharacterManager {
     fn draw_to_tex(&self, characters: &mut Vec<Rc<Character>>, whole_string: String, font_size: i32) {
         // TODO change to draw each char independently
         let mut left = 0.;
+        let tex_id = self.resource_manager.borrow_mut().alloc_tex_id();
         characters.iter().for_each(|character| {
             let mut s = String::new();
             s.push(character.unicode);
             // debug!("Upload text to tex: {}", s);
             let width = lib!(text_get_width(CString::new(s).unwrap().into_raw())); // FIXME should be able to batch
             character.set_width(width as f64);
+            character.set_left(left as f64);
+            character.alloc_tex(tex_id);
             left += width;
         });
         let total_width = left;
         lib!(text_draw_in_canvas(CString::new(whole_string).unwrap().into_raw(), total_width.ceil() as i32, font_size));
-        let mut left = 0.;
-        let mut index = 0;
-        characters.iter().for_each(|character| {
-            let tex_id = self.resource_manager.borrow_mut().alloc_tex_id();
-            character.alloc_tex(tex_id);
-            let width = character.get_width();
-            lib!(tex_from_text(self.canvas_index, tex_id, left as i32, 0, width as i32, font_size));
-            left += width;
-            index += 1;
-        });
+        lib!(tex_from_text(self.canvas_index, tex_id, left as i32, 0, total_width.ceil() as i32, font_size));
     }
 
     pub fn alloc_chars(&mut self, font_family_id: i32, font_size: i32, font_style: FontStyle, chars: Chars) -> Box<[Rc<Character>]> {
