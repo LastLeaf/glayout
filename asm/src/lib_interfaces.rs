@@ -13,7 +13,8 @@ extern {
 
     pub fn bind_canvas(canvasIndex: i32);
     pub fn unbind_canvas(canvasIndex: i32);
-    pub fn set_canvas_size(canvasIndex: i32, w: i32, h: i32);
+    pub fn set_canvas_size(canvasIndex: i32, w: i32, h: i32, pixel_ratio: f64);
+    pub fn get_device_pixel_ratio() -> f64;
     pub fn set_clear_color(canvasIndex: i32, r: f32, g: f32, b: f32, a: f32);
     pub fn clear(canvasIndex: i32);
 

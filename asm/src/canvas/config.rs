@@ -9,18 +9,20 @@ pub struct CanvasConfig {
     pub tex_size: i32,
     pub tex_count: i32,
     pub tex_max_draws: i32,
+    pub device_pixel_ratio: f64,
     resource_manager: PretendSend<Rc<RefCell<ResourceManager>>>,
     character_manager: PretendSend<Rc<RefCell<CharacterManager>>>,
 }
 
 impl CanvasConfig {
-    pub fn new(index: i32, tex_size: i32, tex_count: i32, tex_max_draws: i32) -> Self {
+    pub fn new(index: i32, tex_size: i32, tex_count: i32, tex_max_draws: i32, device_pixel_ratio: f64) -> Self {
         let resource_manager = Rc::new(RefCell::new(ResourceManager::new()));
         CanvasConfig {
             index,
             tex_size,
             tex_count,
             tex_max_draws,
+            device_pixel_ratio,
             resource_manager: PretendSend::new(resource_manager.clone()),
             character_manager: PretendSend::new(Rc::new(RefCell::new(CharacterManager::new(index, resource_manager)))),
         }

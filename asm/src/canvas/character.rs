@@ -100,7 +100,7 @@ impl CharacterManager {
         characters.iter().for_each(|character| {
             let mut s = String::new();
             s.push(character.unicode);
-            debug!("Upload text to tex: {}", s);
+            // debug!("Upload text to tex: {}", s);
             let width = lib!(text_get_width(CString::new(s).unwrap().into_raw())); // FIXME should be able to batch
             character.set_width(width as f64);
             left += width;

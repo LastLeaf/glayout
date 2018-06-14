@@ -7,7 +7,8 @@ pub fn init() {
         let mut canvas = Canvas::new(0);
 
         canvas.context(|ctx| {
-            ctx.set_canvas_size(800, 800);
+            let pixel_ratio = ctx.get_device_pixel_ratio();
+            ctx.set_canvas_size(800, 600, pixel_ratio);
             ctx.set_clear_color(0.5, 0.5, 0.5, 1.);
         });
 
@@ -23,7 +24,7 @@ pub fn init() {
                     Image {
                         width = 400.;
                         height = 400.;
-                        .load("../resources/test.png");
+                        .load("../resources/lastleaf.png");
                     };
                     EmptyElement {
                         Text {

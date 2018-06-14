@@ -29,7 +29,8 @@ impl Canvas {
             index,
             lib!(tex_get_size(index)) as i32,
             lib!(tex_get_count(index)) as i32,
-            lib!(tex_get_max_draws()) as i32
+            lib!(tex_get_max_draws()) as i32,
+            lib!(get_device_pixel_ratio()) as f64
         );
         log!("Canvas binded: tex_size {}; tex_count {}; tex_max_draws {}", canvas_config.tex_size, canvas_config.tex_count, canvas_config.tex_max_draws);
         let root_element = element! {
@@ -76,8 +77,11 @@ impl CanvasContext {
     pub fn get_canvas_config(&mut self) -> &mut CanvasConfig {
         &mut self.canvas_config
     }
-    pub fn set_canvas_size(&mut self, w: i32, h: i32) {
-        lib!(set_canvas_size(self.canvas_config.index, w, h));
+    pub fn set_canvas_size(&mut self, w: i32, h: i32, pixel_ratio: f64) {
+        lib!(set_canvas_size(self.canvas_config.index, w, h, pixel_ratio));
+    }
+    pub fn get_device_pixel_ratio(&self) -> f64 {
+        lib!(get_device_pixel_ratio())
     }
     pub fn set_clear_color(&mut self, r: f32, g: f32, b: f32, a: f32) {
         lib!(set_clear_color(self.canvas_config.index, r, g, b, a));

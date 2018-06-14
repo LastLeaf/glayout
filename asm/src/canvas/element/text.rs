@@ -5,12 +5,11 @@ use super::super::CanvasConfig;
 use super::super::character::{CharacterManager, Character, FontStyle};
 use super::{ElementStyle, BoundingRect};
 
-const MSAA: f64 = 2.;
-
 // basic text element
 
 pub struct Text {
     canvas_index: i32,
+    device_pixel_ratio: f64,
     character_manager: PretendSend<Rc<RefCell<CharacterManager>>>,
     text: String,
     characters: PretendSend<Box<[Rc<Character>]>>,
@@ -24,6 +23,7 @@ impl Text {
     pub fn new(cfg: &CanvasConfig) -> Self {
         Text {
             canvas_index: cfg.index,
+            device_pixel_ratio: cfg.device_pixel_ratio,
             character_manager: PretendSend::new(cfg.get_character_manager()),
             text: String::from(""),
             characters: PretendSend::new(Box::new([])),
@@ -40,7 +40,7 @@ impl Text {
     // TODO update if font_size / font_style / font_family updated
 
     fn generate_tex_font_size(&mut self, font_size: f64) { // TODO do not update if not changed
-        let min_font_size = font_size.ceil() * MSAA;
+        let min_font_size = (font_size * self.device_pixel_ratio).ceil();
         self.tex_font_size = min_font_size as i32;
         self.size_ratio = font_size / (self.tex_font_size as f64);
     }
@@ -54,7 +54,7 @@ impl super::ElementContent for Text {
     fn draw(&mut self, style: &ElementStyle, bounding_rect: &BoundingRect) {
         if self.need_update {
             self.generate_tex_font_size(style.font_size);
-            debug!("Attempted to regenerate Text: \"{}\" size {}", self.text, self.tex_font_size);
+            // debug!("Attempted to regenerate Text: \"{}\" font {} size {}", self.text, style.font_family.clone(), self.tex_font_size);
             // NOTE for simplexity, tex generation is delayed to closest animation frame
             let mut manager = self.character_manager.borrow_mut();
             manager.free_chars(&mut self.characters);
