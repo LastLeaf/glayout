@@ -21,6 +21,9 @@ extern {
     pub fn tex_get_size(canvasIndex: i32) -> i32;
     pub fn tex_get_count(canvasIndex: i32) -> i32;
     pub fn tex_get_max_draws() -> i32;
+    pub fn tex_create_empty(canvasIndex: i32, texId: i32, width: i32, height: i32);
+    pub fn tex_bind_rendering_target(canvasIndex: i32, texId: i32, width: i32, height: i32);
+    pub fn tex_unbind_rendering_target(canvasIndex: i32);
     pub fn tex_delete(canvasIndex: i32, texId: i32);
     pub fn tex_draw(canvasIndex: i32, drawIndex: i32, texId: i32, normalizedTexX: f64, normalizedTexY: f64, normalizedTexW: f64, normalizedTexH: f64, x: f64, y: f64, w: f64, h: f64);
     pub fn tex_draw_end(canvasIndex: i32, drawCount: i32);
@@ -35,8 +38,7 @@ extern {
     pub fn text_unbind_font_family(id: i32);
     pub fn text_set_font(fontSize: i32, fontFamilyId: i32, italic: i32, bold: i32);
     pub fn text_get_width(text: *mut c_char) -> f64;
-    pub fn text_draw_in_canvas(text: *mut c_char, width: i32, height: i32);
-    pub fn tex_from_text(canvasIndex: i32, texId: i32, x: i32, y: i32, width: i32, height: i32);
+    pub fn text_to_tex(canvasIndex: i32, text: *mut c_char, width: i32, height: i32);
 }
 
 pub trait Callback {

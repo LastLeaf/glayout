@@ -84,9 +84,12 @@ impl CanvasContext {
         lib!(get_device_pixel_ratio())
     }
     pub fn set_clear_color(&mut self, r: f32, g: f32, b: f32, a: f32) {
+        self.canvas_config.clear_color = (r, g, b, a);
         lib!(set_clear_color(self.canvas_config.index, r, g, b, a));
     }
     pub fn clear(&mut self) {
+        let (r, g, b, a) = self.canvas_config.clear_color;
+        lib!(set_clear_color(self.canvas_config.index, r, g, b, a));
         lib!(clear(self.canvas_config.index));
     }
     pub fn get_root(&mut self) -> TreeNodeRc<Element> {

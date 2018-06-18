@@ -10,6 +10,7 @@ pub struct CanvasConfig {
     pub tex_count: i32,
     pub tex_max_draws: i32,
     pub device_pixel_ratio: f64,
+    pub clear_color: (f32, f32, f32, f32),
     resource_manager: PretendSend<Rc<RefCell<ResourceManager>>>,
     character_manager: PretendSend<Rc<RefCell<CharacterManager>>>,
 }
@@ -23,6 +24,7 @@ impl CanvasConfig {
             tex_count,
             tex_max_draws,
             device_pixel_ratio,
+            clear_color: (1., 1., 1., 0.),
             resource_manager: PretendSend::new(resource_manager.clone()),
             character_manager: PretendSend::new(Rc::new(RefCell::new(CharacterManager::new(index, resource_manager)))),
         }

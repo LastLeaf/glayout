@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use super::super::super::utils::PretendSend;
 use super::super::CanvasConfig;
-use super::super::character::{CharacterManager, Character, FontStyle};
+use super::super::character::{CharacterManager, Character, FontStyle, CACHE_TEX_SIZE};
 use super::{ElementStyle, BoundingRect};
 
 // basic text element
@@ -65,12 +65,13 @@ impl super::ElementContent for Text {
         // debug!("Attempted to draw Text: {}", self.text);
         let mut left = style.left;
         self.characters.iter().for_each(|character| {
-            let height = style.font_size;
-            let text_width = character.get_width() * self.size_ratio;
-            let text_left = character.get_left() * self.size_ratio;
-            lib!(tex_draw(self.canvas_index, 0, character.get_tex_id(), text_left / 4096., 0., text_width / 4096., height / 4096., left, style.top, text_width, height));
+            let pos = character.get_position();
+            lib!(tex_draw(self.canvas_index, 0, character.get_tex_id(),
+                pos.0 / CACHE_TEX_SIZE as f64, pos.1 / CACHE_TEX_SIZE as f64, 1., 1.,
+                left, 0., pos.2, pos.3
+            ));
             lib!(tex_draw_end(self.canvas_index, 1));
-            left += text_width;
+            left += pos.2;
         });
     }
 }
