@@ -102,12 +102,10 @@ impl CharacterManager {
     }
 
     fn draw_to_tex(&self, characters: &mut Vec<Rc<Character>>, whole_string: String, font_size: i32) {
-        // TODO change to draw each char independently
         let mut left = 0.;
         characters.iter().for_each(|character| {
             let mut s = String::new();
             s.push(character.unicode);
-            // debug!("Upload text to tex: {}", s);
             let width = lib!(text_get_width(CString::new(s).unwrap().into_raw())); // FIXME should be able to batch
             character.set_position(left, 0., width);
             let tex_id = self.resource_manager.borrow_mut().alloc_tex_id();
@@ -117,13 +115,15 @@ impl CharacterManager {
         });
         let total_width = left.ceil() as i32;
         lib!(text_to_tex(self.canvas_index, CString::new(whole_string).unwrap().into_raw(), total_width, font_size));
+        // lib!(tex_bind_rendering_target(self.canvas_index, -1, total_width, font_size));
         characters.iter().for_each(|character| {
             let pos = character.get_position();
             let target_width = pos.2.ceil() as i32;
             let target_height = pos.3.ceil() as i32;
             lib!(tex_bind_rendering_target(self.canvas_index, character.get_tex_id(), target_width, target_height));
-            lib!(tex_draw(self.canvas_index, 0, -1, pos.0 / total_width as f64, 0., pos.2 / total_width as f64, 1., 0., 0., pos.2, pos.3));
+            lib!(tex_draw(self.canvas_index, 0, -1, pos.0 / total_width as f64, 1., pos.2 / total_width as f64, -1., 0., 0., pos.2, pos.3));
             lib!(tex_draw_end(self.canvas_index, 1));
+            // lib!(tex_copy(self.canvas_index, character.get_tex_id(), 0, 0, left.ceil() as i32, 0, target_width, target_height));
             character.set_position(0., 0., pos.2);
         });
         lib!(tex_unbind_rendering_target(self.canvas_index));

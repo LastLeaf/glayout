@@ -9,7 +9,7 @@ pub fn init() {
         canvas.context(|ctx| {
             let pixel_ratio = ctx.get_device_pixel_ratio();
             ctx.set_canvas_size(800, 600, pixel_ratio);
-            ctx.set_clear_color(0.5, 0.5, 0.5, 1.);
+            ctx.set_clear_color(0.5, 1., 0.5, 1.);
         });
 
         let arc_context = canvas.get_context();
@@ -24,7 +24,7 @@ pub fn init() {
                     Image {
                         width = 400.;
                         height = 400.;
-                        .load("../resources/lastleaf.png");
+                        .load("../resources/test.png");
                     };
                     EmptyElement {
                         Text {

@@ -22,6 +22,7 @@ extern {
     pub fn tex_get_count(canvasIndex: i32) -> i32;
     pub fn tex_get_max_draws() -> i32;
     pub fn tex_create_empty(canvasIndex: i32, texId: i32, width: i32, height: i32);
+    pub fn tex_copy(canvasIndex: i32, destTexId: i32, destLeft: i32, destTop: i32, srcLeft: i32, srcTop: i32, width: i32, height: i32);
     pub fn tex_bind_rendering_target(canvasIndex: i32, texId: i32, width: i32, height: i32);
     pub fn tex_unbind_rendering_target(canvasIndex: i32);
     pub fn tex_delete(canvasIndex: i32, texId: i32);

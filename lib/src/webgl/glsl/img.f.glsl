@@ -18,7 +18,7 @@ uniform sampler2D uTex14;
 uniform sampler2D uTex15;
 
 void main(void) {
-  highp vec4 color = vec4(1, 0, 0, 0.1);
+  highp vec4 color = vec4(1., 0., 0., 0.1);
   if (vTexIndex == 0.) color = texture2D(uTex0, vTexPos);
   if (vTexIndex == 1.) color = texture2D(uTex1, vTexPos);
   if (vTexIndex == 2.) color = texture2D(uTex2, vTexPos);

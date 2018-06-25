@@ -66,12 +66,13 @@ impl super::ElementContent for Text {
         let mut left = style.left;
         self.characters.iter().for_each(|character| {
             let pos = character.get_position();
+            let width = pos.2 * self.size_ratio;
             lib!(tex_draw(self.canvas_index, 0, character.get_tex_id(),
                 pos.0 / CACHE_TEX_SIZE as f64, pos.1 / CACHE_TEX_SIZE as f64, 1., 1.,
-                left, 0., pos.2, pos.3
+                left, 0., width, style.font_size
             ));
             lib!(tex_draw_end(self.canvas_index, 1));
-            left += pos.2;
+            left += width;
         });
     }
 }
