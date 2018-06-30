@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use super::super::super::utils::PretendSend;
 use super::super::CanvasConfig;
-use super::super::character::{CharacterManager, Character, FontStyle, CACHE_TEX_SIZE};
+use super::super::character::{CharacterManager, Character, FontStyle};
 use super::{ElementStyle, BoundingRect};
 
 // basic text element
@@ -64,15 +64,30 @@ impl super::ElementContent for Text {
         }
         // debug!("Attempted to draw Text: {}", self.text);
         let mut left = style.left;
+        let mut top = 0.;
         self.characters.iter().for_each(|character| {
-            let pos = character.get_position();
-            let width = pos.2 * self.size_ratio;
-            lib!(tex_draw(self.canvas_index, 0, character.get_tex_id(),
-                pos.0 / CACHE_TEX_SIZE as f64, pos.1 / CACHE_TEX_SIZE as f64, 1., 1.,
-                left, 0., width, style.font_size
-            ));
-            lib!(tex_draw_end(self.canvas_index, 1));
-            left += width;
+            if character.get_tex_id() == -1 {
+                if character.get_char() == '\n' {
+                    top += character.get_position().5 * self.size_ratio; // TODO
+                    left = 0.;
+                }
+            } else {
+                let pos = character.get_position();
+                let width = pos.4 * self.size_ratio;
+                let height = pos.5 * self.size_ratio;
+                if left + width >= 800. { // TODO
+                    top += style.font_size; // TODO
+                    left = 0.;
+                }
+                if top < 600. { // TODO
+                    lib!(tex_draw(self.canvas_index, 0, character.get_tex_id(),
+                        pos.0, pos.1, pos.2, pos.3,
+                        left, top, width, height
+                    ));
+                    lib!(tex_draw_end(self.canvas_index, 1));
+                }
+                left += width;
+            }
         });
     }
 }

@@ -41,6 +41,9 @@ pub struct Character {
     left: Cell<f64>,
     top: Cell<f64>,
     width: Cell<f64>,
+    height: Cell<f64>,
+    natural_width: Cell<f64>,
+    natural_height: Cell<f64>,
     tex_id: Cell<i32>,
 }
 
@@ -54,23 +57,33 @@ impl Character {
             left: Cell::new(0.),
             top: Cell::new(0.),
             width: Cell::new(0.),
+            height: Cell::new(0.),
+            natural_width: Cell::new(0.),
+            natural_height: Cell::new(0.),
             tex_id: Cell::new(-1),
         }
     }
 
     #[inline]
+    pub fn get_char(&self) -> char {
+        self.unicode
+    }
+    #[inline]
     pub fn get_font_size(&self) -> f64 {
         self.font_size
     }
     #[inline]
-    fn set_position(&self, left: f64, top: f64, width: f64) {
+    fn set_position(&self, left: f64, top: f64, width: f64, height: f64, natural_width: f64, natural_height: f64) {
         self.left.set(left);
         self.top.set(top);
         self.width.set(width);
+        self.height.set(height);
+        self.natural_width.set(natural_width);
+        self.natural_height.set(natural_height);
     }
     #[inline]
-    pub fn get_position(&self) -> (f64, f64, f64, f64) {
-        (self.left.get(), self.top.get(), self.width.get(), self.font_size)
+    pub fn get_position(&self) -> (f64, f64, f64, f64, f64, f64) {
+        (self.left.get(), self.top.get(), self.width.get(), self.height.get(), self.natural_width.get(), self.natural_height.get())
     }
     #[inline]
     fn alloc_tex(&self, tex_id: i32) {
@@ -84,6 +97,11 @@ impl Character {
     pub fn get_tex_id(&self) -> i32 {
         self.tex_id.get()
     }
+}
+
+#[inline]
+fn get_line_height(font_size: i32) -> f64 {
+    (font_size as f64 * 1.5).ceil()
 }
 
 pub struct CharacterManager {
@@ -103,30 +121,33 @@ impl CharacterManager {
 
     fn draw_to_tex(&self, characters: &mut Vec<Rc<Character>>, whole_string: String, font_size: i32) {
         let mut left = 0.;
+        let tex_id = self.resource_manager.borrow_mut().alloc_tex_id();
+        let natural_height = get_line_height(font_size);
         characters.iter().for_each(|character| {
             let mut s = String::new();
             s.push(character.unicode);
             let width = lib!(text_get_width(CString::new(s).unwrap().into_raw())); // FIXME should be able to batch
-            character.set_position(left, 0., width);
-            let tex_id = self.resource_manager.borrow_mut().alloc_tex_id();
+            character.set_position(left, 0., width, 1., width, natural_height);
             character.alloc_tex(tex_id);
             lib!(tex_create_empty(self.canvas_index, tex_id, width.ceil() as i32, font_size));
             left += width;
         });
-        let total_width = left.ceil() as i32;
-        lib!(text_to_tex(self.canvas_index, CString::new(whole_string).unwrap().into_raw(), total_width, font_size));
-        // lib!(tex_bind_rendering_target(self.canvas_index, -1, total_width, font_size));
+        let total_width = left;
+        // lib!(tex_bind_rendering_target(self.canvas_index, tex_id, total_width, font_size));
+        lib!(text_to_tex(self.canvas_index, tex_id, CString::new(whole_string).unwrap().into_raw(), total_width.ceil() as i32, natural_height as i32));
+        // let mut left = 0. as f64;
         characters.iter().for_each(|character| {
             let pos = character.get_position();
-            let target_width = pos.2.ceil() as i32;
-            let target_height = pos.3.ceil() as i32;
-            lib!(tex_bind_rendering_target(self.canvas_index, character.get_tex_id(), target_width, target_height));
-            lib!(tex_draw(self.canvas_index, 0, -1, pos.0 / total_width as f64, 1., pos.2 / total_width as f64, -1., 0., 0., pos.2, pos.3));
-            lib!(tex_draw_end(self.canvas_index, 1));
+            // let target_width = pos.2.ceil() as i32;
+            // let target_height = pos.3.ceil() as i32;
+            // lib!(tex_bind_rendering_target(self.canvas_index, character.get_tex_id(), target_width, target_height));
+            // lib!(tex_draw(self.canvas_index, 0, -1, pos.0 / total_width as f64, 1., pos.2 / total_width as f64, -1., 0., 0., pos.2, pos.3));
+            // lib!(tex_draw_end(self.canvas_index, 1));
             // lib!(tex_copy(self.canvas_index, character.get_tex_id(), 0, 0, left.ceil() as i32, 0, target_width, target_height));
-            character.set_position(0., 0., pos.2);
+            character.set_position(pos.0 / total_width, pos.1, pos.2 / total_width, pos.3, pos.4, pos.5);
+            // left += pos.2;
         });
-        lib!(tex_unbind_rendering_target(self.canvas_index));
+        // lib!(tex_unbind_rendering_target(self.canvas_index));
     }
 
     pub fn alloc_chars(&mut self, font_family_id: i32, font_size: i32, font_style: FontStyle, chars: Chars) -> Box<[Rc<Character>]> {
@@ -149,14 +170,18 @@ impl CharacterManager {
                 },
                 None => {
                     let character = Rc::new(Character::new(c, font_family_id, font_size, font_style));
-                    string_to_draw.push(c);
-                    characters_to_draw.push(character.clone());
-                    if characters_to_draw.len() == batch_draws_count {
-                        self.draw_to_tex(&mut characters_to_draw, string_to_draw.clone(), font_size);
-                        characters_to_draw.truncate(0);
-                        string_to_draw = String::from("");
+                    if c < ' ' {
+                        character.set_position(0., 0., 0., 0., 0., get_line_height(font_size));
+                    } else {
+                        string_to_draw.push(c);
+                        characters_to_draw.push(character.clone());
+                        if characters_to_draw.len() == batch_draws_count {
+                            self.draw_to_tex(&mut characters_to_draw, string_to_draw.clone(), font_size);
+                            characters_to_draw.truncate(0);
+                            string_to_draw = String::from("");
+                        }
+                        need_insert = true;
                     }
-                    need_insert = true;
                     character
                 }
             };
