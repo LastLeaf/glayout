@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use super::super::CanvasConfig;
 use super::{ElementStyle, BoundingRect};
 
@@ -5,7 +6,7 @@ use super::{ElementStyle, BoundingRect};
 pub struct EmptyElement {}
 
 impl EmptyElement {
-    pub fn new(_cfg: &CanvasConfig) -> Self {
+    pub fn new(_cfg: &Rc<CanvasConfig>) -> Self {
         EmptyElement {}
     }
 }

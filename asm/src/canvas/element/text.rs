@@ -9,9 +9,9 @@ const DEFAULT_DPR: f64 = 2.;
 // basic text element
 
 pub struct Text {
+    canvas_config: Rc<CanvasConfig>,
     canvas_index: i32,
     device_pixel_ratio: f64,
-    character_manager: Rc<RefCell<CharacterManager>>,
     text: String,
     characters: Box<[Rc<Character>]>,
     need_update: bool,
@@ -21,14 +21,14 @@ pub struct Text {
 }
 
 impl Text {
-    pub fn new(cfg: &CanvasConfig) -> Self {
+    pub fn new(cfg: &Rc<CanvasConfig>) -> Self {
         Text {
+            canvas_config: cfg.clone(),
             canvas_index: cfg.index,
             device_pixel_ratio: if cfg.device_pixel_ratio == 1. { DEFAULT_DPR } else { cfg.device_pixel_ratio },
-            character_manager: cfg.get_character_manager(),
             text: String::from(""),
             characters: Box::new([]),
-            need_update: true,
+            need_update: false,
             tex_font_size: 0,
             font_family_id: 0,
             size_ratio: 1.,
@@ -36,6 +36,7 @@ impl Text {
     }
     pub fn set_text<T>(&mut self, s: T) where String: From<T> {
         self.need_update = true;
+        self.canvas_config.mark_dirty();
         self.text = String::from(s);
     }
     // TODO update if font_size / font_style / font_family updated
@@ -56,8 +57,8 @@ impl super::ElementContent for Text {
         if self.need_update {
             self.generate_tex_font_size(style.font_size);
             // debug!("Attempted to regenerate Text: \"{}\" font {} size {}", self.text, style.font_family.clone(), self.tex_font_size);
-            // NOTE for simplexity, tex generation is delayed to closest animation frame
-            let mut manager = self.character_manager.borrow_mut();
+            let cm = self.canvas_config.get_character_manager();
+            let mut manager = cm.borrow_mut();
             manager.free_chars(&mut self.characters);
             self.font_family_id = manager.get_font_family_id(style.font_family.clone()); // TODO do not update if not changed
             self.characters = manager.alloc_chars(self.font_family_id, self.tex_font_size, FontStyle::Normal, self.text.chars());
@@ -76,16 +77,16 @@ impl super::ElementContent for Text {
                 let pos = character.get_position();
                 let width = pos.4 * self.size_ratio;
                 let height = pos.5 * self.size_ratio;
-                if left + width >= 800. { // TODO
-                    top += style.font_size; // TODO
+                if left + width >= 800. { // TODO layout
+                    top += style.font_size; // TODO layout
                     left = 0.;
                 }
-                if top < 600. { // TODO
-                    lib!(tex_draw(self.canvas_index, 0, character.get_tex_id(),
+                if top < 600. { // TODO layout
+                    self.canvas_config.request_draw(
+                        character.get_tex_id(),
                         pos.0, pos.1, pos.2, pos.3,
                         left, top, width, height
-                    ));
-                    lib!(tex_draw_end(self.canvas_index, 1));
+                    );
                 }
                 left += width;
             }

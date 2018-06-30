@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::time::{Duration, Instant};
 use super::frame;
 use super::tree::{TreeNodeRc, TreeNodeSearchType};
 
@@ -13,7 +14,7 @@ pub type Element = element::Element;
 pub type EmptyElement = element::EmptyElement;
 
 pub struct CanvasContext {
-    canvas_config: CanvasConfig,
+    canvas_config: Rc<CanvasConfig>,
     root_element: TreeNodeRc<Element>,
 }
 
@@ -25,24 +26,24 @@ pub struct Canvas {
 impl Canvas {
     pub fn new(index: i32) -> Self {
         lib!(bind_canvas(index));
-        let mut canvas_config = CanvasConfig::new(
+        let canvas_config = Rc::new(CanvasConfig::new(
             index,
             lib!(tex_get_size(index)) as i32,
             lib!(tex_get_count(index)) as i32,
             lib!(tex_get_max_draws()) as i32,
             lib!(get_device_pixel_ratio()) as f64
-        );
+        ));
         log!("Canvas binded: tex_size {}; tex_count {}; tex_max_draws {}", canvas_config.tex_size, canvas_config.tex_count, canvas_config.tex_max_draws);
         let root_element = element! {
-            [&mut canvas_config] EmptyElement
+            [&canvas_config] EmptyElement
         };
-        let arc_ctx = Rc::new(RefCell::new(CanvasContext {
+        let ctx = Rc::new(RefCell::new(CanvasContext {
             canvas_config,
             root_element,
         }));
-        frame::bind(arc_ctx.clone());
+        frame::bind(ctx.clone());
         return Canvas {
-            context: arc_ctx
+            context: ctx
         };
     }
     pub fn destroy(&mut self) {
@@ -64,18 +65,24 @@ impl Drop for CanvasContext {
 
 impl frame::Frame for CanvasContext {
     fn frame(&mut self, _timestamp: f64) -> bool {
-        self.clear();
-        let mut root_element_rc = self.get_root();
-        root_element_rc.dfs(TreeNodeSearchType::ChildrenLast, &|element: &mut Element| {
-            element.draw();
-        });
+        let dirty = self.canvas_config.clear_dirty();
+        if dirty {
+            let now = Instant::now();
+            self.clear();
+            let mut root_element_rc = self.get_root();
+            root_element_rc.dfs(TreeNodeSearchType::ChildrenLast, &|element: &mut Element| {
+                element.draw();
+            });
+            self.canvas_config.flush_draw();
+            debug!("Redraw time: {}s {}ns", now.elapsed().as_secs(), now.elapsed().subsec_nanos());
+        }
         return true;
     }
 }
 
 impl CanvasContext {
-    pub fn get_canvas_config(&mut self) -> &mut CanvasConfig {
-        &mut self.canvas_config
+    pub fn get_canvas_config(&mut self) -> Rc<CanvasConfig> {
+        self.canvas_config.clone()
     }
     pub fn set_canvas_size(&mut self, w: i32, h: i32, pixel_ratio: f64) {
         lib!(set_canvas_size(self.canvas_config.index, w, h, pixel_ratio));
@@ -84,11 +91,11 @@ impl CanvasContext {
         lib!(get_device_pixel_ratio())
     }
     pub fn set_clear_color(&mut self, r: f32, g: f32, b: f32, a: f32) {
-        self.canvas_config.clear_color = (r, g, b, a);
+        self.canvas_config.set_clear_color((r, g, b, a));
         lib!(set_clear_color(self.canvas_config.index, r, g, b, a));
     }
     pub fn clear(&mut self) {
-        let (r, g, b, a) = self.canvas_config.clear_color;
+        let (r, g, b, a) = self.canvas_config.get_clear_color();
         lib!(set_clear_color(self.canvas_config.index, r, g, b, a));
         lib!(clear(self.canvas_config.index));
     }

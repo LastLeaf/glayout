@@ -12,8 +12,9 @@ pub type Image = image::Image;
 mod text;
 pub type Text = text::Text;
 
-use downcast_rs::Downcast;
+use std::rc::Rc;
 use std::fmt;
+use downcast_rs::Downcast;
 use super::CanvasConfig;
 
 pub trait ElementContent: Downcast {
@@ -30,7 +31,7 @@ pub struct Element {
 }
 
 impl Element {
-    pub fn new(_cfg: &mut CanvasConfig, content: Box<ElementContent>) -> Self {
+    pub fn new(_cfg: &Rc<CanvasConfig>, content: Box<ElementContent>) -> Self {
         Element {
             style: ElementStyle::new(),
             bounding_rect: BoundingRect::new(),

@@ -19,7 +19,8 @@
 
   "globals": {
     "__glayoutAsm__": false,
-    "Float32Array": false
+    "Float32Array": false,
+    "Uint16Array": false
   },
 
   "extends": "eslint:recommended",

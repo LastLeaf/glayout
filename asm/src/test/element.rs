@@ -17,7 +17,7 @@ pub fn init() {
         let elem = {
             let cfg = context.get_canvas_config();
             let elem = element! {
-                [cfg] EmptyElement {
+                [&cfg] EmptyElement {
                     left = 10.;
                     top = 20.;
                     EmptyElement;

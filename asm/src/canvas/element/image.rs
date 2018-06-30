@@ -2,14 +2,13 @@ use std::ffi::CString;
 use std::rc::Rc;
 use std::cell::RefCell;
 use super::super::CanvasConfig;
-use super::super::resource::ResourceManager;
 use super::{ElementStyle, BoundingRect};
 
 // basic image element
 
 pub struct Image {
+    canvas_config: Rc<CanvasConfig>,
     canvas_index: i32,
-    resource_manager: Rc<RefCell<ResourceManager>>,
     tex_id: i32,
     need_update: bool,
     loader: Option<Rc<RefCell<ImageLoader>>>,
@@ -18,12 +17,12 @@ pub struct Image {
 }
 
 impl Image {
-    pub fn new(cfg: &mut CanvasConfig) -> Self {
+    pub fn new(cfg: &Rc<CanvasConfig>) -> Self {
         Image {
+            canvas_config: cfg.clone(),
             canvas_index: cfg.index,
-            resource_manager: cfg.get_resource_manager(),
             tex_id: -1,
-            need_update: true,
+            need_update: false,
             loader: None,
             natural_width: 0,
             natural_height: 0,
@@ -34,6 +33,7 @@ impl Image {
         self.natural_width = 0;
         self.natural_height = 0;
         self.need_update = true;
+        self.canvas_config.mark_dirty();
     }
     pub fn set_loader(&mut self, loader: Rc<RefCell<ImageLoader>>) {
         self.need_update_from_loader();
@@ -42,15 +42,16 @@ impl Image {
     pub fn load<T: Into<Vec<u8>>>(&mut self, url: T) {
         self.need_update_from_loader();
         if self.loader.is_none() {
-            let rm = self.resource_manager.clone();
-            self.set_loader(Rc::new(RefCell::new(ImageLoader::new_with_resource_manager(rm))));
+            let cc = self.canvas_config.clone();
+            self.set_loader(Rc::new(RefCell::new(ImageLoader::new_with_canvas_config(cc))));
         }
         ImageLoader::load(self.loader.as_mut().unwrap().clone(), url);
     }
     pub fn update_tex(&mut self) {
         self.need_update = false;
         if self.tex_id < 0 {
-            self.tex_id = self.resource_manager.borrow_mut().alloc_tex_id()
+            let rm = self.canvas_config.get_resource_manager();
+            self.tex_id = rm.borrow_mut().alloc_tex_id();
         }
         lib!(tex_from_image(self.canvas_index, self.tex_id, self.loader.as_ref().unwrap().borrow().get_img_id()));
     }
@@ -78,8 +79,11 @@ impl super::ElementContent for Image {
             self.update_tex();
         }
         // debug!("Attempted to draw an Image at ({}, {}) size ({}, {})", style.left, style.top, style.width, style.height);
-        lib!(tex_draw(self.canvas_index, 0, self.tex_id, 0., 0., 1., 1., style.left, style.top, style.width, style.height));
-        lib!(tex_draw_end(self.canvas_index, 1));
+        self.canvas_config.request_draw(
+            self.tex_id,
+            0., 0., 1., 1.,
+            style.left, style.top, style.width, style.height
+        );
     }
 }
 
@@ -93,6 +97,7 @@ pub enum ImageLoaderStatus {
 }
 
 pub struct ImageLoader {
+    canvas_config: Rc<CanvasConfig>,
     status: ImageLoaderStatus,
     img_id: i32,
     width: i32,
@@ -100,13 +105,13 @@ pub struct ImageLoader {
 }
 
 impl ImageLoader {
-    pub fn new(cfg: &mut CanvasConfig) -> Self {
-        Self::new_with_resource_manager(cfg.get_resource_manager())
-    }
-    pub fn new_with_resource_manager(resource_manager: Rc<RefCell<ResourceManager>>) -> Self {
+    pub fn new_with_canvas_config(cfg: Rc<CanvasConfig>) -> Self {
+        let rm = cfg.get_resource_manager();
+        let mut rm = rm.borrow_mut();
         ImageLoader {
+            canvas_config: cfg,
             status: ImageLoaderStatus::NotLoaded,
-            img_id: resource_manager.borrow_mut().alloc_image_id(),
+            img_id: rm.alloc_image_id(),
             width: 0,
             height: 0,
         }
@@ -137,6 +142,7 @@ lib_define_callback! (ImageLoaderCallback {
         loader.status = ImageLoaderStatus::Loaded;
         loader.width = lib!(image_get_natural_width(loader.img_id));
         loader.height = lib!(image_get_natural_height(loader.img_id));
+        loader.canvas_config.mark_dirty(); // TODO mark connected image dirty but not the whole loader
     }
 });
 
