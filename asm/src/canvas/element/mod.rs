@@ -16,7 +16,7 @@ use downcast_rs::Downcast;
 use std::fmt;
 use super::CanvasConfig;
 
-pub trait ElementContent: Downcast + Send {
+pub trait ElementContent: Downcast {
     fn name(&self) -> &'static str;
     fn draw(&mut self, style: &ElementStyle, bounding_rect: &BoundingRect);
 }

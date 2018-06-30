@@ -1,6 +1,5 @@
 use std::rc::Rc;
 use std::cell::RefCell;
-use super::super::utils::PretendSend;
 use super::character::CharacterManager;
 use super::resource::ResourceManager;
 
@@ -11,8 +10,8 @@ pub struct CanvasConfig {
     pub tex_max_draws: i32,
     pub device_pixel_ratio: f64,
     pub clear_color: (f32, f32, f32, f32),
-    resource_manager: PretendSend<Rc<RefCell<ResourceManager>>>,
-    character_manager: PretendSend<Rc<RefCell<CharacterManager>>>,
+    resource_manager: Rc<RefCell<ResourceManager>>,
+    character_manager: Rc<RefCell<CharacterManager>>,
 }
 
 impl CanvasConfig {
@@ -25,16 +24,16 @@ impl CanvasConfig {
             tex_max_draws,
             device_pixel_ratio,
             clear_color: (1., 1., 1., 0.),
-            resource_manager: PretendSend::new(resource_manager.clone()),
-            character_manager: PretendSend::new(Rc::new(RefCell::new(CharacterManager::new(index, resource_manager)))),
+            resource_manager: resource_manager.clone(),
+            character_manager: Rc::new(RefCell::new(CharacterManager::new(index, resource_manager))),
         }
     }
 
     pub fn get_character_manager(&self) -> Rc<RefCell<CharacterManager>> {
-        (*self.character_manager).clone()
+        self.character_manager.clone()
     }
 
     pub fn get_resource_manager(&self) -> Rc<RefCell<ResourceManager>> {
-        (*self.resource_manager).clone()
+        self.resource_manager.clone()
     }
 }

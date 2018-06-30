@@ -1,4 +1,5 @@
-use std::sync::{Arc, Mutex};
+use std::rc::Rc;
+use std::cell::RefCell;
 use glayout::frame::animation::{AnimationObject, TimingAnimation};
 use glayout::frame::animation::{LinearTiming};
 
@@ -11,7 +12,7 @@ impl TimingAnimation for TestAnimation {
 
 pub fn init() {
     register_test_case!(module_path!(), {
-        let ani_obj = Arc::new(Mutex::new(AnimationObject::new(Box::new(LinearTiming::new(TestAnimation(), 0., 100.)))));
+        let ani_obj = Rc::new(RefCell::new(AnimationObject::new(Box::new(LinearTiming::new(TestAnimation(), 0., 100.)))));
         AnimationObject::exec(ani_obj, 0, 3000.);
         return 0;
     });

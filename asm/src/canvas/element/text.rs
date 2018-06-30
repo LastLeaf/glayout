@@ -1,6 +1,5 @@
 use std::rc::Rc;
 use std::cell::RefCell;
-use super::super::super::utils::PretendSend;
 use super::super::CanvasConfig;
 use super::super::character::{CharacterManager, Character, FontStyle};
 use super::{ElementStyle, BoundingRect};
@@ -12,9 +11,9 @@ const DEFAULT_DPR: f64 = 2.;
 pub struct Text {
     canvas_index: i32,
     device_pixel_ratio: f64,
-    character_manager: PretendSend<Rc<RefCell<CharacterManager>>>,
+    character_manager: Rc<RefCell<CharacterManager>>,
     text: String,
-    characters: PretendSend<Box<[Rc<Character>]>>,
+    characters: Box<[Rc<Character>]>,
     need_update: bool,
     font_family_id: i32,
     tex_font_size: i32,
@@ -26,9 +25,9 @@ impl Text {
         Text {
             canvas_index: cfg.index,
             device_pixel_ratio: if cfg.device_pixel_ratio == 1. { DEFAULT_DPR } else { cfg.device_pixel_ratio },
-            character_manager: PretendSend::new(cfg.get_character_manager()),
+            character_manager: cfg.get_character_manager(),
             text: String::from(""),
-            characters: PretendSend::new(Box::new([])),
+            characters: Box::new([]),
             need_update: true,
             tex_font_size: 0,
             font_family_id: 0,
@@ -61,7 +60,7 @@ impl super::ElementContent for Text {
             let mut manager = self.character_manager.borrow_mut();
             manager.free_chars(&mut self.characters);
             self.font_family_id = manager.get_font_family_id(style.font_family.clone()); // TODO do not update if not changed
-            self.characters = PretendSend::new(manager.alloc_chars(self.font_family_id, self.tex_font_size, FontStyle::Normal, self.text.chars()));
+            self.characters = manager.alloc_chars(self.font_family_id, self.tex_font_size, FontStyle::Normal, self.text.chars());
             self.need_update = false;
         }
         // debug!("Attempted to draw Text: {}", self.text);

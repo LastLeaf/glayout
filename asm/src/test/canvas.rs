@@ -1,4 +1,5 @@
-use std::sync::{Arc, Mutex};
+use std::rc::Rc;
+use std::cell::RefCell;
 use glayout::canvas::Canvas;
 use glayout::frame::animation::{TimingAnimation, AnimationObject, LinearTiming};
 
@@ -19,7 +20,7 @@ pub fn init() {
             }
         }
 
-        let ani_obj = Arc::new(Mutex::new(AnimationObject::new(Box::new(LinearTiming::new(BackgroundColorAni(canvas.clone()), 0., 1.)))));
+        let ani_obj = Rc::new(RefCell::new(AnimationObject::new(Box::new(LinearTiming::new(BackgroundColorAni(canvas.clone()), 0., 1.)))));
         AnimationObject::exec(ani_obj, 0, 3000.);
 
         return 0;

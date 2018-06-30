@@ -1,13 +1,14 @@
 #![macro_use]
 
+use std::rc::Rc;
+use std::cell::RefCell;
 use super::utils::PretendSend;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 pub type TestCaseFn = Fn() -> i32;
 
 lazy_static! {
-    static ref TEST_CASE_MAP: Arc<Mutex<PretendSend<HashMap<String, Box<TestCaseFn>>>>> = Arc::new(Mutex::new(PretendSend::new(HashMap::new())));
+    static ref TEST_CASE_MAP: PretendSend<Rc<RefCell<HashMap<String, Box<TestCaseFn>>>>> = PretendSend::new(Rc::new(RefCell::new(HashMap::new())));
 }
 
 pub struct TestManager { }
@@ -16,10 +17,10 @@ impl TestManager {
     pub fn register(name: String, f: Box<TestCaseFn>) {
         let name = String::from(name.splitn(2, "test::").nth(1).unwrap());
         debug!("Registering test case: {}", name);
-        TEST_CASE_MAP.lock().unwrap().insert(name, f);
+        TEST_CASE_MAP.borrow_mut().insert(name, f);
     }
     pub fn run(name: &String) -> i32 {
-        TEST_CASE_MAP.lock().unwrap().get(name).unwrap()()
+        TEST_CASE_MAP.borrow().get(name).unwrap()()
     }
 }
 

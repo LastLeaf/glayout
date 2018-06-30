@@ -1,7 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::rc::Rc;
+use std::cell::RefCell;
 use super::frame;
 use super::tree::{TreeNodeRc, TreeNodeSearchType};
-use super::utils::PretendSend;
 
 pub mod element;
 mod config;
@@ -14,12 +14,12 @@ pub type EmptyElement = element::EmptyElement;
 
 pub struct CanvasContext {
     canvas_config: CanvasConfig,
-    root_element: PretendSend<TreeNodeRc<Element>>,
+    root_element: TreeNodeRc<Element>,
 }
 
 #[derive(Clone)]
 pub struct Canvas {
-    context: Arc<Mutex<CanvasContext>>
+    context: Rc<RefCell<CanvasContext>>
 }
 
 impl Canvas {
@@ -36,9 +36,9 @@ impl Canvas {
         let root_element = element! {
             [&mut canvas_config] EmptyElement
         };
-        let arc_ctx = Arc::new(Mutex::new(CanvasContext {
+        let arc_ctx = Rc::new(RefCell::new(CanvasContext {
             canvas_config,
-            root_element: PretendSend::new(root_element),
+            root_element,
         }));
         frame::bind(arc_ctx.clone());
         return Canvas {
@@ -48,11 +48,11 @@ impl Canvas {
     pub fn destroy(&mut self) {
         frame::unbind(self.context.clone());
     }
-    pub fn get_context(&self) -> Arc<Mutex<CanvasContext>> {
+    pub fn get_context(&self) -> Rc<RefCell<CanvasContext>> {
         self.context.clone()
     }
     pub fn context<F>(&mut self, f: F) where F: Fn(&mut CanvasContext) {
-        f(&mut *self.context.lock().unwrap());
+        f(&mut *self.context.borrow_mut());
     }
 }
 

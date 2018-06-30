@@ -1,7 +1,6 @@
 use std::ffi::CString;
 use std::rc::Rc;
 use std::cell::RefCell;
-use super::super::super::utils::PretendSend;
 use super::super::CanvasConfig;
 use super::super::resource::ResourceManager;
 use super::{ElementStyle, BoundingRect};
@@ -10,10 +9,10 @@ use super::{ElementStyle, BoundingRect};
 
 pub struct Image {
     canvas_index: i32,
-    resource_manager: PretendSend<Rc<RefCell<ResourceManager>>>,
+    resource_manager: Rc<RefCell<ResourceManager>>,
     tex_id: i32,
     need_update: bool,
-    loader: PretendSend<Option<Rc<RefCell<ImageLoader>>>>,
+    loader: Option<Rc<RefCell<ImageLoader>>>,
     natural_width: i32,
     natural_height: i32,
 }
@@ -22,10 +21,10 @@ impl Image {
     pub fn new(cfg: &mut CanvasConfig) -> Self {
         Image {
             canvas_index: cfg.index,
-            resource_manager: PretendSend::new(cfg.get_resource_manager()),
+            resource_manager: cfg.get_resource_manager(),
             tex_id: -1,
             need_update: true,
-            loader: PretendSend::new(None),
+            loader: None,
             natural_width: 0,
             natural_height: 0,
         }
@@ -38,12 +37,12 @@ impl Image {
     }
     pub fn set_loader(&mut self, loader: Rc<RefCell<ImageLoader>>) {
         self.need_update_from_loader();
-        *self.loader = Some(loader);
+        self.loader = Some(loader);
     }
     pub fn load<T: Into<Vec<u8>>>(&mut self, url: T) {
         self.need_update_from_loader();
         if self.loader.is_none() {
-            let rm = (*self.resource_manager).clone();
+            let rm = self.resource_manager.clone();
             self.set_loader(Rc::new(RefCell::new(ImageLoader::new_with_resource_manager(rm))));
         }
         ImageLoader::load(self.loader.as_mut().unwrap().clone(), url);

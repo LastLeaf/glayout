@@ -13,7 +13,7 @@ pub fn init() {
         });
 
         let arc_context = canvas.get_context();
-        let mut context = arc_context.lock().unwrap();
+        let mut context = arc_context.borrow_mut();
         let elem = {
             let cfg = context.get_canvas_config();
             let elem = element! {
@@ -29,7 +29,21 @@ pub fn init() {
                     EmptyElement {
                         Text {
                             font_size = 16.;
-                            .set_text("“有bug啊！”
+                            .set_text(ARTICLE);
+                        };
+                        top = 750.;
+                    };
+                }
+            };
+            elem
+        };
+        let mut root_elem = context.get_root();
+        root_elem.append(elem);
+        return 0;
+    });
+}
+
+const ARTICLE: &str = "“有bug啊！”
 
 听到鸭鸭的一声惊呼，我抄起手边的旧报纸小跑到客厅里。向四处望了一圈，却什么也没发现。
 
@@ -155,16 +169,4 @@ pub fn init() {
 
 疲劳积攒了一整天。只能暂时撤退了。
 
-");
-                        };
-                        top = 750.;
-                    };
-                }
-            };
-            elem
-        };
-        let mut root_elem = context.get_root();
-        root_elem.append(elem);
-        return 0;
-    });
-}
+";
