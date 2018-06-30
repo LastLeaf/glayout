@@ -5,6 +5,8 @@ use super::super::CanvasConfig;
 use super::super::character::{CharacterManager, Character, FontStyle};
 use super::{ElementStyle, BoundingRect};
 
+const DEFAULT_DPR: f64 = 2.;
+
 // basic text element
 
 pub struct Text {
@@ -23,7 +25,7 @@ impl Text {
     pub fn new(cfg: &CanvasConfig) -> Self {
         Text {
             canvas_index: cfg.index,
-            device_pixel_ratio: cfg.device_pixel_ratio,
+            device_pixel_ratio: if cfg.device_pixel_ratio == 1. { DEFAULT_DPR } else { cfg.device_pixel_ratio },
             character_manager: PretendSend::new(cfg.get_character_manager()),
             text: String::from(""),
             characters: PretendSend::new(Box::new([])),

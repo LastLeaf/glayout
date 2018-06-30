@@ -37,9 +37,9 @@ extern {
 
     pub fn text_bind_font_family(id: i32, fontFamily: *mut c_char);
     pub fn text_unbind_font_family(id: i32);
-    pub fn text_set_font(fontSize: i32, fontFamilyId: i32, italic: i32, bold: i32);
+    pub fn text_set_font(fontSize: i32, lineHeight: i32, fontFamilyId: i32, italic: i32, bold: i32);
     pub fn text_get_width(text: *mut c_char) -> f64;
-    pub fn text_to_tex(canvasIndex: i32, texId: i32, text: *mut c_char, width: i32, height: i32);
+    pub fn text_to_tex(canvasIndex: i32, texId: i32, text: *mut c_char, width: i32, height: i32, lineHeight: i32);
 }
 
 pub trait Callback {

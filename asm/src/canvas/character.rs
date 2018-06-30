@@ -7,7 +7,6 @@ use super::super::utils::PretendSend;
 use super::resource::ResourceManager;
 use std::collections::HashMap;
 
-pub const CACHE_TEX_SIZE: i32 = 4096;
 const BG_CANVAS_SIZE: i32 = 4096;
 const MIN_FONT_SIZE: i32 = 1;
 
@@ -82,6 +81,13 @@ impl Character {
         self.natural_height.set(natural_height);
     }
     #[inline]
+    fn normalize_size(&self, total_width: f64, total_height: f64) {
+        self.left.set(self.left.get() / total_width);
+        self.top.set(self.top.get() / total_height);
+        self.width.set(self.width.get() / total_width);
+        self.height.set(self.height.get() / total_height);
+    }
+    #[inline]
     pub fn get_position(&self) -> (f64, f64, f64, f64, f64, f64) {
         (self.left.get(), self.top.get(), self.width.get(), self.height.get(), self.natural_width.get(), self.natural_height.get())
     }
@@ -100,7 +106,7 @@ impl Character {
 }
 
 #[inline]
-fn get_line_height(font_size: i32) -> f64 {
+fn get_default_line_height(font_size: i32) -> f64 {
     (font_size as f64 * 1.5).ceil()
 }
 
@@ -119,41 +125,44 @@ impl CharacterManager {
         }
     }
 
-    fn draw_to_tex(&self, characters: &mut Vec<Rc<Character>>, whole_string: String, font_size: i32) {
-        let mut left = 0.;
+    fn draw_to_tex(&self, characters: &mut Vec<Rc<Character>>, whole_string: String, font_size: i32, count_per_row: usize) {
+        let mut left: f64 = 0.;
+        let mut top: f64 = 0.;
+        let mut total_width: f64 = 0.;
+        let mut cur_col = 0;
         let tex_id = self.resource_manager.borrow_mut().alloc_tex_id();
-        let natural_height = get_line_height(font_size);
+        let line_height = get_default_line_height(font_size);
         characters.iter().for_each(|character| {
             let mut s = String::new();
             s.push(character.unicode);
             let width = lib!(text_get_width(CString::new(s).unwrap().into_raw())); // FIXME should be able to batch
-            character.set_position(left, 0., width, 1., width, natural_height);
+            character.set_position(left, top, width, line_height, width, line_height);
             character.alloc_tex(tex_id);
-            lib!(tex_create_empty(self.canvas_index, tex_id, width.ceil() as i32, font_size));
             left += width;
+            cur_col += 1;
+            if cur_col == count_per_row {
+                total_width = if total_width > left { total_width } else { left };
+                left = 0.;
+                top += line_height;
+                cur_col = 0;
+            }
         });
-        let total_width = left;
-        // lib!(tex_bind_rendering_target(self.canvas_index, tex_id, total_width, font_size));
-        lib!(text_to_tex(self.canvas_index, tex_id, CString::new(whole_string).unwrap().into_raw(), total_width.ceil() as i32, natural_height as i32));
-        // let mut left = 0. as f64;
+        total_width = total_width.ceil();
+        let total_height = if cur_col > 0 { top + line_height } else { top };
+        lib!(text_to_tex(self.canvas_index, tex_id, CString::new(whole_string).unwrap().into_raw(), total_width as i32, total_height as i32, line_height as i32));
         characters.iter().for_each(|character| {
-            let pos = character.get_position();
-            // let target_width = pos.2.ceil() as i32;
-            // let target_height = pos.3.ceil() as i32;
-            // lib!(tex_bind_rendering_target(self.canvas_index, character.get_tex_id(), target_width, target_height));
-            // lib!(tex_draw(self.canvas_index, 0, -1, pos.0 / total_width as f64, 1., pos.2 / total_width as f64, -1., 0., 0., pos.2, pos.3));
-            // lib!(tex_draw_end(self.canvas_index, 1));
-            // lib!(tex_copy(self.canvas_index, character.get_tex_id(), 0, 0, left.ceil() as i32, 0, target_width, target_height));
-            character.set_position(pos.0 / total_width, pos.1, pos.2 / total_width, pos.3, pos.4, pos.5);
-            // left += pos.2;
+            character.normalize_size(total_width, total_height);
         });
-        // lib!(tex_unbind_rendering_target(self.canvas_index));
     }
 
     pub fn alloc_chars(&mut self, font_family_id: i32, font_size: i32, font_style: FontStyle, chars: Chars) -> Box<[Rc<Character>]> {
         let font_size = cmp::max(font_size, MIN_FONT_SIZE);
-        lib!(text_set_font(font_size, font_family_id, (font_style == FontStyle::Italic || font_style == FontStyle::BoldItalic) as i32, (font_style == FontStyle::Bold || font_style == FontStyle::BoldItalic) as i32));
-        let batch_draws_count: usize = (BG_CANVAS_SIZE / (font_size * 2)) as usize;
+        let line_height = get_default_line_height(font_size);
+        lib!(text_set_font(font_size, line_height as i32, font_family_id, (font_style == FontStyle::Italic || font_style == FontStyle::BoldItalic) as i32, (font_style == FontStyle::Bold || font_style == FontStyle::BoldItalic) as i32));
+        let batch_char_count_per_row: usize = (BG_CANVAS_SIZE / (font_size * 2)) as usize;
+        let batch_char_rows: usize = (BG_CANVAS_SIZE as f64 / line_height) as usize;
+        let mut batch_count_in_row: usize = 0;
+        let mut batch_cur_row: usize = 0;
         let mut characters_to_draw: Vec<Rc<Character>> = vec!();
         let mut string_to_draw = String::from("");
         let characters = chars.map(|c| {
@@ -171,14 +180,21 @@ impl CharacterManager {
                 None => {
                     let character = Rc::new(Character::new(c, font_family_id, font_size, font_style));
                     if c < ' ' {
-                        character.set_position(0., 0., 0., 0., 0., get_line_height(font_size));
+                        character.set_position(0., 0., 0., 0., 0., line_height);
                     } else {
+                        batch_count_in_row += 1;
                         string_to_draw.push(c);
                         characters_to_draw.push(character.clone());
-                        if characters_to_draw.len() == batch_draws_count {
-                            self.draw_to_tex(&mut characters_to_draw, string_to_draw.clone(), font_size);
-                            characters_to_draw.truncate(0);
-                            string_to_draw = String::from("");
+                        if batch_count_in_row == batch_char_count_per_row {
+                            batch_count_in_row = 0;
+                            batch_cur_row += 1;
+                            string_to_draw.push('\n');
+                            if batch_cur_row == batch_char_rows {
+                                self.draw_to_tex(&mut characters_to_draw, string_to_draw.clone(), font_size, batch_char_count_per_row);
+                                batch_cur_row = 0;
+                                characters_to_draw.truncate(0);
+                                string_to_draw = String::from("");
+                            }
                         }
                         need_insert = true;
                     }
@@ -191,7 +207,7 @@ impl CharacterManager {
             character
         }).collect::<Vec<Rc<Character>>>().into_boxed_slice();
         if characters_to_draw.len() > 0 {
-            self.draw_to_tex(&mut characters_to_draw, string_to_draw, font_size);
+            self.draw_to_tex(&mut characters_to_draw, string_to_draw, font_size, batch_char_count_per_row);
         }
         characters
     }
