@@ -4,6 +4,8 @@ use std::cell::RefCell;
 use super::super::CanvasConfig;
 use super::{ElementStyle, BoundingRect};
 
+const IMAGE_SIZE_WARN: i32 = 4096;
+
 // basic image element
 
 pub struct Image {
@@ -79,7 +81,8 @@ impl super::ElementContent for Image {
             self.update_tex();
         }
         // debug!("Attempted to draw an Image at ({}, {}) size ({}, {})", style.left, style.top, style.width, style.height);
-        self.canvas_config.request_draw(
+        let rm = self.canvas_config.get_resource_manager();
+        rm.borrow_mut().request_draw(
             self.tex_id,
             0., 0., 1., 1.,
             style.left, style.top, style.width, style.height
@@ -142,6 +145,12 @@ lib_define_callback! (ImageLoaderCallback {
         loader.status = ImageLoaderStatus::Loaded;
         loader.width = lib!(image_get_natural_width(loader.img_id));
         loader.height = lib!(image_get_natural_height(loader.img_id));
+        if loader.width > IMAGE_SIZE_WARN {
+            warn!("Image width ({}) exceeds max size ({}). May not display properly.", loader.width, IMAGE_SIZE_WARN);
+        }
+        if loader.height > IMAGE_SIZE_WARN {
+            warn!("Image height ({}) exceeds max size ({}). May not display properly.", loader.height, IMAGE_SIZE_WARN);
+        }
         loader.canvas_config.mark_dirty(); // TODO mark connected image dirty but not the whole loader
     }
 });

@@ -1,6 +1,5 @@
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::time::{Duration, Instant};
 use super::frame;
 use super::tree::{TreeNodeRc, TreeNodeSearchType};
 
@@ -67,14 +66,15 @@ impl frame::Frame for CanvasContext {
     fn frame(&mut self, _timestamp: f64) -> bool {
         let dirty = self.canvas_config.clear_dirty();
         if dirty {
-            let now = Instant::now();
+            let now = start_measure_time!();
             self.clear();
             let mut root_element_rc = self.get_root();
             root_element_rc.dfs(TreeNodeSearchType::ChildrenLast, &|element: &mut Element| {
                 element.draw();
             });
-            self.canvas_config.flush_draw();
-            debug!("Redraw time: {}s {}ns", now.elapsed().as_secs(), now.elapsed().subsec_nanos());
+            let rm = self.canvas_config.get_resource_manager();
+            rm.borrow_mut().flush_draw();
+            debug!("Redraw time: {}ms", end_measure_time!(now));
         }
         return true;
     }

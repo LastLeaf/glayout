@@ -26,6 +26,10 @@ pub fn init() {
                         height = 400.;
                         .load("../resources/test.png");
                     };
+                    Text {
+                        font_size = 24.;
+                        .set_text("LARGE TEXT");
+                    };
                     EmptyElement {
                         Text {
                             font_size = 16.;
