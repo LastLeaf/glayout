@@ -11,7 +11,6 @@ const IMAGE_SIZE_WARN: i32 = 4096;
 
 pub struct Image {
     canvas_config: Rc<CanvasConfig>,
-    canvas_index: i32,
     tex_id: i32,
     need_update: bool,
     loader: Option<Rc<RefCell<ImageLoader>>>,
@@ -23,7 +22,6 @@ impl Image {
     pub fn new(cfg: &Rc<CanvasConfig>) -> Self {
         Image {
             canvas_config: cfg.clone(),
-            canvas_index: cfg.index,
             tex_id: -1,
             need_update: false,
             loader: None,
@@ -44,10 +42,8 @@ impl Image {
     }
     pub fn load<T: Into<Vec<u8>>>(&mut self, url: T) {
         self.need_update_from_loader();
-        if self.loader.is_none() {
-            let cc = self.canvas_config.clone();
-            self.set_loader(Rc::new(RefCell::new(ImageLoader::new_with_canvas_config(cc))));
-        }
+        let cc = self.canvas_config.clone();
+        self.set_loader(Rc::new(RefCell::new(ImageLoader::new_with_canvas_config(cc))));
         ImageLoader::load(self.loader.as_mut().unwrap().clone(), url);
     }
     pub fn update_tex(&mut self) {
@@ -129,7 +125,7 @@ impl ImageLoader {
     }
     pub fn load<T: Into<Vec<u8>>>(self_rc: Rc<RefCell<Self>>, url: T) {
         let mut self_ref = self_rc.borrow_mut();
-        lib!(image_unload(self_ref.img_id));
+        assert_eq!(self_ref.status, ImageLoaderStatus::NotLoaded);
         self_ref.status = ImageLoaderStatus::Loading;
         lib!(image_load_url(self_ref.img_id, CString::new(url).unwrap().into_raw(), lib_callback!(ImageLoaderCallback(self_rc.clone()))));
     }
@@ -140,6 +136,7 @@ struct ImageLoaderCallback (Rc<RefCell<ImageLoader>>);
 lib_define_callback! (ImageLoaderCallback {
     fn callback(&mut self, _ret_code: i32) {
         let mut loader = self.0.borrow_mut();
+        assert_eq!(loader.status, ImageLoaderStatus::Loading);
         loader.status = ImageLoaderStatus::Loaded;
         loader.width = lib!(image_get_natural_width(loader.img_id));
         loader.height = lib!(image_get_natural_height(loader.img_id));
@@ -158,9 +155,11 @@ lib_define_callback! (ImageLoaderCallback {
 
 impl Drop for ImageLoader {
     fn drop(&mut self) {
-        lib!(tex_delete(self.canvas_config.index, self.tex_id));
-        let rm = self.canvas_config.get_resource_manager();
-        rm.borrow_mut().free_tex_id(self.tex_id);
+        if self.tex_id != -1 {
+            lib!(tex_delete(self.canvas_config.index, self.tex_id));
+            let rm = self.canvas_config.get_resource_manager();
+            rm.borrow_mut().free_tex_id(self.tex_id);
+        }
         lib!(image_unload(self.img_id));
         ResourceManager::free_image_id(self.img_id);
     }
