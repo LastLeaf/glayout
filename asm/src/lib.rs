@@ -48,20 +48,8 @@ pub extern "C" fn set_log_level_num(num: i32) {
 
 pub fn init() {
     lib!(init_lib());
-    test();
 }
 
 pub fn main_loop() {
     lib!(emscripten_exit_with_live_runtime());
-}
-
-// TODO remove test
-struct CustomCb (i32);
-lib_define_callback!(CustomCb {
-    fn callback(&mut self, time: i32) {
-        info!("{} Date.now: {}", self.0, time);
-    }
-});
-fn test() {
-    lib!(timeout(1000, lib_callback!(CustomCb(666))));
 }

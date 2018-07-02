@@ -38,7 +38,7 @@ impl Text {
     }
     // TODO update if font_size / font_style / font_family updated
 
-    fn generate_tex_font_size(&mut self, font_size: f64) { // TODO do not update if not changed
+    fn generate_tex_font_size(&mut self, font_size: f64) {
         let min_font_size = (font_size * self.device_pixel_ratio).ceil();
         self.tex_font_size = min_font_size as i32;
         self.size_ratio = font_size / (self.tex_font_size as f64);
@@ -52,12 +52,12 @@ impl super::ElementContent for Text {
 
     fn draw(&mut self, style: &ElementStyle, _bounding_rect: &BoundingRect) {
         if self.need_update {
-            // TODO batch multiple text element update together
+            // FIXME consider batching multiple text element update together
             self.generate_tex_font_size(style.font_size);
             // debug!("Attempted to regenerate Text: \"{}\" font {} size {}", self.text, style.font_family.clone(), self.tex_font_size);
             let cm = self.canvas_config.get_character_manager();
             let mut manager = cm.borrow_mut();
-            self.font_family_id = manager.get_font_family_id(style.font_family.clone()); // TODO do not update if not changed
+            self.font_family_id = manager.get_font_family_id(style.font_family.clone());
             self.characters = manager.alloc_chars(self.font_family_id, self.tex_font_size, FontStyle::Normal, self.text.chars());
             self.need_update = false;
         }

@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::rc::Rc;
 use std::cell::RefCell;
 use super::super::CanvasConfig;
+use super::super::resource::ResourceManager;
 use super::{ElementStyle, BoundingRect};
 
 const IMAGE_SIZE_WARN: i32 = 4096;
@@ -51,11 +52,8 @@ impl Image {
     }
     pub fn update_tex(&mut self) {
         self.need_update = false;
-        if self.tex_id < 0 {
-            let rm = self.canvas_config.get_resource_manager();
-            self.tex_id = rm.borrow_mut().alloc_tex_id();
-        }
-        lib!(tex_from_image(self.canvas_index, self.tex_id, self.loader.as_ref().unwrap().borrow().get_img_id()));
+        let loader = self.loader.as_ref().unwrap();
+        self.tex_id = loader.borrow().tex_id;
     }
 }
 
@@ -103,18 +101,18 @@ pub struct ImageLoader {
     canvas_config: Rc<CanvasConfig>,
     status: ImageLoaderStatus,
     img_id: i32,
+    tex_id: i32,
     width: i32,
     height: i32,
 }
 
 impl ImageLoader {
     pub fn new_with_canvas_config(cfg: Rc<CanvasConfig>) -> Self {
-        let rm = cfg.get_resource_manager();
-        let mut rm = rm.borrow_mut();
         ImageLoader {
             canvas_config: cfg,
             status: ImageLoaderStatus::NotLoaded,
-            img_id: rm.alloc_image_id(),
+            img_id: ResourceManager::alloc_image_id(),
+            tex_id: -1,
             width: 0,
             height: 0,
         }
@@ -151,12 +149,19 @@ lib_define_callback! (ImageLoaderCallback {
         if loader.height > IMAGE_SIZE_WARN {
             warn!("Image height ({}) exceeds max size ({}). May not display properly.", loader.height, IMAGE_SIZE_WARN);
         }
+        let rm = loader.canvas_config.get_resource_manager();
+        loader.tex_id = rm.borrow_mut().alloc_tex_id();
+        lib!(tex_from_image(loader.canvas_config.index, loader.tex_id, loader.img_id));
         loader.canvas_config.mark_dirty(); // TODO mark connected image dirty but not the whole loader
     }
 });
 
 impl Drop for ImageLoader {
     fn drop(&mut self) {
+        lib!(tex_delete(self.canvas_config.index, self.tex_id));
+        let rm = self.canvas_config.get_resource_manager();
+        rm.borrow_mut().free_tex_id(self.tex_id);
         lib!(image_unload(self.img_id));
+        ResourceManager::free_image_id(self.img_id);
     }
 }
