@@ -40,13 +40,13 @@ impl Canvas {
             canvas_config,
             root_element,
         }));
-        frame::bind(ctx.clone());
+        frame::bind(ctx.clone(), frame::FramePriority::Low);
         return Canvas {
             context: ctx
         };
     }
     pub fn destroy(&mut self) {
-        frame::unbind(self.context.clone());
+        frame::unbind(self.context.clone(), frame::FramePriority::Low);
     }
     pub fn get_context(&self) -> Rc<RefCell<CanvasContext>> {
         self.context.clone()

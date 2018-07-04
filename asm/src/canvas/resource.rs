@@ -28,12 +28,12 @@ impl ResourceIdAllocator {
                 ret
             },
             Some(x) => {
-                x
+                -x
             }
         }
     }
     fn free(&mut self, id: i32) {
-        self.released.push(id);
+        self.released.push(-id);
     }
 }
 

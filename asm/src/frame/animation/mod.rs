@@ -53,6 +53,6 @@ impl AnimationObject {
             ani.total_frames = total_frames;
             ani.total_time = total_time;
         }
-        super::bind(arc_ani);
+        super::bind(arc_ani, super::FramePriority::Normal);
     }
 }
