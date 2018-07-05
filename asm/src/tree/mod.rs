@@ -86,7 +86,7 @@ impl<T> TreeNodeRc<T> {
     }
 
     // content operators
-    pub fn get(&self) -> Ref<T> {
+    pub fn get_ref(&self) -> Ref<T> {
         self.rc.content.borrow()
     }
     pub fn get_mut(&mut self) -> RefMut<T> {
@@ -154,17 +154,24 @@ impl<T> TreeNodeRc<T> {
     pub fn iter_children(&mut self) -> TreeNodeIter<T> {
         TreeNodeIter::new(self.clone())
     }
-    pub fn dfs<F>(&mut self, search_type: TreeNodeSearchType, f: &F) where F: Fn(&mut T) {
+    pub fn dfs<F>(&mut self, search_type: TreeNodeSearchType, f: &mut F) -> bool where F: FnMut(&mut TreeNodeRc<T>) -> bool {
         let mut children = self.rc.children.borrow_mut();
-        for child in children.iter_mut() {
+        for mut child in children.iter_mut() {
             if search_type == TreeNodeSearchType::ChildrenFirst {
-                child.dfs(search_type, f);
+                if !child.dfs(search_type, f) {
+                    return false;
+                }
             }
-            f(&mut *child.rc.content.borrow_mut());
+            if !f(&mut child) {
+                return false;
+            }
             if search_type == TreeNodeSearchType::ChildrenLast {
-                child.dfs(search_type, f);
+                if !child.dfs(search_type, f) {
+                    return false;
+                }
             }
         }
+        return true;
     }
 }
 

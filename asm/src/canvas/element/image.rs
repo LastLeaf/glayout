@@ -131,9 +131,7 @@ impl ImageLoader {
     }
 }
 
-struct ImageLoaderCallback (Rc<RefCell<ImageLoader>>);
-
-lib_define_callback! (ImageLoaderCallback {
+lib_define_callback! (ImageLoaderCallback (Rc<RefCell<ImageLoader>>) {
     fn callback(&mut self, _ret_code: i32) {
         let mut loader = self.0.borrow_mut();
         assert_eq!(loader.status, ImageLoaderStatus::Loading);

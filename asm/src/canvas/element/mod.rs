@@ -44,10 +44,10 @@ impl Element {
     pub fn draw(&mut self) {
         self.content.draw(&self.style, &self.bounding_rect);
     }
-    pub fn get_content_ref<T: ElementContent>(&self) -> &T {
+    pub fn content_as_ref<T: ElementContent>(&self) -> &T {
         self.content.downcast_ref::<T>().unwrap()
     }
-    pub fn get_content_mut<T: ElementContent>(&mut self) -> &mut T {
+    pub fn content_as_mut<T: ElementContent>(&mut self) -> &mut T {
         self.content.downcast_mut::<T>().unwrap()
     }
 }
@@ -66,11 +66,11 @@ macro_rules! __element_children {
         __element_children! ($cfg, $v, $t, $($r)*);
     };
     ($cfg:expr, $v:ident, $t:ident, . $k:ident = $a:expr; $($r:tt)*) => {
-        $v.get_mut().get_content_mut::<$t>().$k = $a;
+        $v.get_mut().content_as_mut::<$t>().$k = $a;
         __element_children! ($cfg, $v, $t, $($r)*);
     };
     ($cfg:expr, $v:ident, $t:ident, . $k:ident ( $($a:expr),* ); $($r:tt)*) => {
-        $v.get_mut().get_content_mut::<$t>().$k($($a),*);
+        $v.get_mut().content_as_mut::<$t>().$k($($a),*);
         __element_children! ($cfg, $v, $t, $($r)*);
     };
     ($cfg:expr, $v:ident, $t:ident, $e:ident; $($r:tt)*) => {
@@ -90,7 +90,7 @@ macro_rules! __element_tree {
     };
     ($cfg:expr, $e:ident { $($c:tt)* }) => {{
         let mut temp_content = Box::new($e::new($cfg));
-        let mut temp_element = TreeNodeRc::new(Element::new($cfg, temp_content));
+        let mut temp_element = $crate::tree::TreeNodeRc::new(Element::new($cfg, temp_content));
         {
             let mut _temp_element_inner = temp_element.clone();
             __element_children! ($cfg, _temp_element_inner, $e, $($c)*);

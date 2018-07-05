@@ -62,8 +62,9 @@ macro_rules! lib {
 
 #[macro_export]
 macro_rules! lib_define_callback {
-    ($x:ident $y:tt) => {
-        impl $crate::lib_interfaces::Callback for $x $y
+    ($name:ident $fields:tt $block:tt) => {
+        struct $name $fields;
+        impl $crate::lib_interfaces::Callback for $name $block
     }
 }
 

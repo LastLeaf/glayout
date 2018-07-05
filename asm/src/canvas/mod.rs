@@ -69,8 +69,9 @@ impl frame::Frame for CanvasContext {
             let now = start_measure_time!();
             self.clear();
             let mut root_element_rc = self.get_root();
-            root_element_rc.dfs(TreeNodeSearchType::ChildrenLast, &|element: &mut Element| {
-                element.draw();
+            root_element_rc.dfs(TreeNodeSearchType::ChildrenLast, &mut |node| {
+                node.get_mut().draw();
+                true
             });
             let rm = self.canvas_config.get_resource_manager();
             rm.borrow_mut().flush_draw();
@@ -101,5 +102,16 @@ impl CanvasContext {
     }
     pub fn get_root(&mut self) -> TreeNodeRc<Element> {
         self.root_element.clone()
+    }
+    pub fn get_node_by_id(&mut self, id: &'static str) -> Option<TreeNodeRc<Element>> {
+        let mut ret = None;
+        self.root_element.dfs(TreeNodeSearchType::ChildrenLast, &mut |node| {
+            if node.get_mut().style.id == id {
+                ret = Some(node.clone());
+                return false;
+            }
+            true
+        });
+        ret
     }
 }

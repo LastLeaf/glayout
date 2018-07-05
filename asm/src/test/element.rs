@@ -1,6 +1,5 @@
 use glayout::canvas::Canvas;
 use glayout::canvas::element::{Element, EmptyElement, Image, Text};
-use glayout::tree::TreeNodeRc;
 
 pub fn init() {
     register_test_case!(module_path!(), {
@@ -12,8 +11,8 @@ pub fn init() {
             ctx.set_clear_color(0.5, 1., 0.5, 1.);
         });
 
-        let arc_context = canvas.get_context();
-        let mut context = arc_context.borrow_mut();
+        let rc_context = canvas.get_context();
+        let mut context = rc_context.borrow_mut();
         let elem = {
             let cfg = context.get_canvas_config();
             let elem = element! {

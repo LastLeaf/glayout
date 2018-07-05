@@ -1,5 +1,6 @@
 #[derive(Default)]
 pub struct ElementStyle {
+    pub id: &'static str,
     pub left: f64,
     pub top: f64,
     pub width: f64,

@@ -4,7 +4,7 @@ extern crate lazy_static;
 extern crate downcast_rs;
 
 mod utils;
-mod lib_interfaces;
+pub mod lib_interfaces;
 pub mod frame;
 pub mod tree;
 pub mod canvas;

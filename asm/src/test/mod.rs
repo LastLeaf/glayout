@@ -43,9 +43,11 @@ macro_rules! register_test_case {
 mod animation;
 mod canvas;
 mod element;
+mod painting;
 
 pub fn init() {
     animation::init();
     canvas::init();
     element::init();
+    painting::init();
 }
