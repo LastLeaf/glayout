@@ -3,33 +3,37 @@ use std::cell::{Cell, RefCell, Ref, RefMut};
 
 // tree node
 
-pub struct TreeNode<T> {
-    children: RefCell<Vec<TreeNodeRc<T>>>,
-    parent: Cell<Option<TreeNodeWeak<T>>>,
-    content: RefCell<T>
+pub trait TreeElem {
+    fn associate_node(&mut self, _node: TreeNodeRc<Self>) where Self: Sized { }
 }
 
-impl<T> TreeNode<T> {
-    pub fn new(content: T) -> Self {
+pub struct TreeNode<T: TreeElem> {
+    children: RefCell<Vec<TreeNodeRc<T>>>,
+    parent: Cell<Option<TreeNodeWeak<T>>>,
+    elem: RefCell<T>,
+}
+
+impl<T: TreeElem> TreeNode<T> {
+    pub fn new(elem: T) -> Self {
         TreeNode {
             children: RefCell::new(vec!()),
             parent: Cell::new(None),
-            content: RefCell::new(content),
+            elem: RefCell::new(elem),
         }
     }
 }
 
 // tree node ref
 
-pub struct TreeNodeRc<T> {
+pub struct TreeNodeRc<T: TreeElem> {
     rc: Rc<TreeNode<T>>
 }
 
-pub struct TreeNodeWeak<T> {
+pub struct TreeNodeWeak<T: TreeElem> {
     weak: Weak<TreeNode<T>>
 }
 
-impl<T> Clone for TreeNodeRc<T> {
+impl<T: TreeElem> Clone for TreeNodeRc<T> {
     fn clone(&self) -> Self {
         Self {
             rc: self.rc.clone()
@@ -37,7 +41,7 @@ impl<T> Clone for TreeNodeRc<T> {
     }
 }
 
-impl<T> Clone for TreeNodeWeak<T> {
+impl<T: TreeElem> Clone for TreeNodeWeak<T> {
     fn clone(&self) -> Self {
         Self {
             weak: self.weak.clone()
@@ -45,7 +49,7 @@ impl<T> Clone for TreeNodeWeak<T> {
     }
 }
 
-impl<T> From<Box<TreeNode<T>>> for TreeNodeRc<T> {
+impl<T: TreeElem> From<Box<TreeNode<T>>> for TreeNodeRc<T> {
     fn from(boxed: Box<TreeNode<T>>) -> TreeNodeRc<T> {
         unsafe {
             TreeNodeRc {
@@ -55,7 +59,7 @@ impl<T> From<Box<TreeNode<T>>> for TreeNodeRc<T> {
     }
 }
 
-impl<T> TreeNodeWeak<T> {
+impl<T: TreeElem> TreeNodeWeak<T> {
     pub fn upgrade(&self) -> Option<TreeNodeRc<T>> {
         let opt = self.weak.upgrade();
         match opt {
@@ -67,13 +71,40 @@ impl<T> TreeNodeWeak<T> {
             }
         }
     }
+    #[inline]
+    pub fn ptr_eq(a: &Self, b: &Self) -> bool {
+        let a = a.weak.upgrade();
+        let b = b.weak.upgrade();
+        match a {
+            None => {
+                b.is_none()
+            },
+            Some(ref ai) => {
+                match b {
+                    None => {
+                        false
+                    },
+                    Some(ref bi) => {
+                        Rc::ptr_eq(ai, bi)
+                    }
+                }
+            }
+        }
+    }
 }
 
-impl<T> TreeNodeRc<T> {
-    pub fn new(content: T) -> Self {
-        Self {
-            rc: Rc::new(TreeNode::new(content))
-        }
+impl<T: TreeElem> TreeNodeRc<T> {
+    pub fn new(elem: T) -> Self {
+        let mut ret = Self {
+            rc: Rc::new(TreeNode::new(elem))
+        };
+        let ret_clone = ret.clone();
+        ret.elem_mut().associate_node(ret_clone);
+        ret
+    }
+    #[inline]
+    pub fn ptr_eq(a: &Self, b: &Self) -> bool {
+        Rc::ptr_eq(&a.rc, &b.rc)
     }
     pub fn downgrade(&self) -> TreeNodeWeak<T> {
         TreeNodeWeak {
@@ -86,20 +117,25 @@ impl<T> TreeNodeRc<T> {
     }
 
     // content operators
-    pub fn get_ref(&self) -> Ref<T> {
-        self.rc.content.borrow()
+    #[inline]
+    pub fn elem_ref(&self) -> Ref<T> {
+        self.rc.elem.borrow()
     }
-    pub fn get_mut(&mut self) -> RefMut<T> {
-        self.rc.content.borrow_mut()
+    #[inline]
+    pub fn elem_mut(&mut self) -> RefMut<T> {
+        self.rc.elem.borrow_mut()
     }
+    #[inline]
     pub fn ctx<F>(&mut self, f: &F) where F: Fn(&mut T) {
-        f(&mut *self.rc.content.borrow_mut())
+        f(&mut *self.rc.elem.borrow_mut())
     }
+    #[inline]
     pub fn as_ptr(&mut self) -> *mut T {
-        self.rc.content.as_ptr()
+        self.rc.elem.as_ptr()
     }
 
     // tree manipulation
+    #[inline]
     pub fn len(&self) -> usize {
         let children = self.rc.children.borrow();
         children.len()
@@ -184,12 +220,12 @@ pub enum TreeNodeSearchType {
 
 // iterator
 
-pub struct TreeNodeIter<T> {
+pub struct TreeNodeIter<T: TreeElem> {
     cur_index: usize,
     node_rc: TreeNodeRc<T>,
 }
 
-impl<T> TreeNodeIter<T> {
+impl<T: TreeElem> TreeNodeIter<T> {
     fn new(node_rc: TreeNodeRc<T>) -> Self {
         TreeNodeIter {
             cur_index: 0,
@@ -198,7 +234,7 @@ impl<T> TreeNodeIter<T> {
     }
 }
 
-impl<T> Iterator for TreeNodeIter<T> {
+impl<T: TreeElem> Iterator for TreeNodeIter<T> {
     type Item = TreeNodeRc<T>;
     fn next(&mut self) -> Option<TreeNodeRc<T>> {
         if self.cur_index >= self.node_rc.len() {

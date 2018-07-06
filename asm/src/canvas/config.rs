@@ -10,7 +10,6 @@ pub struct CanvasConfig {
     pub tex_max_draws: i32,
     pub device_pixel_ratio: f64,
     clear_color: Cell<(f32, f32, f32, f32)>,
-    dirty: Cell<bool>,
     resource_manager: Rc<RefCell<ResourceManager>>,
     character_manager: Rc<RefCell<CharacterManager>>,
 }
@@ -25,21 +24,9 @@ impl CanvasConfig {
             tex_max_draws,
             device_pixel_ratio,
             clear_color: Cell::new((1., 1., 1., 0.)),
-            dirty: Cell::new(false),
             resource_manager: resource_manager.clone(),
             character_manager: Rc::new(RefCell::new(CharacterManager::new(index, resource_manager))),
         }
-    }
-
-    #[inline]
-    pub fn mark_dirty(&self) {
-        self.dirty.set(true);
-    }
-    #[inline]
-    pub fn clear_dirty(&self) -> bool {
-        let ret = self.dirty.get();
-        self.dirty.set(false);
-        ret
     }
 
     #[inline]

@@ -36,7 +36,7 @@ lib_define_callback!(Step2 (Rc<RefCell<CanvasContext>>) {
     fn callback(&mut self, _time: i32) {
         let mut context = self.0.borrow_mut();
         let mut image_node = context.get_node_by_id("img").unwrap();
-        let mut image =image_node.get_mut();
+        let mut image = image_node.elem_mut();
         let t = image.content_as_mut::<Image>();
         t.load("../resources/lastleaf.png");
     }

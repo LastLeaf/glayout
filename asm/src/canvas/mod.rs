@@ -14,7 +14,7 @@ pub type EmptyElement = element::EmptyElement;
 
 pub struct CanvasContext {
     canvas_config: Rc<CanvasConfig>,
-    root_element: TreeNodeRc<Element>,
+    root_node: TreeNodeRc<Element>,
 }
 
 #[derive(Clone)]
@@ -33,12 +33,12 @@ impl Canvas {
             lib!(get_device_pixel_ratio()) as f64
         ));
         log!("Canvas binded: tex_size {}; tex_count {}; tex_max_draws {}", canvas_config.tex_size, canvas_config.tex_count, canvas_config.tex_max_draws);
-        let root_element = element! {
+        let root_node = element! {
             [&canvas_config] EmptyElement
         };
         let ctx = Rc::new(RefCell::new(CanvasContext {
             canvas_config,
-            root_element,
+            root_node,
         }));
         frame::bind(ctx.clone(), frame::FramePriority::Low);
         return Canvas {
@@ -64,13 +64,13 @@ impl Drop for CanvasContext {
 
 impl frame::Frame for CanvasContext {
     fn frame(&mut self, _timestamp: f64) -> bool {
-        let dirty = self.canvas_config.clear_dirty();
+        let dirty = self.root_node.elem_mut().clear_dirty();
         if dirty {
             let now = start_measure_time!();
             self.clear();
-            let mut root_element_rc = self.get_root();
-            root_element_rc.dfs(TreeNodeSearchType::ChildrenLast, &mut |node| {
-                node.get_mut().draw();
+            let mut root_node_rc = self.get_root();
+            root_node_rc.dfs(TreeNodeSearchType::ChildrenLast, &mut |node| {
+                node.elem_mut().draw();
                 true
             });
             let rm = self.canvas_config.get_resource_manager();
@@ -101,12 +101,12 @@ impl CanvasContext {
         lib!(clear(self.canvas_config.index));
     }
     pub fn get_root(&mut self) -> TreeNodeRc<Element> {
-        self.root_element.clone()
+        self.root_node.clone()
     }
     pub fn get_node_by_id(&mut self, id: &'static str) -> Option<TreeNodeRc<Element>> {
         let mut ret = None;
-        self.root_element.dfs(TreeNodeSearchType::ChildrenLast, &mut |node| {
-            if node.get_mut().style.id == id {
+        self.root_node.dfs(TreeNodeSearchType::ChildrenLast, &mut |node| {
+            if node.elem_mut().style.id == id {
                 ret = Some(node.clone());
                 return false;
             }

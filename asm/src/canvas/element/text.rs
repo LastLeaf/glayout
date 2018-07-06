@@ -1,13 +1,15 @@
 use std::rc::Rc;
 use super::super::CanvasConfig;
 use super::super::character::{Character, FontStyle};
-use super::{ElementStyle, BoundingRect};
+use super::{Element, ElementStyle, BoundingRect};
+use super::super::super::tree::{TreeNodeWeak, TreeNodeRc};
 
 const DEFAULT_DPR: f64 = 2.;
 
 // basic text element
 
 pub struct Text {
+    tree_node: Option<TreeNodeWeak<Element>>,
     canvas_config: Rc<CanvasConfig>,
     device_pixel_ratio: f64,
     text: String,
@@ -20,7 +22,8 @@ pub struct Text {
 
 impl Text {
     pub fn new(cfg: &Rc<CanvasConfig>) -> Self {
-        Text {
+        Self {
+            tree_node: None,
             canvas_config: cfg.clone(),
             device_pixel_ratio: if cfg.device_pixel_ratio == 1. { DEFAULT_DPR } else { cfg.device_pixel_ratio },
             text: String::from(""),
@@ -33,8 +36,9 @@ impl Text {
     }
     pub fn set_text<T>(&mut self, s: T) where String: From<T> {
         self.need_update = true;
-        self.canvas_config.mark_dirty();
         self.text = String::from(s);
+        let mut t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
+        t.elem_mut().mark_dirty();
     }
     // TODO update if font_size / font_style / font_family updated
 
@@ -49,7 +53,9 @@ impl super::ElementContent for Text {
     fn name(&self) -> &'static str {
         "Text"
     }
-
+    fn associate_tree_node(&mut self, tree_node: TreeNodeRc<Element>) {
+        self.tree_node = Some(tree_node.downgrade());
+    }
     fn draw(&mut self, style: &ElementStyle, _bounding_rect: &BoundingRect) {
         if self.need_update {
             // FIXME consider batching multiple text element update together

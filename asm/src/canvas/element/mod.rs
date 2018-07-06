@@ -16,15 +16,19 @@ use std::rc::Rc;
 use std::fmt;
 use downcast_rs::Downcast;
 use super::CanvasConfig;
+use super::super::tree::{TreeElem, TreeNodeRc};
 
 pub trait ElementContent: Downcast {
     fn name(&self) -> &'static str;
+    fn associate_tree_node(&mut self, _node: TreeNodeRc<Element>) { }
     fn draw(&mut self, style: &ElementStyle, bounding_rect: &BoundingRect);
 }
 
 impl_downcast!(ElementContent);
 
 pub struct Element {
+    tree_node: Option<TreeNodeRc<Element>>,
+    dirty: bool,
     pub style: ElementStyle,
     bounding_rect: BoundingRect,
     content: Box<ElementContent>,
@@ -33,6 +37,8 @@ pub struct Element {
 impl Element {
     pub fn new(_cfg: &Rc<CanvasConfig>, content: Box<ElementContent>) -> Self {
         Element {
+            tree_node: None,
+            dirty: true,
             style: ElementStyle::new(),
             bounding_rect: BoundingRect::new(),
             content,
@@ -50,6 +56,22 @@ impl Element {
     pub fn content_as_mut<T: ElementContent>(&mut self) -> &mut T {
         self.content.downcast_mut::<T>().unwrap()
     }
+
+    #[inline]
+    pub fn mark_dirty(&mut self) {
+        self.dirty = true;
+        let tn = self.tree_node.as_mut();
+        if tn.is_some() {
+            let mut p = tn.unwrap().get_parent();
+            p.elem_mut().mark_dirty();
+        }
+    }
+    #[inline]
+    pub fn clear_dirty(&mut self) -> bool {
+        let ret = self.dirty;
+        self.dirty = false;
+        ret
+    }
 }
 
 impl fmt::Display for Element {
@@ -58,19 +80,26 @@ impl fmt::Display for Element {
     }
 }
 
+impl TreeElem for Element {
+    fn associate_node(&mut self, node: TreeNodeRc<Element>) {
+        self.tree_node = Some(node.clone());
+        self.content.associate_tree_node(node);
+    }
+}
+
 #[macro_export]
 macro_rules! __element_children {
     ($cfg:expr, $v:ident, $t:ident, ) => {};
     ($cfg:expr, $v:ident, $t:ident, $k:ident = $a:expr; $($r:tt)*) => {
-        $v.get_mut().style.$k = $a;
+        $v.elem_mut().style.$k = $a;
         __element_children! ($cfg, $v, $t, $($r)*);
     };
     ($cfg:expr, $v:ident, $t:ident, . $k:ident = $a:expr; $($r:tt)*) => {
-        $v.get_mut().content_as_mut::<$t>().$k = $a;
+        $v.elem_mut().content_as_mut::<$t>().$k = $a;
         __element_children! ($cfg, $v, $t, $($r)*);
     };
     ($cfg:expr, $v:ident, $t:ident, . $k:ident ( $($a:expr),* ); $($r:tt)*) => {
-        $v.get_mut().content_as_mut::<$t>().$k($($a),*);
+        $v.elem_mut().content_as_mut::<$t>().$k($($a),*);
         __element_children! ($cfg, $v, $t, $($r)*);
     };
     ($cfg:expr, $v:ident, $t:ident, $e:ident; $($r:tt)*) => {
