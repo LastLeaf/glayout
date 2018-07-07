@@ -15,7 +15,7 @@ lib_define_callback!(Step1 (Rc<RefCell<CanvasContext>>) {
                     top = 20.;
                     EmptyElement;
                     Image {
-                        id = "img";
+                        id = String::from("img");
                         width = 400.;
                         height = 400.;
                         .load("../resources/test.png");
@@ -35,9 +35,9 @@ lib_define_callback!(Step1 (Rc<RefCell<CanvasContext>>) {
 lib_define_callback!(Step2 (Rc<RefCell<CanvasContext>>) {
     fn callback(&mut self, _time: i32) {
         let mut context = self.0.borrow_mut();
-        let mut image_node = context.get_node_by_id("img").unwrap();
-        let mut image = image_node.elem_mut();
-        let t = image.content_as_mut::<Image>();
+        let image_node = context.get_node_by_id("img").unwrap();
+        let mut image = image_node.elem().content_mut();
+        let t = image.downcast_mut::<Image>().unwrap();
         t.load("../resources/lastleaf.png");
     }
 });

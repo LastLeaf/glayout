@@ -14,6 +14,7 @@ use std::cell::Cell;
 lazy_static! {
     static ref SWAP_BUFFER_SIZE: utils::PretendSend<Cell<usize>> = utils::PretendSend::new(Cell::new(4096));
     static ref SWAP_BUFFER: utils::PretendSend<Cell<*mut [u8]>> = utils::PretendSend::new(Cell::new(Box::into_raw(Box::new([0 as u8; 4096]))));
+    static ref WINDOW_SIZE: utils::PretendSend<Cell<(f64, f64)>> = utils::PretendSend::new(Cell::new((0., 0.)));
 }
 
 #[no_mangle]
@@ -46,8 +47,22 @@ pub extern "C" fn set_log_level_num(num: i32) {
     utils::log_level::set_log_level_num(num);
 }
 
+pub fn get_window_size() -> (f64, f64) {
+    WINDOW_SIZE.get()
+}
+
+lib_define_callback!(windowSizeCallback () {
+    fn callback(&mut self, combined_size: i32) {
+        let width: i32 = combined_size / 65536;
+        let height: i32 = combined_size % 65536;
+        WINDOW_SIZE.set((lib!(get_window_width()) as f64, lib!(get_window_width()) as f64));
+    }
+});
+
 pub fn init() {
     lib!(init_lib());
+    WINDOW_SIZE.set((lib!(get_window_width()) as f64, lib!(get_window_width()) as f64));
+    lib!(set_window_size_listener(lib_callback!(windowSizeCallback())));
 }
 
 pub fn main_loop() {

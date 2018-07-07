@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use super::super::CanvasConfig;
 use super::super::resource::ResourceManager;
-use super::{Element, ElementStyle, BoundingRect};
+use super::{Element, ElementStyle, PositionOffset};
 use super::super::super::tree::{TreeNodeWeak, TreeNodeRc};
 
 const IMAGE_SIZE_WARN: i32 = 4096;
@@ -35,8 +35,8 @@ impl Image {
         self.tex_id = -1;
         self.natural_width = 0;
         self.natural_height = 0;
-        let mut t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
-        t.elem_mut().mark_dirty();
+        let t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
+        t.elem().mark_dirty();
     }
     fn update_from_loader(&mut self) {
         let loader = self.loader.as_ref().unwrap().borrow();
@@ -44,8 +44,8 @@ impl Image {
         let size = loader.get_size();
         self.natural_width = size.0;
         self.natural_height = size.1;
-        let mut t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
-        t.elem_mut().mark_dirty();
+        let t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
+        t.elem().mark_dirty();
     }
     pub fn set_loader(&mut self, loader: Rc<RefCell<ImageLoader>>) {
         self.need_update_from_loader();
@@ -77,22 +77,27 @@ impl Drop for Image {
 }
 
 impl super::ElementContent for Image {
+    #[inline]
     fn name(&self) -> &'static str {
         "Image"
     }
     fn associate_tree_node(&mut self, tree_node: TreeNodeRc<Element>) {
         self.tree_node = Some(tree_node.downgrade());
     }
-    fn draw(&mut self, style: &ElementStyle, bounding_rect: &BoundingRect) {
+    fn suggest_size(&mut self, _suggested_size: (f64, f64), style: &ElementStyle) -> (f64, f64) {
+        (self.natural_width as f64, self.natural_height as f64)
+    }
+    fn draw(&mut self, style: &ElementStyle, position_offset: &PositionOffset) {
         if self.tex_id == -1 {
             return;
         }
-        // debug!("Attempted to draw an Image at ({}, {}) size ({}, {})", style.left, style.top, style.width, style.height);
+        let pos = position_offset.get_allocated_position();
+        // debug!("Attempted to draw an Image at ({}, {}) size ({}, {})", pos.left, pos.top, pos.width, pos.height);
         let rm = self.canvas_config.get_resource_manager();
         rm.borrow_mut().request_draw(
             self.tex_id,
             0., 0., 1., 1.,
-            style.left, style.top, style.width, style.height
+            pos.0, pos.1, pos.2, pos.3
         );
     }
 }
@@ -164,29 +169,32 @@ impl ImageLoader {
 
 lib_define_callback! (ImageLoaderCallback (Rc<RefCell<ImageLoader>>) {
     fn callback(&mut self, ret_code: i32) {
-        let mut loader = self.0.borrow_mut();
-        assert_eq!(loader.status, ImageLoaderStatus::Loading);
-        if ret_code == 0 {
-            loader.status = ImageLoaderStatus::Loaded;
-            loader.width = lib!(image_get_natural_width(loader.img_id));
-            loader.height = lib!(image_get_natural_height(loader.img_id));
-            if loader.width > IMAGE_SIZE_WARN {
-                warn!("Image width ({}) exceeds max size ({}). May not display properly.", loader.width, IMAGE_SIZE_WARN);
+        let mut nodes = {
+            let mut loader = self.0.borrow_mut();
+            assert_eq!(loader.status, ImageLoaderStatus::Loading);
+            if ret_code == 0 {
+                loader.status = ImageLoaderStatus::Loaded;
+                loader.width = lib!(image_get_natural_width(loader.img_id));
+                loader.height = lib!(image_get_natural_height(loader.img_id));
+                if loader.width > IMAGE_SIZE_WARN {
+                    warn!("Image width ({}) exceeds max size ({}). May not display properly.", loader.width, IMAGE_SIZE_WARN);
+                }
+                if loader.height > IMAGE_SIZE_WARN {
+                    warn!("Image height ({}) exceeds max size ({}). May not display properly.", loader.height, IMAGE_SIZE_WARN);
+                }
+                let rm = loader.canvas_config.get_resource_manager();
+                loader.tex_id = rm.borrow_mut().alloc_tex_id();
+                lib!(tex_from_image(loader.canvas_config.index, loader.tex_id, loader.img_id));
+            } else {
+                loader.status = ImageLoaderStatus::LoadFailed;
             }
-            if loader.height > IMAGE_SIZE_WARN {
-                warn!("Image height ({}) exceeds max size ({}). May not display properly.", loader.height, IMAGE_SIZE_WARN);
-            }
-            let rm = loader.canvas_config.get_resource_manager();
-            loader.tex_id = rm.borrow_mut().alloc_tex_id();
-            lib!(tex_from_image(loader.canvas_config.index, loader.tex_id, loader.img_id));
-        } else {
-            loader.status = ImageLoaderStatus::LoadFailed;
-        }
-        lib!(image_unload(loader.img_id));
-        ResourceManager::free_image_id(loader.img_id);
-        loader.binded_tree_nodes.iter_mut().for_each(|x| {
-            let mut t = x.upgrade().unwrap();
-            t.elem_mut().content_as_mut::<Image>().update_from_loader();
+            lib!(image_unload(loader.img_id));
+            ResourceManager::free_image_id(loader.img_id);
+            loader.binded_tree_nodes.clone()
+        };
+        nodes.iter_mut().for_each(|x| {
+            let t = x.upgrade().unwrap();
+            t.elem().content_mut().downcast_mut::<Image>().unwrap().update_from_loader();
         });
     }
 });

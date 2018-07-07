@@ -7,6 +7,9 @@ extern {
     pub fn emscripten_exit_with_live_runtime();
 
     pub fn init_lib();
+    pub fn set_window_size_listener(cbPtr: *mut Box<Callback>);
+    pub fn get_window_width() -> i32;
+    pub fn get_window_height() -> i32;
     pub fn timeout(ms: i32, cbPtr: *mut Box<Callback>);
     pub fn enable_animation_frame();
     pub fn disable_animation_frame();

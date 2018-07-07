@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use std::cell::RefCell;
+use super::get_window_size;
 use super::frame;
 use super::tree::{TreeNodeRc, TreeNodeSearchType};
 
@@ -32,7 +33,7 @@ impl Canvas {
             lib!(tex_get_max_draws()) as i32,
             lib!(get_device_pixel_ratio()) as f64
         ));
-        log!("Canvas binded: tex_size {}; tex_count {}; tex_max_draws {}", canvas_config.tex_size, canvas_config.tex_count, canvas_config.tex_max_draws);
+        log!("Canvas binded: {}", index);
         let root_node = element! {
             [&canvas_config] EmptyElement
         };
@@ -58,19 +59,22 @@ impl Canvas {
 
 impl Drop for CanvasContext {
     fn drop(&mut self) {
+        log!("Canvas unbinded: {}", self.canvas_config.index);
         lib!(unbind_canvas(self.canvas_config.index));
     }
 }
 
 impl frame::Frame for CanvasContext {
     fn frame(&mut self, _timestamp: f64) -> bool {
-        let dirty = self.root_node.elem_mut().clear_dirty();
+        self.check_window_size(); // always check root layout when window size changed
+        let dirty = self.root_node.elem().is_dirty(); // any child or itself need update position offset
         if dirty {
             let now = start_measure_time!();
             self.clear();
             let mut root_node_rc = self.get_root();
+            root_node_rc.elem().update_position_offset(self.canvas_config.window_size.get());
             root_node_rc.dfs(TreeNodeSearchType::ChildrenLast, &mut |node| {
-                node.elem_mut().draw();
+                node.elem().draw();
                 true
             });
             let rm = self.canvas_config.get_resource_manager();
@@ -106,12 +110,22 @@ impl CanvasContext {
     pub fn get_node_by_id(&mut self, id: &'static str) -> Option<TreeNodeRc<Element>> {
         let mut ret = None;
         self.root_node.dfs(TreeNodeSearchType::ChildrenLast, &mut |node| {
-            if node.elem_mut().style.id == id {
+            if node.elem().style().id == id {
                 ret = Some(node.clone());
                 return false;
             }
             true
         });
         ret
+    }
+
+    fn check_window_size(&mut self) {
+        let new_window_size = get_window_size();
+        let window_size_changed = self.canvas_config.window_size.get() != new_window_size;
+        if window_size_changed {
+            debug!("Window size changed to {}x{}", new_window_size.0, new_window_size.1);
+            self.canvas_config.window_size.set(new_window_size);
+            self.root_node.elem().mark_dirty();
+        }
     }
 }

@@ -108,7 +108,6 @@ fn get_default_line_height(font_size: i32) -> f64 {
 
 pub struct CharacterManager {
     canvas_index: i32,
-    resource_manager: PretendSend<Rc<RefCell<ResourceManager>>>,
     char_tex_id_map: HashMap<CharacterKey, Rc<Character>>,
     tex_allocator: CharacterTexAllocator,
 }
@@ -148,7 +147,6 @@ impl CharacterManager {
     pub fn new(canvas_index: i32, resource_manager: Rc<RefCell<ResourceManager>>) -> Self {
         Self {
             canvas_index,
-            resource_manager: PretendSend::new(resource_manager.clone()),
             char_tex_id_map: HashMap::new(),
             tex_allocator: CharacterTexAllocator::new(canvas_index, resource_manager),
         }

@@ -1,16 +1,16 @@
 use std::rc::{Rc, Weak};
-use std::cell::{Cell, RefCell, Ref, RefMut};
+use std::cell::{Cell, RefCell};
 
 // tree node
 
 pub trait TreeElem {
-    fn associate_node(&mut self, _node: TreeNodeRc<Self>) where Self: Sized { }
+    fn associate_node(&self, _node: TreeNodeRc<Self>) where Self: Sized { }
 }
 
 pub struct TreeNode<T: TreeElem> {
     children: RefCell<Vec<TreeNodeRc<T>>>,
     parent: Cell<Option<TreeNodeWeak<T>>>,
-    elem: RefCell<T>,
+    elem: T,
 }
 
 impl<T: TreeElem> TreeNode<T> {
@@ -18,7 +18,7 @@ impl<T: TreeElem> TreeNode<T> {
         TreeNode {
             children: RefCell::new(vec!()),
             parent: Cell::new(None),
-            elem: RefCell::new(elem),
+            elem,
         }
     }
 }
@@ -95,11 +95,11 @@ impl<T: TreeElem> TreeNodeWeak<T> {
 
 impl<T: TreeElem> TreeNodeRc<T> {
     pub fn new(elem: T) -> Self {
-        let mut ret = Self {
+        let ret = Self {
             rc: Rc::new(TreeNode::new(elem))
         };
         let ret_clone = ret.clone();
-        ret.elem_mut().associate_node(ret_clone);
+        ret.rc.elem.associate_node(ret_clone);
         ret
     }
     #[inline]
@@ -118,20 +118,8 @@ impl<T: TreeElem> TreeNodeRc<T> {
 
     // content operators
     #[inline]
-    pub fn elem_ref(&self) -> Ref<T> {
-        self.rc.elem.borrow()
-    }
-    #[inline]
-    pub fn elem_mut(&mut self) -> RefMut<T> {
-        self.rc.elem.borrow_mut()
-    }
-    #[inline]
-    pub fn ctx<F>(&mut self, f: &F) where F: Fn(&mut T) {
-        f(&mut *self.rc.elem.borrow_mut())
-    }
-    #[inline]
-    pub fn as_ptr(&mut self) -> *mut T {
-        self.rc.elem.as_ptr()
+    pub fn elem(&self) -> &T {
+        &self.rc.elem
     }
 
     // tree manipulation
@@ -154,18 +142,18 @@ impl<T: TreeElem> TreeNodeRc<T> {
         self.rc.parent.set(p);
         ret
     }
-    pub fn get_parent(&mut self) -> TreeNodeRc<T> {
+    pub fn get_parent(&self) -> Option<TreeNodeRc<T>> {
         let p = self.rc.parent.replace(None);
         let ret = match p {
-            None => panic!(),
+            None => None,
             Some(ref x) => {
-                (*x).clone()
+                Some(x.upgrade().unwrap())
             }
         };
         self.rc.parent.set(p);
-        ret.upgrade().unwrap()
+        ret
     }
-    pub fn get_child(&mut self, index: usize) -> TreeNodeRc<T> {
+    pub fn get_child(&self, index: usize) -> TreeNodeRc<T> {
         let children = self.rc.children.borrow_mut();
         children[index].clone()
     }
@@ -187,7 +175,7 @@ impl<T: TreeElem> TreeNodeRc<T> {
     }
 
     // iterator generators
-    pub fn iter_children(&mut self) -> TreeNodeIter<T> {
+    pub fn iter_children(&self) -> TreeNodeIter<T> {
         TreeNodeIter::new(self.clone())
     }
     pub fn dfs<F>(&mut self, search_type: TreeNodeSearchType, f: &mut F) -> bool where F: FnMut(&mut TreeNodeRc<T>) -> bool {

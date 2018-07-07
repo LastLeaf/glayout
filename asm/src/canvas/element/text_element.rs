@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use super::super::CanvasConfig;
 use super::super::character::{Character, FontStyle};
-use super::{Element, ElementStyle, BoundingRect};
+use super::{Element, ElementStyle, PositionOffset};
 use super::super::super::tree::{TreeNodeWeak, TreeNodeRc};
 
 const DEFAULT_DPR: f64 = 2.;
@@ -37,8 +37,8 @@ impl Text {
     pub fn set_text<T>(&mut self, s: T) where String: From<T> {
         self.need_update = true;
         self.text = String::from(s);
-        let mut t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
-        t.elem_mut().mark_dirty();
+        let t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
+        t.elem().mark_dirty();
     }
     // TODO update if font_size / font_style / font_family updated
 
@@ -47,28 +47,32 @@ impl Text {
         self.tex_font_size = min_font_size as i32;
         self.size_ratio = font_size / (self.tex_font_size as f64);
     }
+    fn update(&mut self, style: &ElementStyle) {
+        self.need_update = false;
+        // FIXME consider batching multiple text element update together
+        self.generate_tex_font_size(style.font_size);
+        // debug!("Attempted to regenerate Text: \"{}\" font {} size {}", self.text, style.font_family.clone(), self.tex_font_size);
+        let cm = self.canvas_config.get_character_manager();
+        let mut manager = cm.borrow_mut();
+        self.font_family_id = manager.get_font_family_id(style.font_family.clone());
+        self.characters = manager.alloc_chars(self.font_family_id, self.tex_font_size, FontStyle::Normal, self.text.chars());
+        self.need_update = false;
+    }
 }
 
 impl super::ElementContent for Text {
+    #[inline]
     fn name(&self) -> &'static str {
         "Text"
     }
     fn associate_tree_node(&mut self, tree_node: TreeNodeRc<Element>) {
         self.tree_node = Some(tree_node.downgrade());
     }
-    fn draw(&mut self, style: &ElementStyle, _bounding_rect: &BoundingRect) {
+    fn suggest_size(&mut self, suggested_size: (f64, f64), style: &ElementStyle) -> (f64, f64) {
         if self.need_update {
-            // FIXME consider batching multiple text element update together
-            self.generate_tex_font_size(style.font_size);
-            // debug!("Attempted to regenerate Text: \"{}\" font {} size {}", self.text, style.font_family.clone(), self.tex_font_size);
-            let cm = self.canvas_config.get_character_manager();
-            let mut manager = cm.borrow_mut();
-            self.font_family_id = manager.get_font_family_id(style.font_family.clone());
-            self.characters = manager.alloc_chars(self.font_family_id, self.tex_font_size, FontStyle::Normal, self.text.chars());
-            self.need_update = false;
+            self.update(style);
         }
-        // debug!("Attempted to draw Text: {}", self.text);
-        let mut left = style.left;
+        let mut left = 0.;
         let mut top = 0.;
         self.characters.iter().for_each(|character| {
             if character.get_tex_id() == -1 {
@@ -79,12 +83,35 @@ impl super::ElementContent for Text {
             } else {
                 let pos = character.get_position();
                 let width = pos.4 * self.size_ratio;
-                let height = pos.5 * self.size_ratio;
-                if left + width >= 800. { // TODO layout
-                    top += style.font_size; // TODO layout
+                if left + width >= pos.2 {
+                    top += style.font_size; // TODO impl
                     left = 0.;
                 }
-                if top < 600. { // TODO layout
+                left += width;
+            }
+        });
+        (suggested_size.0, top)
+    }
+    fn draw(&mut self, style: &ElementStyle, position_offset: &PositionOffset) {
+        // debug!("Attempted to draw Text: {}", self.text);
+        let pos = position_offset.get_allocated_position();
+        let mut left = pos.0;
+        let mut top = pos.1;
+        self.characters.iter().for_each(|character| {
+            if character.get_tex_id() == -1 {
+                if character.get_char() == '\n' {
+                    top += character.get_position().5 * self.size_ratio; // TODO
+                    left = 0.;
+                }
+            } else {
+                let pos = character.get_position();
+                let width = pos.4 * self.size_ratio;
+                let height = pos.5 * self.size_ratio;
+                if left + width >= pos.2 {
+                    top += style.font_size; // TODO impl
+                    left = 0.;
+                }
+                if true { // TODO impl
                     let rm = self.canvas_config.get_resource_manager();
                     rm.borrow_mut().request_draw(
                         character.get_tex_id(),

@@ -92,7 +92,6 @@ impl ResourceManager {
                 }
                 let t = self.used_shader_tex;
                 self.tex_shader_index_map.insert(tex_id, t);
-                lib!(tex_set_active_texture(self.canvas_index, t, tex_id));
                 self.used_shader_tex += 1;
                 t
             },
@@ -108,6 +107,16 @@ impl ResourceManager {
     }
     #[inline]
     pub fn flush_draw(&mut self) {
+        let mut t_max = 0;
+        for (tex_id, t) in self.tex_shader_index_map.iter() {
+            lib!(tex_set_active_texture(self.canvas_index, *t, *tex_id));
+            if t_max < *t {
+                t_max = *t;
+            }
+        }
+        for t in t_max + 1 .. TEX_SHADER_INDEX_MAX {
+            lib!(tex_set_active_texture(self.canvas_index, t, -1));
+        }
         if self.pending_draws > 0 {
             lib!(tex_draw_end(self.canvas_index, self.pending_draws));
         }
