@@ -11,7 +11,7 @@ mod resource;
 
 pub type CanvasConfig = config::CanvasConfig;
 pub type Element = element::Element;
-pub type EmptyElement = element::EmptyElement;
+pub type Empty = element::Empty;
 
 pub struct CanvasContext {
     canvas_config: Rc<CanvasConfig>,
@@ -35,7 +35,7 @@ impl Canvas {
         ));
         log!("Canvas binded: {}", index);
         let root_node = element! {
-            [&canvas_config] EmptyElement
+            [&canvas_config] Empty
         };
         let ctx = Rc::new(RefCell::new(CanvasContext {
             canvas_config,

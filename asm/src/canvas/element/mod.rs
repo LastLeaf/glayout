@@ -6,7 +6,7 @@ mod position_offset;
 pub type PositionOffset = position_offset::PositionOffset;
 
 mod empty_element;
-pub type EmptyElement = empty_element::EmptyElement;
+pub type Empty = empty_element::Empty;
 mod image_element;
 pub type Image = image_element::Image;
 mod text_element;

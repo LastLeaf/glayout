@@ -3,21 +3,21 @@ use super::super::CanvasConfig;
 use super::{ElementStyle, PositionOffset};
 
 #[derive(Debug)]
-pub struct EmptyElement {}
+pub struct Empty {}
 
-impl EmptyElement {
+impl Empty {
     pub fn new(_cfg: &Rc<CanvasConfig>) -> Self {
-        EmptyElement {}
+        Empty {}
     }
 }
 
-impl super::ElementContent for EmptyElement {
+impl super::ElementContent for Empty {
     #[inline]
     fn name(&self) -> &'static str {
-        "EmptyElement"
+        "Empty"
     }
     fn draw(&mut self, _style: &ElementStyle, _bounding_rect: &PositionOffset) {
         // do nothing
-        // debug!("Attempted to draw an EmptyElement");
+        // debug!("Attempted to draw an Empty");
     }
 }
