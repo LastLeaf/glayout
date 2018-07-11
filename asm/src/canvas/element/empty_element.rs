@@ -16,7 +16,12 @@ impl super::ElementContent for Empty {
     fn name(&self) -> &'static str {
         "Empty"
     }
-    fn draw(&mut self, _style: &ElementStyle, _bounding_rect: &PositionOffset) {
+    #[inline]
+    fn is_terminated(&self) -> bool {
+        false
+    }
+    #[inline]
+    fn draw(&mut self, _style: &ElementStyle, _pos: (f64, f64, f64, f64)) {
         // do nothing
         // debug!("Attempted to draw an Empty");
     }

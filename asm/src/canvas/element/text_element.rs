@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use super::super::CanvasConfig;
 use super::super::character::{Character, FontStyle};
-use super::{Element, ElementStyle, PositionOffset};
+use super::{Element, ElementStyle};
 use super::super::super::tree::{TreeNodeWeak, TreeNodeRc};
 
 const DEFAULT_DPR: f64 = 2.;
@@ -65,6 +65,11 @@ impl super::ElementContent for Text {
     fn name(&self) -> &'static str {
         "Text"
     }
+    #[inline]
+    fn is_terminated(&self) -> bool {
+        true
+    }
+    #[inline]
     fn associate_tree_node(&mut self, tree_node: TreeNodeRc<Element>) {
         self.tree_node = Some(tree_node.downgrade());
     }
@@ -77,48 +82,47 @@ impl super::ElementContent for Text {
         self.characters.iter().for_each(|character| {
             if character.get_tex_id() == -1 {
                 if character.get_char() == '\n' {
-                    top += character.get_position().5 * self.size_ratio; // TODO
+                    top += character.get_position().5 * self.size_ratio; // TODO use line height
                     left = 0.;
                 }
             } else {
-                let pos = character.get_position();
-                let width = pos.4 * self.size_ratio;
-                if left + width >= pos.2 {
-                    top += style.font_size; // TODO impl
+                let char_pos = character.get_position();
+                let width = char_pos.4 * self.size_ratio;
+                if left + width > suggested_size.0 {
+                    top += style.font_size; // TODO use line height
                     left = 0.;
                 }
                 left += width;
             }
         });
+        top += style.font_size; // TODO use line height
         (suggested_size.0, top)
     }
-    fn draw(&mut self, style: &ElementStyle, position_offset: &PositionOffset) {
-        // debug!("Attempted to draw Text: {}", self.text);
-        let pos = position_offset.get_allocated_position();
+    fn draw(&mut self, style: &ElementStyle, pos: (f64, f64, f64, f64)) {
+        debug!("Attempted to draw Text at {:?}", pos);
+        // TODO whole element edge cutting
         let mut left = pos.0;
         let mut top = pos.1;
         self.characters.iter().for_each(|character| {
             if character.get_tex_id() == -1 {
                 if character.get_char() == '\n' {
-                    top += character.get_position().5 * self.size_ratio; // TODO
+                    top += character.get_position().5 * self.size_ratio; // TODO use line height
                     left = 0.;
                 }
             } else {
-                let pos = character.get_position();
-                let width = pos.4 * self.size_ratio;
-                let height = pos.5 * self.size_ratio;
-                if left + width >= pos.2 {
-                    top += style.font_size; // TODO impl
+                let char_pos = character.get_position();
+                let width = char_pos.4 * self.size_ratio;
+                let height = char_pos.5 * self.size_ratio;
+                if left + width > pos.2 {
+                    top += style.font_size; // TODO use line-height
                     left = 0.;
                 }
-                if true { // TODO impl
-                    let rm = self.canvas_config.get_resource_manager();
-                    rm.borrow_mut().request_draw(
-                        character.get_tex_id(),
-                        pos.0, pos.1, pos.2, pos.3,
-                        left, top, width, height
-                    );
-                }
+                let rm = self.canvas_config.get_resource_manager();
+                rm.borrow_mut().request_draw(
+                    character.get_tex_id(),
+                    char_pos.0, char_pos.1, char_pos.2, char_pos.3,
+                    left, top, width, height
+                );
                 left += width;
             }
         });

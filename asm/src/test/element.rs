@@ -1,5 +1,5 @@
 use glayout::canvas::Canvas;
-use glayout::canvas::element::{Element, EmptyElement, Image, Text};
+use glayout::canvas::element::{Element, Empty, Image, Text};
 
 pub fn init() {
     register_test_case!(module_path!(), {
@@ -16,10 +16,10 @@ pub fn init() {
         let elem = {
             let cfg = context.get_canvas_config();
             let elem = element! {
-                [&cfg] EmptyElement {
+                [&cfg] Empty {
                     left = 10.;
                     top = 20.;
-                    EmptyElement;
+                    Empty;
                     Image {
                         width = 400.;
                         height = 400.;
@@ -29,7 +29,7 @@ pub fn init() {
                         font_size = 24.;
                         .set_text("LARGE TEXT");
                     };
-                    EmptyElement {
+                    Empty {
                         Text {
                             font_size = 16.;
                             .set_text(ARTICLE);

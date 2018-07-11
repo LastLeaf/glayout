@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use glayout::canvas::{Canvas, CanvasContext};
-use glayout::canvas::element::{Element, EmptyElement, Image, Text};
+use glayout::canvas::element::{Element, Empty, Image, Text};
 
 lib_define_callback!(Step1 (Rc<RefCell<CanvasContext>>) {
     fn callback(&mut self, _ret_code: i32) {
@@ -10,10 +10,10 @@ lib_define_callback!(Step1 (Rc<RefCell<CanvasContext>>) {
         let elem = {
             let cfg = context.get_canvas_config();
             let elem = element! {
-                [&cfg] EmptyElement {
+                [&cfg] Empty {
                     left = 10.;
                     top = 20.;
-                    EmptyElement;
+                    Empty;
                     Image {
                         id = String::from("img");
                         width = 400.;

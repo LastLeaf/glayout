@@ -4,6 +4,8 @@ mod style;
 pub type ElementStyle = style::ElementStyle;
 mod position_offset;
 pub type PositionOffset = position_offset::PositionOffset;
+mod transform;
+pub type Transform = transform::Transform;
 
 mod empty_element;
 pub type Empty = empty_element::Empty;
@@ -21,8 +23,11 @@ use super::super::tree::{TreeElem, TreeNodeRc};
 
 pub trait ElementContent: Downcast {
     fn name(&self) -> &'static str;
+    fn is_terminated(&self) -> bool;
+    #[inline]
     fn associate_tree_node(&mut self, _node: TreeNodeRc<Element>) { }
-    fn draw(&mut self, style: &ElementStyle, position_offset: &PositionOffset);
+    fn draw(&mut self, style: &ElementStyle, pos: (f64, f64, f64, f64));
+    #[inline]
     fn suggest_size(&mut self, _suggested_size: (f64, f64), _style: &ElementStyle) -> (f64, f64) {
         (0., 0.)
     }
@@ -77,10 +82,6 @@ impl Element {
     }
 
     #[inline]
-    pub fn draw(&self) {
-        self.content.borrow_mut().draw(&*self.style(), &*self.position_offset());
-    }
-    #[inline]
     pub fn content(&self) -> Ref<Box<ElementContent>> {
         self.content.borrow()
     }
@@ -126,7 +127,25 @@ impl Element {
     #[inline]
     pub fn update_position_offset(&self, suggested_size: (f64, f64)) {
         let requested_size = self.suggest_size(suggested_size);
-        self.allocate_position((0., 0., requested_size.0, requested_size.1));
+        self.allocate_position((0., 0., suggested_size.0, requested_size.1));
+    }
+
+    #[inline]
+    pub fn draw(&self, viewport: (f64, f64, f64, f64), transform: &mut Transform) {
+        let position_offset = self.position_offset();
+        let position_offset = position_offset.get_allocated_position();
+        let pos = (
+            position_offset.0 + transform.offset.0,
+            position_offset.1 + transform.offset.1,
+            position_offset.2,
+            position_offset.3
+        );
+        self.content.borrow_mut().draw(&*self.style(), pos);
+        transform.offset = (transform.offset.0 + position_offset.0, transform.offset.1 + position_offset.1);
+        for child in self.tree_node().iter_children() {
+            child.elem().draw(viewport, transform);
+        }
+        transform.offset = (transform.offset.0 - position_offset.0, transform.offset.1 - position_offset.1);
     }
 }
 

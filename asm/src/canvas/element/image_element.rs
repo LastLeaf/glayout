@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use super::super::CanvasConfig;
 use super::super::resource::ResourceManager;
-use super::{Element, ElementStyle, PositionOffset};
+use super::{Element, ElementStyle};
 use super::super::super::tree::{TreeNodeWeak, TreeNodeRc};
 
 const IMAGE_SIZE_WARN: i32 = 4096;
@@ -81,18 +81,22 @@ impl super::ElementContent for Image {
     fn name(&self) -> &'static str {
         "Image"
     }
+    #[inline]
+    fn is_terminated(&self) -> bool {
+        true
+    }
+    #[inline]
     fn associate_tree_node(&mut self, tree_node: TreeNodeRc<Element>) {
         self.tree_node = Some(tree_node.downgrade());
     }
     fn suggest_size(&mut self, _suggested_size: (f64, f64), style: &ElementStyle) -> (f64, f64) {
         (self.natural_width as f64, self.natural_height as f64)
     }
-    fn draw(&mut self, style: &ElementStyle, position_offset: &PositionOffset) {
+    fn draw(&mut self, style: &ElementStyle, pos: (f64, f64, f64, f64)) {
         if self.tex_id == -1 {
             return;
         }
-        let pos = position_offset.get_allocated_position();
-        // debug!("Attempted to draw an Image at ({}, {}) size ({}, {})", pos.left, pos.top, pos.width, pos.height);
+        debug!("Attempted to draw an Image at {:?}", pos);
         let rm = self.canvas_config.get_resource_manager();
         rm.borrow_mut().request_draw(
             self.tex_id,

@@ -66,17 +66,14 @@ impl Drop for CanvasContext {
 
 impl frame::Frame for CanvasContext {
     fn frame(&mut self, _timestamp: f64) -> bool {
-        self.check_window_size(); // always check root layout when window size changed
         let dirty = self.root_node.elem().is_dirty(); // any child or itself need update position offset
         if dirty {
             let now = start_measure_time!();
             self.clear();
             let mut root_node_rc = self.get_root();
-            root_node_rc.elem().update_position_offset(self.canvas_config.window_size.get());
-            root_node_rc.dfs(TreeNodeSearchType::ChildrenLast, &mut |node| {
-                node.elem().draw();
-                true
-            });
+            let size = self.canvas_config.canvas_size.get();
+            root_node_rc.elem().update_position_offset(size);
+            root_node_rc.elem().draw((0., 0., size.0, size.1), &mut element::Transform::new());
             let rm = self.canvas_config.get_resource_manager();
             rm.borrow_mut().flush_draw();
             debug!("Redraw time: {}ms", end_measure_time!(now));
@@ -90,7 +87,9 @@ impl CanvasContext {
         self.canvas_config.clone()
     }
     pub fn set_canvas_size(&mut self, w: i32, h: i32, pixel_ratio: f64) {
+        self.canvas_config.canvas_size.set((w as f64, h as f64));
         lib!(set_canvas_size(self.canvas_config.index, w, h, pixel_ratio));
+        self.root_node.elem().mark_dirty();
     }
     pub fn get_device_pixel_ratio(&self) -> f64 {
         lib!(get_device_pixel_ratio())
@@ -117,15 +116,5 @@ impl CanvasContext {
             true
         });
         ret
-    }
-
-    fn check_window_size(&mut self) {
-        let new_window_size = get_window_size();
-        let window_size_changed = self.canvas_config.window_size.get() != new_window_size;
-        if window_size_changed {
-            debug!("Window size changed to {}x{}", new_window_size.0, new_window_size.1);
-            self.canvas_config.window_size.set(new_window_size);
-            self.root_node.elem().mark_dirty();
-        }
     }
 }
