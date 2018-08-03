@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use super::super::CanvasConfig;
-use super::{ElementStyle, PositionOffset};
+use super::{ElementStyle};
 
 #[derive(Debug)]
 pub struct Empty {}

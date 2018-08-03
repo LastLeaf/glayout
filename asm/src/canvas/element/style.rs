@@ -13,7 +13,7 @@ impl ElementStyle {
     pub fn new() -> Self {
         ElementStyle {
             id: String::new(),
-            display: DisplayType::Block,
+            display: DisplayType::Inline,
             left: 0.,
             top: 0.,
             width: 0.,
@@ -24,6 +24,7 @@ impl ElementStyle {
     }
 }
 
+#[derive(Clone, Copy, PartialEq)]
 pub enum DisplayType {
     None,
     Block,

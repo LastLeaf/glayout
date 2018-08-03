@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use super::super::CanvasConfig;
 use super::super::character::{Character, FontStyle};
-use super::{Element, ElementStyle};
+use super::{Element, ElementStyle, InlinePositionStatus};
 use super::super::super::tree::{TreeNodeWeak, TreeNodeRc};
 
 const DEFAULT_DPR: f64 = 2.;
@@ -13,11 +13,13 @@ pub struct Text {
     canvas_config: Rc<CanvasConfig>,
     device_pixel_ratio: f64,
     text: String,
-    characters: Box<[Rc<Character>]>,
+    characters: Box<[(Rc<Character>, f32, f32)]>,
     need_update: bool,
     font_family_id: i32,
     tex_font_size: i32,
     size_ratio: f64,
+    line_first_char_index: usize,
+    line_current_char_index: usize,
 }
 
 impl Text {
@@ -32,6 +34,8 @@ impl Text {
             tex_font_size: 0,
             font_family_id: 0,
             size_ratio: 1.,
+            line_first_char_index: 0,
+            line_current_char_index: 0,
         }
     }
     pub fn set_text<T>(&mut self, s: T) where String: From<T> {
@@ -40,7 +44,7 @@ impl Text {
         let t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
         t.elem().mark_dirty();
     }
-    // TODO update if font_size / font_style / font_family updated
+    // FIXME update if font_size / font_style / font_family updated
 
     fn generate_tex_font_size(&mut self, font_size: f64) {
         let min_font_size = (font_size * self.device_pixel_ratio).ceil();
@@ -56,7 +60,6 @@ impl Text {
         let mut manager = cm.borrow_mut();
         self.font_family_id = manager.get_font_family_id(style.font_family.clone());
         self.characters = manager.alloc_chars(self.font_family_id, self.tex_font_size, FontStyle::Normal, self.text.chars());
-        self.need_update = false;
     }
 }
 
@@ -73,57 +76,59 @@ impl super::ElementContent for Text {
     fn associate_tree_node(&mut self, tree_node: TreeNodeRc<Element>) {
         self.tree_node = Some(tree_node.downgrade());
     }
-    fn suggest_size(&mut self, suggested_size: (f64, f64), style: &ElementStyle) -> (f64, f64) {
+    fn suggest_size(&mut self, suggested_size: (f64, f64), inline_position_status: &mut InlinePositionStatus, style: &ElementStyle) -> (f64, f64) {
         if self.need_update {
             self.update(style);
         }
-        let mut left = 0.;
-        let mut top = 0.;
-        self.characters.iter().for_each(|character| {
+        let prev_inline_height = inline_position_status.get_height();
+        let line_height = style.font_size; // FIXME use line_height
+        let baseline_top = line_height / 2.;
+        inline_position_status.append_node(self.tree_node.as_mut().unwrap().upgrade().unwrap(), style.font_size, baseline_top);
+        self.line_first_char_index = 0;
+        for i in 0..self.characters.len() {
+            let v = &mut self.characters[i];
+            let character = &v.0;
             if character.get_tex_id() == -1 {
                 if character.get_char() == '\n' {
-                    top += character.get_position().5 * self.size_ratio; // TODO use line height
-                    left = 0.;
+                    inline_position_status.line_wrap();
+                    self.line_first_char_index = i;
                 }
+                self.line_current_char_index = i;
             } else {
                 let char_pos = character.get_position();
                 let width = char_pos.4 * self.size_ratio;
-                if left + width > suggested_size.0 {
-                    top += style.font_size; // TODO use line height
-                    left = 0.;
+                let (left, line_baseline_top) = inline_position_status.add_width(width, true);
+                if left == 0. {
+                    self.line_first_char_index = i;
                 }
-                left += width;
+                self.line_current_char_index = i;
+                v.1 = left as f32;
+                v.2 = (line_baseline_top - baseline_top) as f32;
             }
-        });
-        top += style.font_size; // TODO use line height
-        (suggested_size.0, top)
+        };
+        (suggested_size.0, inline_position_status.get_height() - prev_inline_height)
     }
-    fn draw(&mut self, style: &ElementStyle, pos: (f64, f64, f64, f64)) {
+    fn adjust_baseline_offset(&mut self, add_offset: f64) {
+        for i in self.line_first_char_index..(self.line_current_char_index + 1) {
+            self.characters[i].2 += add_offset as f32;
+        }
+    }
+    fn draw(&mut self, _style: &ElementStyle, pos: (f64, f64, f64, f64)) {
         debug!("Attempted to draw Text at {:?}", pos);
-        // TODO whole element edge cutting
-        let mut left = pos.0;
-        let mut top = pos.1;
-        self.characters.iter().for_each(|character| {
+        // FIXME whole element edge cutting
+        self.characters.iter().for_each(|(character, left, top)| {
             if character.get_tex_id() == -1 {
-                if character.get_char() == '\n' {
-                    top += character.get_position().5 * self.size_ratio; // TODO use line height
-                    left = 0.;
-                }
+                /* empty */
             } else {
                 let char_pos = character.get_position();
                 let width = char_pos.4 * self.size_ratio;
                 let height = char_pos.5 * self.size_ratio;
-                if left + width > pos.2 {
-                    top += style.font_size; // TODO use line-height
-                    left = 0.;
-                }
                 let rm = self.canvas_config.get_resource_manager();
                 rm.borrow_mut().request_draw(
                     character.get_tex_id(),
                     char_pos.0, char_pos.1, char_pos.2, char_pos.3,
-                    left, top, width, height
+                    pos.0 + *left as f64, pos.1 + *top as f64, width, height
                 );
-                left += width;
             }
         });
     }

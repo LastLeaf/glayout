@@ -152,7 +152,7 @@ impl CharacterManager {
         }
     }
 
-    pub fn alloc_chars(&mut self, font_family_id: i32, font_size: i32, font_style: FontStyle, chars: Chars) -> Box<[Rc<Character>]> {
+    pub fn alloc_chars(&mut self, font_family_id: i32, font_size: i32, font_style: FontStyle, chars: Chars) -> Box<[(Rc<Character>, f32, f32)]> {
         let font_size = cmp::max(font_size, MIN_FONT_SIZE);
         let line_height = get_default_line_height(font_size);
         let tex_batch_max = (MAX_TEX_SIZE / (font_size * 2)) * (MAX_TEX_SIZE / line_height as i32);
@@ -191,8 +191,8 @@ impl CharacterManager {
             if need_insert {
                 self.char_tex_id_map.insert(key, character.clone());
             }
-            character
-        }).collect::<Vec<Rc<Character>>>().into_boxed_slice();
+            (character, 0., 0.)
+        }).collect::<Vec<(Rc<Character>, f32, f32)>>().into_boxed_slice();
         if characters_to_draw.len() > 0 {
             draw_to_tex(self.canvas_index, &mut self.tex_allocator, &mut characters_to_draw, font_size);
         }

@@ -1,6 +1,5 @@
 use std::rc::Rc;
 use std::cell::RefCell;
-use super::get_window_size;
 use super::frame;
 use super::tree::{TreeNodeRc, TreeNodeSearchType};
 
@@ -70,9 +69,9 @@ impl frame::Frame for CanvasContext {
         if dirty {
             let now = start_measure_time!();
             self.clear();
-            let mut root_node_rc = self.get_root();
+            let root_node_rc = self.get_root();
             let size = self.canvas_config.canvas_size.get();
-            root_node_rc.elem().update_position_offset(size);
+            root_node_rc.elem().dfs_update_position_offset(size);
             root_node_rc.elem().draw((0., 0., size.0, size.1), &mut element::Transform::new());
             let rm = self.canvas_config.get_resource_manager();
             rm.borrow_mut().flush_draw();

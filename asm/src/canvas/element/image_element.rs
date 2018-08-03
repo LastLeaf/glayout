@@ -3,7 +3,8 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use super::super::CanvasConfig;
 use super::super::resource::ResourceManager;
-use super::{Element, ElementStyle};
+use super::{Element, ElementStyle, InlinePositionStatus};
+use super::style::{DisplayType};
 use super::super::super::tree::{TreeNodeWeak, TreeNodeRc};
 
 const IMAGE_SIZE_WARN: i32 = 4096;
@@ -15,8 +16,8 @@ pub struct Image {
     canvas_config: Rc<CanvasConfig>,
     tex_id: i32,
     loader: Option<Rc<RefCell<ImageLoader>>>,
-    natural_width: i32,
-    natural_height: i32,
+    inline_pos: (f64, f64),
+    natural_size: (i32, i32),
 }
 
 impl Image {
@@ -26,15 +27,14 @@ impl Image {
             canvas_config: cfg.clone(),
             tex_id: -1,
             loader: None,
-            natural_width: 0,
-            natural_height: 0,
+            inline_pos: (0., 0.),
+            natural_size: (0, 0),
         }
     }
     fn need_update_from_loader(&mut self) {
         // NOTE this method should be called if manually updated loader
         self.tex_id = -1;
-        self.natural_width = 0;
-        self.natural_height = 0;
+        self.natural_size = (0, 0);
         let t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
         t.elem().mark_dirty();
     }
@@ -42,8 +42,7 @@ impl Image {
         let loader = self.loader.as_ref().unwrap().borrow();
         self.tex_id = loader.tex_id;
         let size = loader.get_size();
-        self.natural_width = size.0;
-        self.natural_height = size.1;
+        self.natural_size = size;
         let t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
         t.elem().mark_dirty();
     }
@@ -89,10 +88,20 @@ impl super::ElementContent for Image {
     fn associate_tree_node(&mut self, tree_node: TreeNodeRc<Element>) {
         self.tree_node = Some(tree_node.downgrade());
     }
-    fn suggest_size(&mut self, _suggested_size: (f64, f64), style: &ElementStyle) -> (f64, f64) {
-        (self.natural_width as f64, self.natural_height as f64)
+    fn suggest_size(&mut self, suggested_size: (f64, f64), inline_position_status: &mut InlinePositionStatus, _style: &ElementStyle) -> (f64, f64) {
+        let prev_inline_height = inline_position_status.get_height();
+        let width = self.natural_size.0 as f64;
+        let height = self.natural_size.1 as f64;
+        let baseline_top = height / 2.; // FIXME vertical-align middle
+        inline_position_status.append_node(self.tree_node.as_mut().unwrap().upgrade().unwrap(), height, baseline_top);
+        let (left, line_baseline_top) = inline_position_status.add_width(width, true);
+        self.inline_pos = (left, baseline_top - line_baseline_top);
+        (suggested_size.0, height - prev_inline_height)
     }
-    fn draw(&mut self, style: &ElementStyle, pos: (f64, f64, f64, f64)) {
+    fn adjust_baseline_offset(&mut self, add_offset: f64) {
+        self.inline_pos.1 += add_offset;
+    }
+    fn draw(&mut self, _style: &ElementStyle, pos: (f64, f64, f64, f64)) {
         if self.tex_id == -1 {
             return;
         }
@@ -101,7 +110,7 @@ impl super::ElementContent for Image {
         rm.borrow_mut().request_draw(
             self.tex_id,
             0., 0., 1., 1.,
-            pos.0, pos.1, pos.2, pos.3
+            pos.0 + self.inline_pos.0, pos.1 + self.inline_pos.1, self.natural_size.0 as f64, self.natural_size.1 as f64,
         );
     }
 }

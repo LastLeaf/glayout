@@ -19,15 +19,15 @@ pub fn init() {
                 [&cfg] Empty {
                     left = 10.;
                     top = 20.;
+                    Text {
+                        font_size = 24.;
+                        .set_text("LARGE TEXT");
+                    };
                     Empty;
                     Image {
                         width = 400.;
                         height = 400.;
                         .load("../resources/test.png");
-                    };
-                    Text {
-                        font_size = 24.;
-                        .set_text("LARGE TEXT");
                     };
                     Empty {
                         Text {

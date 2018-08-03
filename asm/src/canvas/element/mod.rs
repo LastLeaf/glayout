@@ -4,6 +4,7 @@ mod style;
 pub type ElementStyle = style::ElementStyle;
 mod position_offset;
 pub type PositionOffset = position_offset::PositionOffset;
+pub type InlinePositionStatus = position_offset::InlinePositionStatus;
 mod transform;
 pub type Transform = transform::Transform;
 
@@ -19,7 +20,7 @@ use std::cell::{Cell, RefCell, Ref, RefMut};
 use std::fmt;
 use downcast_rs::Downcast;
 use super::CanvasConfig;
-use super::super::tree::{TreeElem, TreeNodeRc};
+use super::super::tree::{TreeElem, TreeNodeRc, TreeNodeSearchType};
 
 pub trait ElementContent: Downcast {
     fn name(&self) -> &'static str;
@@ -28,8 +29,12 @@ pub trait ElementContent: Downcast {
     fn associate_tree_node(&mut self, _node: TreeNodeRc<Element>) { }
     fn draw(&mut self, style: &ElementStyle, pos: (f64, f64, f64, f64));
     #[inline]
-    fn suggest_size(&mut self, _suggested_size: (f64, f64), _style: &ElementStyle) -> (f64, f64) {
+    fn suggest_size(&mut self, _suggested_size: (f64, f64), _inline_position_status: &mut InlinePositionStatus, _style: &ElementStyle) -> (f64, f64) {
         (0., 0.)
+    }
+    #[inline]
+    fn adjust_baseline_offset(&mut self, _add_offset: f64) {
+        /* empty */
     }
 }
 
@@ -111,13 +116,45 @@ impl Element {
         self.dirty.get()
     }
     #[inline]
+    fn spread_dirty(&self) {
+        // for dirty inline nodes, spread dirty to all inline nodes beside it
+        let mut pending_inline_nodes: Vec<TreeNodeRc<Self>> = vec![];
+        let mut inline_dirty = false;
+        self.tree_node().dfs(TreeNodeSearchType::ChildrenLast, &mut |n| {
+            let display = n.elem().style().display;
+            match display {
+                style::DisplayType::Inline | style::DisplayType::InlineBlock => {
+                    if n.elem().dirty.get() {
+                        if !inline_dirty {
+                            inline_dirty = true;
+                            for n in pending_inline_nodes.iter() {
+                                n.elem().dirty.set(true);
+                            }
+                            pending_inline_nodes.truncate(0);
+                        }
+                    } else {
+                        if inline_dirty {
+                            n.elem().dirty.set(true);
+                        } else {
+                            pending_inline_nodes.push(n.clone());
+                        }
+                    }
+                },
+                _ => {
+                    pending_inline_nodes.truncate(0);
+                }
+            }
+            true
+        });
+    }
+    #[inline]
     pub fn get_requested_size(&self) -> (f64, f64) {
         self.position_offset.borrow().get_requested_size()
     }
     #[inline]
-    pub fn suggest_size(&self, suggested_size: (f64, f64)) -> (f64, f64) {
+    pub fn suggest_size(&self, suggested_size: (f64, f64), inline_position_status: &mut InlinePositionStatus) -> (f64, f64) {
         let is_dirty = self.is_dirty();
-        self.position_offset.borrow_mut().suggest_size(is_dirty, suggested_size, self)
+        self.position_offset.borrow_mut().suggest_size(is_dirty, suggested_size, inline_position_status, self)
     }
     #[inline]
     pub fn allocate_position(&self, pos: (f64, f64, f64, f64)) {
@@ -125,8 +162,9 @@ impl Element {
         self.position_offset.borrow_mut().allocate_position(is_dirty, pos, self);
     }
     #[inline]
-    pub fn update_position_offset(&self, suggested_size: (f64, f64)) {
-        let requested_size = self.suggest_size(suggested_size);
+    pub fn dfs_update_position_offset(&self, suggested_size: (f64, f64)) {
+        self.spread_dirty();
+        let requested_size = self.suggest_size(suggested_size, &mut InlinePositionStatus::new(suggested_size.0));
         self.allocate_position((0., 0., suggested_size.0, requested_size.1));
     }
 
@@ -140,12 +178,15 @@ impl Element {
             position_offset.2,
             position_offset.3
         );
-        self.content.borrow_mut().draw(&*self.style(), pos);
-        transform.offset = (transform.offset.0 + position_offset.0, transform.offset.1 + position_offset.1);
-        for child in self.tree_node().iter_children() {
-            child.elem().draw(viewport, transform);
+        let mut content = self.content.borrow_mut();
+        content.draw(&*self.style(), pos);
+        if !content.is_terminated() {
+            transform.offset = (transform.offset.0 + position_offset.0, transform.offset.1 + position_offset.1);
+            for child in self.tree_node().iter_children() {
+                child.elem().draw(viewport, transform);
+            }
+            transform.offset = (transform.offset.0 - position_offset.0, transform.offset.1 - position_offset.1);
         }
-        transform.offset = (transform.offset.0 - position_offset.0, transform.offset.1 - position_offset.1);
     }
 }
 
