@@ -47,7 +47,7 @@ pub extern "C" fn set_log_level_num(num: i32) {
     utils::log_level::set_log_level_num(num);
 }
 
-pub fn get_window_size() -> (f64, f64) {
+pub fn window_size() -> (f64, f64) {
     WINDOW_SIZE.get()
 }
 

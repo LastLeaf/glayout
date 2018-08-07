@@ -10,7 +10,7 @@ use std::os::raw::c_char;
 mod utils;
 mod test;
 
-pub fn get_string_from_c_char(char_arr: *const c_char) -> String {
+pub fn string_from_c_char(char_arr: *const c_char) -> String {
     unsafe {
         CStr::from_ptr(char_arr).to_string_lossy().into_owned()
     }
@@ -29,7 +29,7 @@ pub extern "C" fn load_test_cases() {
 
 #[no_mangle]
 pub extern "C" fn run_test_case(name_c_char: i32) {
-    let name = get_string_from_c_char(name_c_char as *const c_char);
+    let name = string_from_c_char(name_c_char as *const c_char);
     log!("Running test case: {}", name);
     run_test_case!(name);
 }

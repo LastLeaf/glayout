@@ -142,7 +142,7 @@ impl<T: TreeElem> TreeNodeRc<T> {
         self.rc.parent.set(p);
         ret
     }
-    pub fn get_parent(&self) -> Option<TreeNodeRc<T>> {
+    pub fn parent(&self) -> Option<TreeNodeRc<T>> {
         let p = self.rc.parent.replace(None);
         let ret = match p {
             None => None,
@@ -153,7 +153,7 @@ impl<T: TreeElem> TreeNodeRc<T> {
         self.rc.parent.set(p);
         ret
     }
-    pub fn get_child(&self, index: usize) -> TreeNodeRc<T> {
+    pub fn child(&self, index: usize) -> TreeNodeRc<T> {
         let children = self.rc.children.borrow_mut();
         children[index].clone()
     }
@@ -229,6 +229,6 @@ impl<T: TreeElem> Iterator for TreeNodeIter<T> {
             return None;
         }
         self.cur_index += 1;
-        return Some(self.node_rc.get_child(self.cur_index - 1));
+        return Some(self.node_rc.child(self.cur_index - 1));
     }
 }

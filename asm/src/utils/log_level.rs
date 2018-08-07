@@ -14,7 +14,7 @@ pub fn set_log_level_num(num: i32) {
 }
 
 #[inline]
-pub fn get_log_level_num() -> i32 {
+pub fn log_level_num() -> i32 {
     unsafe {
         **LOG_LEVEL_NUM.get()
     }
@@ -23,7 +23,7 @@ pub fn get_log_level_num() -> i32 {
 #[allow(unused_macros)]
 macro_rules! debug {
     ($($c:tt)*) => {
-        if $crate::utils::log_level::get_log_level_num() <= -1 {
+        if $crate::utils::log_level::log_level_num() <= -1 {
             print!("[glayout] [debug] ");
             println!($($c)*);
         }
@@ -33,7 +33,7 @@ macro_rules! debug {
 #[allow(unused_macros)]
 macro_rules! log {
     ($($c:tt)*) => {
-        if $crate::utils::log_level::get_log_level_num() <= 0 {
+        if $crate::utils::log_level::log_level_num() <= 0 {
             print!("[glayout] [log] ");
             println!($($c)*);
         }
@@ -43,7 +43,7 @@ macro_rules! log {
 #[allow(unused_macros)]
 macro_rules! info {
     ($($c:tt)*) => {
-        if $crate::utils::log_level::get_log_level_num() <= 1 {
+        if $crate::utils::log_level::log_level_num() <= 1 {
             print!("[glayout] [info] ");
             println!($($c)*);
         }
@@ -53,7 +53,7 @@ macro_rules! info {
 #[allow(unused_macros)]
 macro_rules! warn {
     ($($c:tt)*) => {
-        if $crate::utils::log_level::get_log_level_num() <= 2 {
+        if $crate::utils::log_level::log_level_num() <= 2 {
             print!("[glayout] [warn] ");
             println!($($c)*);
         }
@@ -63,7 +63,7 @@ macro_rules! warn {
 #[allow(unused_macros)]
 macro_rules! error {
     ($($c:tt)*) => {
-        if $crate::utils::log_level::get_log_level_num() <= 3 {
+        if $crate::utils::log_level::log_level_num() <= 3 {
             print!("[glayout] [error] ");
             println!($($c)*);
         }

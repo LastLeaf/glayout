@@ -64,11 +64,11 @@ impl Character {
     }
 
     #[inline]
-    pub fn get_char(&self) -> char {
+    pub fn unicode_char(&self) -> char {
         self.unicode
     }
     #[inline]
-    pub fn get_font_size(&self) -> f64 {
+    pub fn font_size(&self) -> f64 {
         self.font_size
     }
     #[inline]
@@ -88,7 +88,7 @@ impl Character {
         self.height.set(self.height.get() / total_height);
     }
     #[inline]
-    pub fn get_position(&self) -> (f64, f64, f64, f64, f64, f64) {
+    pub fn position(&self) -> (f64, f64, f64, f64, f64, f64) {
         (self.left.get(), self.top.get(), self.width.get(), self.height.get(), self.natural_width.get(), self.natural_height.get())
     }
     #[inline]
@@ -96,13 +96,13 @@ impl Character {
         self.tex_id.set(tex_id);
     }
     #[inline]
-    pub fn get_tex_id(&self) -> i32 {
+    pub fn tex_id(&self) -> i32 {
         self.tex_id.get()
     }
 }
 
 #[inline]
-fn get_default_line_height(font_size: i32) -> f64 {
+fn default_line_height(font_size: i32) -> f64 {
     (font_size as f64 * 1.5).ceil()
 }
 
@@ -116,7 +116,7 @@ fn draw_to_tex(canvas_index: i32, tex_allocator: &mut CharacterTexAllocator, cha
     let mut left: f64 = 0.;
     let mut top: f64 = 0.;
     let mut total_width: f64 = 0.;
-    let line_height = get_default_line_height(font_size);
+    let line_height = default_line_height(font_size);
     let mut string_to_draw = String::new();
     characters.iter().for_each(|character| {
         let mut s = String::new();
@@ -154,7 +154,7 @@ impl CharacterManager {
 
     pub fn alloc_chars(&mut self, font_family_id: i32, font_size: i32, font_style: FontStyle, chars: Chars) -> Box<[(Rc<Character>, f32, f32)]> {
         let font_size = cmp::max(font_size, MIN_FONT_SIZE);
-        let line_height = get_default_line_height(font_size);
+        let line_height = default_line_height(font_size);
         let tex_batch_max = (MAX_TEX_SIZE / (font_size * 2)) * (MAX_TEX_SIZE / line_height as i32);
         lib!(text_set_font(font_size, line_height as i32, font_family_id, (font_style == FontStyle::Italic || font_style == FontStyle::BoldItalic) as i32, (font_style == FontStyle::Bold || font_style == FontStyle::BoldItalic) as i32));
         let mut characters_to_draw: Vec<Rc<Character>> = vec!();
@@ -208,7 +208,7 @@ impl CharacterManager {
         FONT_FAMILY_ID_INC.set(ret + 1);
         ret
     }
-    pub fn get_font_family_id(&mut self, name: String) -> i32 {
+    pub fn font_family_id(&mut self, name: String) -> i32 {
         // NOTE font-family is never released
         let mut font_family_map = FONT_FAMILY_MAP.borrow_mut();
         let mut need_insert = false;

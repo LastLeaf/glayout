@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::cell::{Cell, RefCell};
-use super::super::get_window_size;
+use super::super::window_size;
 use super::character::CharacterManager;
 use super::resource::ResourceManager;
 
@@ -27,7 +27,7 @@ impl CanvasConfig {
             tex_max_draws,
             device_pixel_ratio,
             canvas_size: Cell::new((1280., 720.)),
-            window_size: Cell::new(get_window_size()),
+            window_size: Cell::new(window_size()),
             clear_color: Cell::new((1., 1., 1., 0.)),
             resource_manager: resource_manager.clone(),
             character_manager: Rc::new(RefCell::new(CharacterManager::new(index, resource_manager))),
@@ -39,16 +39,16 @@ impl CanvasConfig {
         self.clear_color.set(color);
     }
     #[inline]
-    pub fn get_clear_color(&self) -> (f32, f32, f32, f32) {
+    pub fn clear_color(&self) -> (f32, f32, f32, f32) {
         self.clear_color.get()
     }
 
     #[inline]
-    pub fn get_character_manager(&self) -> Rc<RefCell<CharacterManager>> {
+    pub fn character_manager(&self) -> Rc<RefCell<CharacterManager>> {
         self.character_manager.clone()
     }
     #[inline]
-    pub fn get_resource_manager(&self) -> Rc<RefCell<ResourceManager>> {
+    pub fn resource_manager(&self) -> Rc<RefCell<ResourceManager>> {
         self.resource_manager.clone()
     }
 }

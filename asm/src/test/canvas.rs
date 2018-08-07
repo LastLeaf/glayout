@@ -7,14 +7,14 @@ pub fn init() {
     register_test_case!(module_path!(), {
         let mut canvas = Canvas::new(0);
 
-        canvas.context(|ctx| {
+        canvas.ctx(|ctx| {
             ctx.set_canvas_size(400, 300, 1.);
         });
 
         struct BackgroundColorAni(Canvas);
         impl TimingAnimation for BackgroundColorAni {
             fn progress(&mut self, current_value: f64, _current_time: f64, _total_time: f64) {
-                self.0.context(|ctx| {
+                self.0.ctx(|ctx| {
                     ctx.set_clear_color(0., current_value as f32, current_value as f32, 1.);
                 })
             }

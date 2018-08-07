@@ -56,9 +56,9 @@ impl Text {
         // FIXME consider batching multiple text element update together
         self.generate_tex_font_size(style.font_size);
         // debug!("Attempted to regenerate Text: \"{}\" font {} size {}", self.text, style.font_family.clone(), self.tex_font_size);
-        let cm = self.canvas_config.get_character_manager();
+        let cm = self.canvas_config.character_manager();
         let mut manager = cm.borrow_mut();
-        self.font_family_id = manager.get_font_family_id(style.font_family.clone());
+        self.font_family_id = manager.font_family_id(style.font_family.clone());
         self.characters = manager.alloc_chars(self.font_family_id, self.tex_font_size, FontStyle::Normal, self.text.chars());
     }
 }
@@ -80,7 +80,7 @@ impl super::ElementContent for Text {
         if self.need_update {
             self.update(style);
         }
-        let prev_inline_height = inline_position_status.get_height();
+        let prev_inline_height = inline_position_status.height();
         let line_height = style.font_size; // FIXME use line_height
         let baseline_top = line_height / 2.;
         inline_position_status.append_node(self.tree_node.as_mut().unwrap().upgrade().unwrap(), style.font_size, baseline_top);
@@ -88,14 +88,14 @@ impl super::ElementContent for Text {
         for i in 0..self.characters.len() {
             let v = &mut self.characters[i];
             let character = &v.0;
-            if character.get_tex_id() == -1 {
-                if character.get_char() == '\n' {
+            if character.tex_id() == -1 {
+                if character.unicode_char() == '\n' {
                     inline_position_status.line_wrap();
                     self.line_first_char_index = i;
                 }
                 self.line_current_char_index = i;
             } else {
-                let char_pos = character.get_position();
+                let char_pos = character.position();
                 let width = char_pos.4 * self.size_ratio;
                 let (left, line_baseline_top) = inline_position_status.add_width(width, true);
                 if left == 0. {
@@ -106,7 +106,7 @@ impl super::ElementContent for Text {
                 v.2 = (line_baseline_top - baseline_top) as f32;
             }
         };
-        (suggested_size.0, inline_position_status.get_height() - prev_inline_height)
+        (suggested_size.0, inline_position_status.height() - prev_inline_height)
     }
     fn adjust_baseline_offset(&mut self, add_offset: f64) {
         for i in self.line_first_char_index..(self.line_current_char_index + 1) {
@@ -117,15 +117,15 @@ impl super::ElementContent for Text {
         debug!("Attempted to draw Text at {:?}", pos);
         // FIXME whole element edge cutting
         self.characters.iter().for_each(|(character, left, top)| {
-            if character.get_tex_id() == -1 {
+            if character.tex_id() == -1 {
                 /* empty */
             } else {
-                let char_pos = character.get_position();
+                let char_pos = character.position();
                 let width = char_pos.4 * self.size_ratio;
                 let height = char_pos.5 * self.size_ratio;
-                let rm = self.canvas_config.get_resource_manager();
+                let rm = self.canvas_config.resource_manager();
                 rm.borrow_mut().request_draw(
-                    character.get_tex_id(),
+                    character.tex_id(),
                     char_pos.0, char_pos.1, char_pos.2, char_pos.3,
                     pos.0 + *left as f64, pos.1 + *top as f64, width, height
                 );

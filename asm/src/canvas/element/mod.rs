@@ -99,7 +99,7 @@ impl Element {
     pub fn mark_dirty(&self) {
         self.dirty.set(true);
         let tn = self.tree_node.replace(None);
-        match tn.as_ref().unwrap().get_parent() {
+        match tn.as_ref().unwrap().parent() {
             None => { },
             Some(ref x) => {
                 x.elem().mark_dirty();
@@ -148,8 +148,8 @@ impl Element {
         });
     }
     #[inline]
-    pub fn get_requested_size(&self) -> (f64, f64) {
-        self.position_offset.borrow().get_requested_size()
+    pub fn requested_size(&self) -> (f64, f64) {
+        self.position_offset.borrow().requested_size()
     }
     #[inline]
     pub fn suggest_size(&self, suggested_size: (f64, f64), inline_position_status: &mut InlinePositionStatus) -> (f64, f64) {
@@ -171,7 +171,7 @@ impl Element {
     #[inline]
     pub fn draw(&self, viewport: (f64, f64, f64, f64), transform: &mut Transform) {
         let position_offset = self.position_offset();
-        let position_offset = position_offset.get_allocated_position();
+        let position_offset = position_offset.allocated_position();
         let pos = (
             position_offset.0 + transform.offset.0,
             position_offset.1 + transform.offset.1,

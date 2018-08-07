@@ -5,16 +5,16 @@ pub fn init() {
     register_test_case!(module_path!(), {
         let mut canvas = Canvas::new(0);
 
-        canvas.context(|ctx| {
-            let pixel_ratio = ctx.get_device_pixel_ratio();
+        canvas.ctx(|ctx| {
+            let pixel_ratio = ctx.device_pixel_ratio();
             ctx.set_canvas_size(800, 600, pixel_ratio);
             ctx.set_clear_color(0.5, 1., 0.5, 1.);
         });
 
-        let rc_context = canvas.get_context();
+        let rc_context = canvas.context();
         let mut context = rc_context.borrow_mut();
         let elem = {
-            let cfg = context.get_canvas_config();
+            let cfg = context.canvas_config();
             let elem = element! {
                 [&cfg] Empty {
                     left = 10.;
@@ -40,7 +40,7 @@ pub fn init() {
             };
             elem
         };
-        let mut root_elem = context.get_root();
+        let mut root_elem = context.root();
         root_elem.append(elem);
         return 0;
     });

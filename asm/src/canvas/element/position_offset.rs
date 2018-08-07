@@ -19,11 +19,11 @@ impl PositionOffset {
     }
 
     #[inline]
-    pub fn get_requested_size(&self) -> (f64, f64) {
+    pub fn requested_size(&self) -> (f64, f64) {
         self.requested_size
     }
     #[inline]
-    pub fn get_allocated_position(&self) -> (f64, f64, f64, f64) {
+    pub fn allocated_position(&self) -> (f64, f64, f64, f64) {
         self.allocated_position
     }
 
@@ -83,7 +83,7 @@ impl PositionOffset {
         } else {
             for child in element.tree_node().iter_children() {
                 let element = child.elem();
-                let (_, h) = element.get_requested_size();
+                let (_, h) = element.requested_size();
                 let child_display = child.elem().style().display;
                 match child_display {
                     DisplayType::Block => {
@@ -135,7 +135,7 @@ impl InlinePositionStatus {
         }
     }
     #[inline]
-    pub fn get_height(&mut self) -> f64 {
+    pub fn height(&mut self) -> f64 {
         let height = self.used_height + self.line_height;
         height
     }
@@ -163,9 +163,9 @@ impl InlinePositionStatus {
         self.current_line_nodes.push(next_node);
     }
     #[inline]
-    pub fn get_line_height(&self) -> f64 { self.line_height }
+    pub fn line_height(&self) -> f64 { self.line_height }
     #[inline]
-    pub fn get_baseline_offset(&self) -> f64 { self.baseline_offset }
+    pub fn baseline_offset(&self) -> f64 { self.baseline_offset }
     #[inline]
     pub fn add_width(&mut self, width: f64, allow_line_wrap: bool) -> (f64, f64) {
         if self.used_width + width > self.width && self.used_width > 0. {

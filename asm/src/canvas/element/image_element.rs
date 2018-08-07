@@ -4,7 +4,6 @@ use std::cell::RefCell;
 use super::super::CanvasConfig;
 use super::super::resource::ResourceManager;
 use super::{Element, ElementStyle, InlinePositionStatus};
-use super::style::{DisplayType};
 use super::super::super::tree::{TreeNodeWeak, TreeNodeRc};
 
 const IMAGE_SIZE_WARN: i32 = 4096;
@@ -41,7 +40,7 @@ impl Image {
     fn update_from_loader(&mut self) {
         let loader = self.loader.as_ref().unwrap().borrow();
         self.tex_id = loader.tex_id;
-        let size = loader.get_size();
+        let size = loader.size();
         self.natural_size = size;
         let t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
         t.elem().mark_dirty();
@@ -89,7 +88,7 @@ impl super::ElementContent for Image {
         self.tree_node = Some(tree_node.downgrade());
     }
     fn suggest_size(&mut self, suggested_size: (f64, f64), inline_position_status: &mut InlinePositionStatus, _style: &ElementStyle) -> (f64, f64) {
-        let prev_inline_height = inline_position_status.get_height();
+        let prev_inline_height = inline_position_status.height();
         let width = self.natural_size.0 as f64;
         let height = self.natural_size.1 as f64;
         let baseline_top = height / 2.; // FIXME vertical-align middle
@@ -106,7 +105,7 @@ impl super::ElementContent for Image {
             return;
         }
         debug!("Attempted to draw an Image at {:?}", pos);
-        let rm = self.canvas_config.get_resource_manager();
+        let rm = self.canvas_config.resource_manager();
         rm.borrow_mut().request_draw(
             self.tex_id,
             0., 0., 1., 1.,
@@ -163,13 +162,13 @@ impl ImageLoader {
         };
     }
 
-    pub fn get_img_id(&self) -> i32 {
+    pub fn img_id(&self) -> i32 {
         self.img_id
     }
-    pub fn get_status(&self) -> ImageLoaderStatus {
+    pub fn status(&self) -> ImageLoaderStatus {
         self.status
     }
-    pub fn get_size(&self) -> (i32, i32) {
+    pub fn size(&self) -> (i32, i32) {
         (self.width, self.height)
     }
     pub fn load<T: Into<Vec<u8>>>(self_rc: Rc<RefCell<Self>>, url: T) {
@@ -195,7 +194,7 @@ lib_define_callback! (ImageLoaderCallback (Rc<RefCell<ImageLoader>>) {
                 if loader.height > IMAGE_SIZE_WARN {
                     warn!("Image height ({}) exceeds max size ({}). May not display properly.", loader.height, IMAGE_SIZE_WARN);
                 }
-                let rm = loader.canvas_config.get_resource_manager();
+                let rm = loader.canvas_config.resource_manager();
                 loader.tex_id = rm.borrow_mut().alloc_tex_id();
                 lib!(tex_from_image(loader.canvas_config.index, loader.tex_id, loader.img_id));
             } else {
@@ -216,7 +215,7 @@ impl Drop for ImageLoader {
     fn drop(&mut self) {
         if self.tex_id != -1 {
             lib!(tex_delete(self.canvas_config.index, self.tex_id));
-            let rm = self.canvas_config.get_resource_manager();
+            let rm = self.canvas_config.resource_manager();
             rm.borrow_mut().free_tex_id(self.tex_id);
         }
     }

@@ -1,3 +1,7 @@
+use std::f64;
+
+const DEFAULT_F64: f64 = f64::INFINITY;
+
 pub struct ElementStyle {
     pub id: String,
     pub display: DisplayType,
@@ -7,6 +11,7 @@ pub struct ElementStyle {
     pub height: f64,
     pub font_family: String,
     pub font_size: f64,
+    pub color: (f32, f32, f32, f32),
 }
 
 impl ElementStyle {
@@ -14,12 +19,13 @@ impl ElementStyle {
         ElementStyle {
             id: String::new(),
             display: DisplayType::Inline,
-            left: 0.,
-            top: 0.,
-            width: 0.,
-            height: 0.,
+            left: DEFAULT_F64,
+            top: DEFAULT_F64,
+            width: DEFAULT_F64,
+            height: DEFAULT_F64,
             font_family: String::from("sans-serif"),
             font_size: 16.,
+            color: (0., 0., 0., 0.),
         }
     }
 }
