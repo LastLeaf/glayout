@@ -108,7 +108,7 @@ impl CanvasContext {
     pub fn node_by_id(&mut self, id: &'static str) -> Option<TreeNodeRc<Element>> {
         let mut ret = None;
         self.root_node.dfs(TreeNodeSearchType::ChildrenLast, &mut |node| {
-            if node.elem().style().id == id {
+            if node.elem().style().get_id() == id {
                 ret = Some(node.clone());
                 return false;
             }

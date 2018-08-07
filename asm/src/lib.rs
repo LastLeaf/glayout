@@ -51,18 +51,16 @@ pub fn window_size() -> (f64, f64) {
     WINDOW_SIZE.get()
 }
 
-lib_define_callback!(windowSizeCallback () {
-    fn callback(&mut self, combined_size: i32) {
-        let width: i32 = combined_size / 65536;
-        let height: i32 = combined_size % 65536;
-        WINDOW_SIZE.set((lib!(get_window_width()) as f64, lib!(get_window_width()) as f64));
+lib_define_callback!(WindowSizeCallback () {
+    fn callback(&mut self, _combined_size: i32) {
+        WINDOW_SIZE.set((lib!(get_window_width()) as f64, lib!(get_window_height()) as f64));
     }
 });
 
 pub fn init() {
     lib!(init_lib());
     WINDOW_SIZE.set((lib!(get_window_width()) as f64, lib!(get_window_width()) as f64));
-    lib!(set_window_size_listener(lib_callback!(windowSizeCallback())));
+    lib!(set_window_size_listener(lib_callback!(WindowSizeCallback())));
 }
 
 pub fn main_loop() {

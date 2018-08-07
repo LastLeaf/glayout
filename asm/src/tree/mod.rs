@@ -4,7 +4,7 @@ use std::cell::{Cell, RefCell};
 // tree node
 
 pub trait TreeElem {
-    fn associate_node(&self, _node: TreeNodeRc<Self>) where Self: Sized { }
+    fn associate_node(&self, _node: TreeNodeWeak<Self>) where Self: Sized { }
 }
 
 pub struct TreeNode<T: TreeElem> {
@@ -98,7 +98,7 @@ impl<T: TreeElem> TreeNodeRc<T> {
         let ret = Self {
             rc: Rc::new(TreeNode::new(elem))
         };
-        let ret_clone = ret.clone();
+        let ret_clone = ret.downgrade();
         ret.rc.elem.associate_node(ret_clone);
         ret
     }

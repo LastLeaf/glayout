@@ -17,24 +17,24 @@ pub fn init() {
             let cfg = context.canvas_config();
             let elem = element! {
                 [&cfg] Empty {
-                    left = 10.;
-                    top = 20.;
+                    left: 10.;
+                    top: 20.;
                     Text {
-                        font_size = 24.;
-                        .set_text("LARGE TEXT");
+                        font_size: 24.;
+                        set_text("LARGE TEXT");
                     };
                     Empty;
                     Image {
-                        width = 400.;
-                        height = 400.;
-                        .load("../resources/test.png");
+                        width: 400.;
+                        height: 400.;
+                        load("../resources/test.png");
                     };
                     Empty {
                         Text {
-                            font_size = 16.;
-                            .set_text(ARTICLE);
+                            font_size: 16.;
+                            set_text(ARTICLE);
                         };
-                        top = 750.;
+                        top: 750.;
                     };
                 }
             };

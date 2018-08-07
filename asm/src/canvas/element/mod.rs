@@ -20,13 +20,13 @@ use std::cell::{Cell, RefCell, Ref, RefMut};
 use std::fmt;
 use downcast_rs::Downcast;
 use super::CanvasConfig;
-use super::super::tree::{TreeElem, TreeNodeRc, TreeNodeSearchType};
+use super::super::tree::{TreeElem, TreeNodeRc, TreeNodeWeak, TreeNodeSearchType};
 
 pub trait ElementContent: Downcast {
     fn name(&self) -> &'static str;
     fn is_terminated(&self) -> bool;
     #[inline]
-    fn associate_tree_node(&mut self, _node: TreeNodeRc<Element>) { }
+    fn associate_tree_node(&mut self, _node: TreeNodeWeak<Element>) { }
     fn draw(&mut self, style: &ElementStyle, pos: (f64, f64, f64, f64));
     #[inline]
     fn suggest_size(&mut self, _suggested_size: (f64, f64), _inline_position_status: &mut InlinePositionStatus, _style: &ElementStyle) -> (f64, f64) {
@@ -41,7 +41,7 @@ pub trait ElementContent: Downcast {
 impl_downcast!(ElementContent);
 
 pub struct Element {
-    tree_node: Cell<Option<TreeNodeRc<Element>>>,
+    tree_node: Cell<Option<TreeNodeWeak<Element>>>,
     dirty: Cell<bool>,
     style: RefCell<ElementStyle>,
     position_offset: RefCell<PositionOffset>,
@@ -67,7 +67,7 @@ impl Element {
         let tn = self.tree_node.replace(None);
         let ret = tn.clone().unwrap();
         self.tree_node.replace(tn);
-        ret
+        ret.upgrade().unwrap()
     }
     #[inline]
     pub fn style(&self) -> Ref<ElementStyle> {
@@ -97,9 +97,9 @@ impl Element {
 
     #[inline]
     pub fn mark_dirty(&self) {
-        self.dirty.set(true);
+        if self.dirty.replace(true) { return; }
         let tn = self.tree_node.replace(None);
-        match tn.as_ref().unwrap().parent() {
+        match tn.as_ref().unwrap().upgrade().unwrap().parent() {
             None => { },
             Some(ref x) => {
                 x.elem().mark_dirty();
@@ -197,8 +197,9 @@ impl fmt::Display for Element {
 }
 
 impl TreeElem for Element {
-    fn associate_node(&self, node: TreeNodeRc<Element>) {
+    fn associate_node(&self, node: TreeNodeWeak<Element>) {
         self.tree_node.set(Some(node.clone()));
+        self.style_mut().associate_tree_node(node.clone());
         self.content.borrow_mut().associate_tree_node(node);
     }
 }
@@ -206,15 +207,11 @@ impl TreeElem for Element {
 #[macro_export]
 macro_rules! __element_children {
     ($cfg:expr, $v:ident, $t:ident, ) => {};
-    ($cfg:expr, $v:ident, $t:ident, $k:ident = $a:expr; $($r:tt)*) => {
-        $v.elem().style_mut().$k = $a;
+    ($cfg:expr, $v:ident, $t:ident, $k:ident : $a:expr; $($r:tt)*) => {
+        $v.elem().style_mut().$k($a);
         __element_children! ($cfg, $v, $t, $($r)*);
     };
-    ($cfg:expr, $v:ident, $t:ident, . $k:ident = $a:expr; $($r:tt)*) => {
-        $v.elem().content_mut().downcast_mut::<$t>().unwrap().$k = $a;
-        __element_children! ($cfg, $v, $t, $($r)*);
-    };
-    ($cfg:expr, $v:ident, $t:ident, . $k:ident ( $($a:expr),* ); $($r:tt)*) => {
+    ($cfg:expr, $v:ident, $t:ident, $k:ident ( $($a:expr),* ); $($r:tt)*) => {
         $v.elem().content_mut().downcast_mut::<$t>().unwrap().$k($($a),*);
         __element_children! ($cfg, $v, $t, $($r)*);
     };

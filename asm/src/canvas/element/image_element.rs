@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use super::super::CanvasConfig;
 use super::super::resource::ResourceManager;
 use super::{Element, ElementStyle, InlinePositionStatus};
-use super::super::super::tree::{TreeNodeWeak, TreeNodeRc};
+use super::super::super::tree::{TreeNodeWeak};
 
 const IMAGE_SIZE_WARN: i32 = 4096;
 
@@ -84,8 +84,8 @@ impl super::ElementContent for Image {
         true
     }
     #[inline]
-    fn associate_tree_node(&mut self, tree_node: TreeNodeRc<Element>) {
-        self.tree_node = Some(tree_node.downgrade());
+    fn associate_tree_node(&mut self, tree_node: TreeNodeWeak<Element>) {
+        self.tree_node = Some(tree_node);
     }
     fn suggest_size(&mut self, suggested_size: (f64, f64), inline_position_status: &mut InlinePositionStatus, _style: &ElementStyle) -> (f64, f64) {
         let prev_inline_height = inline_position_status.height();

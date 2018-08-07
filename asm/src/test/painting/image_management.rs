@@ -11,18 +11,18 @@ lib_define_callback!(Step1 (Rc<RefCell<CanvasContext>>) {
             let cfg = context.canvas_config();
             let elem = element! {
                 [&cfg] Empty {
-                    left = 10.;
-                    top = 20.;
+                    left: 10.;
+                    top: 20.;
                     Empty;
                     Image {
-                        id = String::from("img");
-                        width = 400.;
-                        height = 400.;
-                        .load("../resources/test.png");
+                        id: String::from("img");
+                        width: 400.;
+                        height: 400.;
+                        load("../resources/test.png");
                     };
                     Text {
-                        font_size = 16.;
-                        .set_text("Changing images");
+                        font_size: 16.;
+                        set_text("Changing images");
                     };
                 }
             };
