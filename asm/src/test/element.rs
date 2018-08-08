@@ -17,6 +17,7 @@ pub fn init() {
             let cfg = context.canvas_config();
             let elem = element! {
                 [&cfg] Empty {
+                    color: (0., 0., 1., 0.5);
                     left: 10.;
                     top: 20.;
                     Text {

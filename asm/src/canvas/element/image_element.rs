@@ -107,7 +107,7 @@ impl super::ElementContent for Image {
         debug!("Attempted to draw an Image at {:?}", pos);
         let rm = self.canvas_config.resource_manager();
         rm.borrow_mut().request_draw(
-            self.tex_id,
+            self.tex_id, false,
             0., 0., 1., 1.,
             pos.0 + self.inline_pos.0, pos.1 + self.inline_pos.1, self.natural_size.0 as f64, self.natural_size.1 as f64,
         );

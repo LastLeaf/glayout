@@ -121,7 +121,7 @@ impl Element {
         let mut pending_inline_nodes: Vec<TreeNodeRc<Self>> = vec![];
         let mut inline_dirty = false;
         self.tree_node().dfs(TreeNodeSearchType::ChildrenLast, &mut |n| {
-            let display = n.elem().style().display;
+            let display = n.elem().style().get_display();
             match display {
                 style::DisplayType::Inline | style::DisplayType::InlineBlock => {
                     if n.elem().dirty.get() {
@@ -197,10 +197,15 @@ impl fmt::Display for Element {
 }
 
 impl TreeElem for Element {
+    #[inline]
     fn associate_node(&self, node: TreeNodeWeak<Element>) {
         self.tree_node.set(Some(node.clone()));
         self.style_mut().associate_tree_node(node.clone());
         self.content.borrow_mut().associate_tree_node(node);
+    }
+    #[inline]
+    fn parent_node_changed(&self, parent_node: Option<TreeNodeRc<Element>>) {
+        self.style_mut().parent_node_changed(parent_node);
     }
 }
 

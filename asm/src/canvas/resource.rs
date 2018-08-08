@@ -44,6 +44,7 @@ pub struct ResourceManager {
     pending_draws: i32,
     used_shader_tex: i32,
     tex_shader_index_map: HashMap<i32, i32>,
+    current_draw_state: (f32, f32, f32, f32),
 }
 
 impl ResourceManager {
@@ -55,6 +56,7 @@ impl ResourceManager {
             pending_draws: 0,
             used_shader_tex: 0,
             tex_shader_index_map: HashMap::new(),
+            current_draw_state: (0., 0., 0., 1.),
         }
     }
 
@@ -79,7 +81,20 @@ impl ResourceManager {
     }
 
     #[inline]
-    pub fn request_draw(&mut self, tex_id: i32, tex_left: f64, tex_top: f64, tex_width: f64, tex_height: f64, left: f64, top: f64, width: f64, height: f64) {
+    pub fn set_draw_state(&mut self, color: (f32, f32, f32, f32)) {
+        if self.current_draw_state == color {
+            return;
+        }
+        self.current_draw_state = color;
+        self.flush_draw();
+        lib!(tex_set_draw_state(self.canvas_index, color.0 * color.3, color.1 * color.3, color.2 * color.3, color.3));
+    }
+    #[inline]
+    pub fn request_draw(&mut self,
+        tex_id: i32, use_color: bool,
+        tex_left: f64, tex_top: f64, tex_width: f64, tex_height: f64,
+        left: f64, top: f64, width: f64, height: f64
+    ) {
         // TODO ignore draws that exceed viewport
         if self.pending_draws == self.tex_max_draws {
             self.flush_draw();
@@ -99,7 +114,8 @@ impl ResourceManager {
                 *t
             }
         };
-        lib!(tex_draw(self.canvas_index, self.pending_draws, tex_shader_index,
+        lib!(tex_draw(self.canvas_index,
+            self.pending_draws, tex_shader_index + (if use_color { 0 } else { 256 }),
             tex_left, tex_top, tex_width, tex_height,
             left, top, width, height
         ));
@@ -107,6 +123,7 @@ impl ResourceManager {
     }
     #[inline]
     pub fn flush_draw(&mut self) {
+        if self.pending_draws == 0 { return }
         let mut t_max = 0;
         for (tex_id, t) in self.tex_shader_index_map.iter() {
             lib!(tex_set_active_texture(self.canvas_index, *t, *tex_id));
@@ -117,9 +134,7 @@ impl ResourceManager {
         for t in t_max + 1 .. TEX_SHADER_INDEX_MAX {
             lib!(tex_set_active_texture(self.canvas_index, t, -1));
         }
-        if self.pending_draws > 0 {
-            lib!(tex_draw_end(self.canvas_index, self.pending_draws));
-        }
+        lib!(tex_draw_end(self.canvas_index, self.pending_draws));
         self.pending_draws = 0;
         self.used_shader_tex = 0;
         self.tex_shader_index_map.clear();

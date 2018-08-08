@@ -4,7 +4,10 @@ use std::cell::{Cell, RefCell};
 // tree node
 
 pub trait TreeElem {
+    #[inline]
     fn associate_node(&self, _node: TreeNodeWeak<Self>) where Self: Sized { }
+    #[inline]
+    fn parent_node_changed(&self, _parent_node: Option<TreeNodeRc<Self>>) where Self: Sized { }
 }
 
 pub struct TreeNode<T: TreeElem> {
@@ -160,17 +163,20 @@ impl<T: TreeElem> TreeNodeRc<T> {
     pub fn append(&mut self, child: TreeNodeRc<T>) {
         child.rc.parent.set(Some(self.downgrade()));
         let mut children = self.rc.children.borrow_mut();
-        children.push(child);
+        children.push(child.clone());
+        child.elem().parent_node_changed(Some(self.clone()));
     }
     pub fn insert(&mut self, child: TreeNodeRc<T>, position: usize) {
         child.rc.parent.set(Some(self.downgrade()));
         let mut children = self.rc.children.borrow_mut();
-        children.insert(position, child);
+        children.insert(position, child.clone());
+        child.elem().parent_node_changed(Some(self.clone()));
     }
     pub fn remove(&mut self, position: usize) -> TreeNodeRc<T> {
         let mut children = self.rc.children.borrow_mut();
         let child = children.remove(position);
         child.rc.parent.set(None);
+        child.elem().parent_node_changed(None);
         child
     }
 

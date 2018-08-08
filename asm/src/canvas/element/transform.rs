@@ -1,3 +1,4 @@
+#[derive(Clone, Copy, PartialEq)]
 pub struct Transform {
     pub offset: (f64, f64),
 }

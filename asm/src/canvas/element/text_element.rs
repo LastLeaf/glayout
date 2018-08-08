@@ -44,21 +44,35 @@ impl Text {
         let t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
         t.elem().mark_dirty();
     }
-    // FIXME update if font_size / font_style / font_family updated
 
-    fn generate_tex_font_size(&mut self, font_size: f64) {
+    // FIXME update if font_style updated
+    fn check_font_changed(&mut self, style: &ElementStyle) {
+        let font_size = style.get_font_size();
+        if self.tex_font_size != self.measure_tex_font_size(font_size) {
+            self.need_update = true;
+            return;
+        }
+        let cm = self.canvas_config.character_manager();
+        let mut manager = cm.borrow_mut();
+        if self.font_family_id != manager.font_family_id(style.get_font_family().clone()) {
+            self.need_update = true;
+            return;
+        }
+    }
+    fn measure_tex_font_size(&mut self, font_size: f64) -> i32 {
         let min_font_size = (font_size * self.device_pixel_ratio).ceil();
-        self.tex_font_size = min_font_size as i32;
-        self.size_ratio = font_size / (self.tex_font_size as f64);
+        min_font_size as i32
     }
     fn update(&mut self, style: &ElementStyle) {
         self.need_update = false;
         // FIXME consider batching multiple text element update together
-        self.generate_tex_font_size(style.font_size);
+        let font_size = style.get_font_size();
+        self.tex_font_size = self.measure_tex_font_size(font_size);
+        self.size_ratio = font_size / (self.tex_font_size as f64);
         // debug!("Attempted to regenerate Text: \"{}\" font {} size {}", self.text, style.font_family.clone(), self.tex_font_size);
         let cm = self.canvas_config.character_manager();
         let mut manager = cm.borrow_mut();
-        self.font_family_id = manager.font_family_id(style.font_family.clone());
+        self.font_family_id = manager.font_family_id(style.get_font_family().clone());
         self.characters = manager.alloc_chars(self.font_family_id, self.tex_font_size, FontStyle::Normal, self.text.chars());
     }
 }
@@ -77,13 +91,14 @@ impl super::ElementContent for Text {
         self.tree_node = Some(tree_node);
     }
     fn suggest_size(&mut self, suggested_size: (f64, f64), inline_position_status: &mut InlinePositionStatus, style: &ElementStyle) -> (f64, f64) {
+        self.check_font_changed(style);
         if self.need_update {
             self.update(style);
         }
         let prev_inline_height = inline_position_status.height();
-        let line_height = style.font_size; // FIXME use line_height
+        let line_height = style.get_font_size(); // FIXME use line_height
         let baseline_top = line_height / 2.;
-        inline_position_status.append_node(self.tree_node.as_mut().unwrap().upgrade().unwrap(), style.font_size, baseline_top);
+        inline_position_status.append_node(self.tree_node.as_mut().unwrap().upgrade().unwrap(), style.get_font_size(), baseline_top);
         self.line_first_char_index = 0;
         for i in 0..self.characters.len() {
             let v = &mut self.characters[i];
@@ -113,8 +128,8 @@ impl super::ElementContent for Text {
             self.characters[i].2 += add_offset as f32;
         }
     }
-    fn draw(&mut self, _style: &ElementStyle, pos: (f64, f64, f64, f64)) {
-        debug!("Attempted to draw Text at {:?}", pos);
+    fn draw(&mut self, style: &ElementStyle, pos: (f64, f64, f64, f64)) {
+        debug!("Attempted to draw Text at {:?} colored {:?}", pos, style.get_color());
         // FIXME whole element edge cutting
         self.characters.iter().for_each(|(character, left, top)| {
             if character.tex_id() == -1 {
@@ -124,8 +139,10 @@ impl super::ElementContent for Text {
                 let width = char_pos.4 * self.size_ratio;
                 let height = char_pos.5 * self.size_ratio;
                 let rm = self.canvas_config.resource_manager();
-                rm.borrow_mut().request_draw(
-                    character.tex_id(),
+                let mut rm = rm.borrow_mut();
+                rm.set_draw_state(style.get_color());
+                rm.request_draw(
+                    character.tex_id(), true,
                     char_pos.0, char_pos.1, char_pos.2, char_pos.3,
                     pos.0 + *left as f64, pos.1 + *top as f64, width, height
                 );

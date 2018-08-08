@@ -36,7 +36,7 @@ impl PositionOffset {
         let request_width;
         let mut request_height = 0.; // for inline nodes, request_height is the added height while appending the node
         let style = element.style();
-        match style.display {
+        match style.get_display() {
             DisplayType::Block => {
                 request_width = suggested_size.0;
                 inline_position_status.reset(request_width);
@@ -84,7 +84,7 @@ impl PositionOffset {
             for child in element.tree_node().iter_children() {
                 let element = child.elem();
                 let (_, h) = element.requested_size();
-                let child_display = child.elem().style().display;
+                let child_display = child.elem().style().get_display();
                 match child_display {
                     DisplayType::Block => {
                         if current_inline_height > 0. {
