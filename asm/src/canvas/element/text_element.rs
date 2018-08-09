@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use super::super::CanvasConfig;
 use super::super::character::{Character, FontStyle};
-use super::{Element, ElementStyle, InlinePositionStatus};
+use super::{Element, ElementStyle, InlinePositionStatus, Transform};
 use super::super::super::tree::{TreeNodeWeak};
 
 const DEFAULT_DPR: f64 = 2.;
@@ -128,8 +128,8 @@ impl super::ElementContent for Text {
             self.characters[i].2 += add_offset as f32;
         }
     }
-    fn draw(&mut self, style: &ElementStyle, pos: (f64, f64, f64, f64)) {
-        debug!("Attempted to draw Text at {:?} colored {:?}", pos, style.get_color());
+    fn draw(&mut self, style: &ElementStyle, transform: &Transform) {
+        debug!("Attempted to draw Text at {:?}", transform.apply_to_position(&(0., 0., 0., 0.)));
         // FIXME whole element edge cutting
         self.characters.iter().for_each(|(character, left, top)| {
             if character.tex_id() == -1 {
@@ -144,7 +144,7 @@ impl super::ElementContent for Text {
                 rm.request_draw(
                     character.tex_id(), true,
                     char_pos.0, char_pos.1, char_pos.2, char_pos.3,
-                    pos.0 + *left as f64, pos.1 + *top as f64, width, height
+                    transform.apply_to_position(&(*left as f64, *top as f64, width, height))
                 );
             }
         });

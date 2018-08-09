@@ -1,5 +1,5 @@
 use super::super::super::tree::TreeNodeRc;
-use super::style::{DisplayType};
+use super::style::{DisplayType, PositionType, DEFAULT_F64};
 use super::Element;
 
 // position offset
@@ -36,37 +36,81 @@ impl PositionOffset {
         let request_width;
         let mut request_height = 0.; // for inline nodes, request_height is the added height while appending the node
         let style = element.style();
-        match style.get_display() {
-            DisplayType::Block => {
-                request_width = suggested_size.0;
-                inline_position_status.reset(request_width);
-                if element.content().is_terminated() {
-                    let (_, h) = element.content_mut().suggest_size((suggested_size.0, 0.), inline_position_status, &*element.style());
-                    request_height += h;
-                } else {
-                    for child in element.tree_node().iter_children() {
-                        let (_, h) = child.elem().suggest_size((suggested_size.0, 0.), inline_position_status);
-                        request_height += h;
+        let suggested_width = if style.get_width() == DEFAULT_F64 { suggested_size.0 } else { style.get_width() };
+        let suggested_height = if style.get_height() == DEFAULT_F64 { suggested_size.1 } else { style.get_height() };
+
+        // suggest size for children
+        match style.get_position() {
+            PositionType::Static | PositionType::Relative => {
+                match style.get_display() {
+                    DisplayType::None => {
+                        request_width = 0.;
+                        request_height = 0.;
+                    },
+                    DisplayType::Block => {
+                        request_width = suggested_width;
+                        inline_position_status.reset(request_width);
+                        if element.content().is_terminated() {
+                            let (_, h) = element.content_mut().suggest_size((suggested_size.0, 0.), inline_position_status, &*element.style());
+                            request_height += h;
+                        } else {
+                            for child in element.tree_node().iter_children() {
+                                let (_, h) = child.elem().suggest_size((suggested_size.0, 0.), inline_position_status);
+                                request_height += h;
+                            }
+                        }
+                        inline_position_status.reset(request_width);
+                        if style.get_height() != DEFAULT_F64 {
+                            request_height = suggested_height;
+                        }
+                    },
+                    DisplayType::Inline | DisplayType::InlineBlock => {
+                        request_width = suggested_width;
+                        if element.content().is_terminated() {
+                            let (_, h) = element.content_mut().suggest_size((suggested_size.0, 0.), inline_position_status, &*element.style());
+                            request_height += h;
+                        } else {
+                            for child in element.tree_node().iter_children() {
+                                let (_, h) = child.elem().suggest_size((suggested_size.0, 0.), inline_position_status);
+                                request_height += h;
+                            }
+                        }
+                        if style.get_height() != DEFAULT_F64 {
+                            request_height = suggested_height;
+                        }
+                    },
+                    _ => {
+                        unimplemented!();
                     }
-                }
-                inline_position_status.reset(request_width);
+                };
             },
-            DisplayType::Inline | DisplayType::InlineBlock => {
-                request_width = suggested_size.0;
-                if element.content().is_terminated() {
-                    let (_, h) = element.content_mut().suggest_size((suggested_size.0, 0.), inline_position_status, &*element.style());
-                    request_height += h;
-                } else {
-                    for child in element.tree_node().iter_children() {
-                        let (_, h) = child.elem().suggest_size((suggested_size.0, 0.), inline_position_status);
-                        request_height += h;
+            PositionType::Absolute | PositionType::Fixed => {
+                match style.get_display() {
+                    DisplayType::None => {
+                        request_width = 0.;
+                        request_height = 0.;
+                    },
+                    _ => {
+                        request_width = 0.;
+                        request_height = 0.;
+                        let absolute_request_width = suggested_width; // FIXME calc it!
+                        inline_position_status.reset(absolute_request_width);
+                        if element.content().is_terminated() {
+                            element.content_mut().suggest_size((suggested_size.0, 0.), inline_position_status, &*element.style());
+                        } else {
+                            for child in element.tree_node().iter_children() {
+                                child.elem().suggest_size((suggested_size.0, 0.), inline_position_status);
+                            }
+                        }
+                        inline_position_status.reset(absolute_request_width);
                     }
-                }
+                };
             },
             _ => {
                 unimplemented!();
             }
-        };
+        }
+
         self.requested_size = (request_width, request_height);
         debug!("Suggested size for {} with ({}, {}), requested ({}, {})", element, suggested_size.0, suggested_size.1, self.requested_size.0, self.requested_size.1);
         self.requested_size
@@ -83,25 +127,49 @@ impl PositionOffset {
         } else {
             for child in element.tree_node().iter_children() {
                 let element = child.elem();
-                let (_, h) = element.requested_size();
-                let child_display = child.elem().style().get_display();
-                match child_display {
-                    DisplayType::Block => {
-                        if current_inline_height > 0. {
-                            current_height += current_inline_height;
-                            current_inline_height = 0.;
-                        }
-                        element.allocate_position((0., current_height, allocated_position.2, h));
-                        current_height += h;
+                let (requested_width, requested_height) = element.requested_size();
+                let child_style = child.elem().style();
+
+                match child_style.get_position() {
+                    PositionType::Static => {
+                        match child_style.get_display() {
+                            DisplayType::None => {
+                                /* do nothing */
+                            },
+                            DisplayType::Block => {
+                                if current_inline_height > 0. {
+                                    current_height += current_inline_height;
+                                    current_inline_height = 0.;
+                                }
+                                element.allocate_position((0., current_height, allocated_position.2, requested_height));
+                                current_height += requested_height;
+                            },
+                            DisplayType::Inline | DisplayType::InlineBlock => {
+                                element.allocate_position((0., current_height, allocated_position.2, 0.));
+                                current_inline_height += requested_height;
+                            },
+                            _ => {
+                                unimplemented!();
+                            }
+                        };
                     },
-                    DisplayType::Inline | DisplayType::InlineBlock => {
-                        element.allocate_position((0., current_height, allocated_position.2, 0.));
-                        current_inline_height += h;
+                    PositionType::Absolute => {
+                        match child_style.get_display() {
+                            DisplayType::None => {
+                                /* do nothing */
+                            },
+                            _ => {
+                                let left = if child_style.get_left() == DEFAULT_F64 { 0. } else { child_style.get_left() };
+                                let top = if child_style.get_top() == DEFAULT_F64 { 0. } else { child_style.get_top() };
+                                element.allocate_position((left, top, requested_width, requested_height));
+                            }
+                        };
                     },
                     _ => {
                         unimplemented!();
                     }
-                };
+                }
+
             }
         }
         debug!("Allocated position for {} with ({}, {}) size ({}, {})", element, allocated_position.0, allocated_position.1, allocated_position.2, allocated_position.3);
@@ -139,15 +207,14 @@ impl InlinePositionStatus {
         let height = self.used_height + self.line_height;
         height
     }
-    #[inline]
     pub fn reset(&mut self, width: f64) {
         self.current_line_nodes.truncate(0);
         self.width = width;
+        self.used_height = 0.;
         self.used_width = 0.;
         self.line_height = 0.;
         self.baseline_offset = 0.;
     }
-    #[inline]
     pub fn append_node(&mut self, next_node: TreeNodeRc<Element>, required_line_height: f64, required_baseline_offset: f64) {
         self.last_required_line_height = required_line_height;
         self.last_required_baseline_offset = required_baseline_offset;
@@ -166,7 +233,6 @@ impl InlinePositionStatus {
     pub fn line_height(&self) -> f64 { self.line_height }
     #[inline]
     pub fn baseline_offset(&self) -> f64 { self.baseline_offset }
-    #[inline]
     pub fn add_width(&mut self, width: f64, allow_line_wrap: bool) -> (f64, f64) {
         if self.used_width + width > self.width && self.used_width > 0. {
             if allow_line_wrap {
@@ -177,7 +243,6 @@ impl InlinePositionStatus {
         self.used_width += width;
         ret
     }
-    #[inline]
     pub fn line_wrap(&mut self) {
         let last_node = self.current_line_nodes.pop().unwrap();
         self.current_line_nodes.truncate(0);

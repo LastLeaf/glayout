@@ -2,7 +2,7 @@ use std::f64;
 use super::{Element, Transform};
 use super::super::super::tree::{TreeNodeRc, TreeNodeWeak};
 
-const DEFAULT_F64: f64 = f64::INFINITY;
+pub const DEFAULT_F64: f64 = f64::INFINITY;
 
 pub struct ElementStyle {
     tree_node: Option<TreeNodeWeak<Element>>,
@@ -147,6 +147,10 @@ impl ElementStyle {
     #[inline]
     fn tree_node(&self) -> TreeNodeRc<Element> {
         self.tree_node.as_ref().unwrap().upgrade().unwrap()
+    }
+    #[inline]
+    pub fn transform_ref(&self) -> &Transform {
+        &self.transform
     }
 }
 

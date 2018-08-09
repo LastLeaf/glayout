@@ -72,7 +72,7 @@ impl frame::Frame for CanvasContext {
             let root_node_rc = self.root();
             let size = self.canvas_config.canvas_size.get();
             root_node_rc.elem().dfs_update_position_offset(size);
-            root_node_rc.elem().draw((0., 0., size.0, size.1), &mut element::Transform::new());
+            root_node_rc.elem().draw((0., 0., size.0, size.1), element::Transform::new());
             let rm = self.canvas_config.resource_manager();
             rm.borrow_mut().flush_draw();
             debug!("Redraw time: {}ms", end_measure_time!(now));

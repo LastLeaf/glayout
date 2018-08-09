@@ -1,5 +1,6 @@
 use glayout::canvas::Canvas;
 use glayout::canvas::element::{Element, Empty, Image, Text};
+use glayout::canvas::element::style::{DisplayType, PositionType};
 
 pub fn init() {
     register_test_case!(module_path!(), {
@@ -17,25 +18,33 @@ pub fn init() {
             let cfg = context.canvas_config();
             let elem = element! {
                 [&cfg] Empty {
-                    color: (0., 0., 1., 0.5);
-                    left: 10.;
-                    top: 20.;
                     Text {
-                        font_size: 24.;
-                        set_text("LARGE TEXT");
+                        position: PositionType::Absolute;
+                        left: 10.;
+                        top: 10.;
+                        width: 50.;
+                        set_text("Absolute Positioning");
                     };
-                    Empty;
-                    Image {
-                        width: 400.;
-                        height: 400.;
-                        load("../resources/test.png");
-                    };
+                    color: (0., 0., 1., 0.5);
                     Empty {
+                        display: DisplayType::Block;
                         Text {
-                            font_size: 16.;
-                            set_text(ARTICLE);
+                            font_size: 24.;
+                            set_text("LARGE TEXT");
                         };
-                        top: 750.;
+                        Empty;
+                        Image {
+                            width: 400.;
+                            height: 400.;
+                            load("../resources/test.png");
+                        };
+                        Empty {
+                            Text {
+                                font_size: 16.;
+                                set_text(ARTICLE);
+                            };
+                            top: 750.;
+                        };
                     };
                 }
             };

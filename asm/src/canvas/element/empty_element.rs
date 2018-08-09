@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use super::super::CanvasConfig;
-use super::{ElementStyle};
+use super::{ElementStyle, Transform};
 
 #[derive(Debug)]
 pub struct Empty {}
@@ -21,7 +21,7 @@ impl super::ElementContent for Empty {
         false
     }
     #[inline]
-    fn draw(&mut self, _style: &ElementStyle, _pos: (f64, f64, f64, f64)) {
+    fn draw(&mut self, _style: &ElementStyle, _transform: &Transform) {
         // do nothing
         // debug!("Attempted to draw an Empty");
     }

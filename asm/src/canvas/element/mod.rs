@@ -1,6 +1,6 @@
 #![macro_use]
 
-mod style;
+pub mod style;
 pub type ElementStyle = style::ElementStyle;
 mod position_offset;
 pub type PositionOffset = position_offset::PositionOffset;
@@ -27,7 +27,7 @@ pub trait ElementContent: Downcast {
     fn is_terminated(&self) -> bool;
     #[inline]
     fn associate_tree_node(&mut self, _node: TreeNodeWeak<Element>) { }
-    fn draw(&mut self, style: &ElementStyle, pos: (f64, f64, f64, f64));
+    fn draw(&mut self, style: &ElementStyle, transform: &Transform);
     #[inline]
     fn suggest_size(&mut self, _suggested_size: (f64, f64), _inline_position_status: &mut InlinePositionStatus, _style: &ElementStyle) -> (f64, f64) {
         (0., 0.)
@@ -169,23 +169,17 @@ impl Element {
     }
 
     #[inline]
-    pub fn draw(&self, viewport: (f64, f64, f64, f64), transform: &mut Transform) {
+    pub fn draw(&self, viewport: (f64, f64, f64, f64), mut transform: Transform) {
+        if self.style().get_display() == style::DisplayType::None { return }
         let position_offset = self.position_offset();
         let position_offset = position_offset.allocated_position();
-        let pos = (
-            position_offset.0 + transform.offset.0,
-            position_offset.1 + transform.offset.1,
-            position_offset.2,
-            position_offset.3
-        );
+        let child_transform = transform.offset(position_offset.0, position_offset.1).mul_clone(&self.style().transform_ref());
         let mut content = self.content.borrow_mut();
-        content.draw(&*self.style(), pos);
+        content.draw(&*self.style(), &child_transform);
         if !content.is_terminated() {
-            transform.offset = (transform.offset.0 + position_offset.0, transform.offset.1 + position_offset.1);
             for child in self.tree_node().iter_children() {
-                child.elem().draw(viewport, transform);
+                child.elem().draw(viewport, child_transform);
             }
-            transform.offset = (transform.offset.0 - position_offset.0, transform.offset.1 - position_offset.1);
         }
     }
 }
