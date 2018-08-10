@@ -49,15 +49,20 @@ impl Transform {
         }
     }
     #[inline]
-    fn apply_to_pointer(&self, pointer: (f64, f64)) -> (f64, f64) {
+    fn apply_to_point(&self, pointer: (f64, f64)) -> (f64, f64) {
         (
             self.x.0 * pointer.0 + self.x.1 * pointer.1 + self.x.3,
             self.y.0 * pointer.0 + self.y.1 * pointer.1 + self.y.3,
         )
     }
     pub fn apply_to_position(&self, pos: &(f64, f64, f64, f64)) -> (f64, f64, f64, f64) {
-        let (x, y) = self.apply_to_pointer((pos.0, pos.1));
-        let (xw, yh) = self.apply_to_pointer((pos.0 + pos.2, pos.1 + pos.3));
+        let (x, y) = self.apply_to_point((pos.0, pos.1));
+        let (xw, yh) = self.apply_to_point((pos.0 + pos.2, pos.1 + pos.3));
         (x, y, xw - x, yh - y)
+    }
+    pub fn apply_to_bounds(&self, pos: &(f64, f64, f64, f64)) -> (f64, f64, f64, f64) {
+        let (x, y) = self.apply_to_point((pos.0, pos.1));
+        let (xw, yh) = self.apply_to_point((pos.2, pos.3));
+        (x, y, xw, yh)
     }
 }

@@ -98,6 +98,7 @@ impl super::ElementContent for Image {
         self.inline_pos = (left, line_baseline_top - baseline_top, width, height);
         (suggested_size.0, height - prev_inline_height)
     }
+    #[inline]
     fn adjust_baseline_offset(&mut self, add_offset: f64) {
         self.inline_pos.1 += add_offset;
     }
@@ -112,6 +113,20 @@ impl super::ElementContent for Image {
             0., 0., 1., 1.,
             transform.apply_to_position(&self.inline_pos)
         );
+    }
+    #[inline]
+    fn drawing_bounds(&self) -> (f64, f64, f64, f64) {
+        self.inline_pos
+    }
+    fn is_under_point(&self, x: f64, y: f64, transform: Transform) -> bool {
+        if self.tex_id == -1 {
+            return false;
+        }
+        let pos = transform.apply_to_position(&self.inline_pos);
+        if (x < pos.0 || x >= pos.0 + pos.2) && (y < pos.1 || y >= pos.1 + pos.3) {
+            return false;
+        }
+        true
     }
 }
 

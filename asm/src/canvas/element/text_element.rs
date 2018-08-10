@@ -20,6 +20,7 @@ pub struct Text {
     size_ratio: f64,
     line_first_char_index: usize,
     line_current_char_index: usize,
+    drawing_bounds: (f64, f64, f64, f64),
 }
 
 impl Text {
@@ -36,6 +37,7 @@ impl Text {
             size_ratio: 1.,
             line_first_char_index: 0,
             line_current_char_index: 0,
+            drawing_bounds: (0., 0., 0., 0.),
         }
     }
     pub fn set_text<T>(&mut self, s: T) where String: From<T> {
@@ -121,17 +123,19 @@ impl super::ElementContent for Text {
                 v.2 = (line_baseline_top - baseline_top) as f32;
             }
         };
+        self.drawing_bounds = (0., prev_inline_height, suggested_size.0, inline_position_status.height());
         (suggested_size.0, inline_position_status.height() - prev_inline_height)
     }
     fn adjust_baseline_offset(&mut self, add_offset: f64) {
         for i in self.line_first_char_index..(self.line_current_char_index + 1) {
             self.characters[i].2 += add_offset as f32;
         }
+        self.drawing_bounds.3 += add_offset;
     }
     fn draw(&mut self, style: &ElementStyle, transform: &Transform) {
         debug!("Attempted to draw Text at {:?}", transform.apply_to_position(&(0., 0., 0., 0.)));
         // FIXME whole element edge cutting
-        self.characters.iter().for_each(|(character, left, top)| {
+        for (character, left, top) in self.characters.iter() {
             if character.tex_id() == -1 {
                 /* empty */
             } else {
@@ -147,6 +151,28 @@ impl super::ElementContent for Text {
                     transform.apply_to_position(&(*left as f64, *top as f64, width, height))
                 );
             }
-        });
+        }
+    }
+    #[inline]
+    fn drawing_bounds(&self) -> (f64, f64, f64, f64) {
+        self.drawing_bounds
+    }
+    fn is_under_point(&self, x: f64, y: f64, transform: Transform) -> bool {
+        // FIXME use area detection
+        for (character, left, top) in self.characters.iter() {
+            if character.tex_id() == -1 {
+                /* empty */
+            } else {
+                let char_pos = character.position();
+                let width = char_pos.4 * self.size_ratio;
+                let height = char_pos.5 * self.size_ratio;
+                let pos = transform.apply_to_position(&(*left as f64, *top as f64, width, height));
+                if (x < pos.0 || x >= pos.0 + pos.2) && (y < pos.1 || y >= pos.1 + pos.3) {
+                    continue;
+                }
+                return true
+            }
+        }
+        false
     }
 }

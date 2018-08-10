@@ -36,6 +36,8 @@ pub trait ElementContent: Downcast {
     fn adjust_baseline_offset(&mut self, _add_offset: f64) {
         /* empty */
     }
+    fn drawing_bounds(&self) -> (f64, f64, f64, f64);
+    fn is_under_point(&self, x: f64, y: f64, transform: Transform) -> bool;
 }
 
 impl_downcast!(ElementContent);
@@ -115,7 +117,6 @@ impl Element {
     pub fn is_dirty(&self) -> bool {
         self.dirty.get()
     }
-    #[inline]
     fn spread_dirty(&self) {
         // for dirty inline nodes, spread dirty to all inline nodes beside it
         let mut pending_inline_nodes: Vec<TreeNodeRc<Self>> = vec![];
@@ -157,9 +158,9 @@ impl Element {
         self.position_offset.borrow_mut().suggest_size(is_dirty, suggested_size, inline_position_status, self)
     }
     #[inline]
-    pub fn allocate_position(&self, pos: (f64, f64, f64, f64)) {
+    pub fn allocate_position(&self, pos: (f64, f64, f64, f64)) -> (f64, f64, f64, f64) {
         let is_dirty = self.clear_dirty();
-        self.position_offset.borrow_mut().allocate_position(is_dirty, pos, self);
+        self.position_offset.borrow_mut().allocate_position(is_dirty, pos, self)
     }
     #[inline]
     pub fn dfs_update_position_offset(&self, suggested_size: (f64, f64)) {
@@ -168,12 +169,11 @@ impl Element {
         self.allocate_position((0., 0., suggested_size.0, requested_size.1));
     }
 
-    #[inline]
     pub fn draw(&self, viewport: (f64, f64, f64, f64), mut transform: Transform) {
         if self.style().get_display() == style::DisplayType::None { return }
         let position_offset = self.position_offset();
-        let position_offset = position_offset.allocated_position();
-        let child_transform = transform.offset(position_offset.0, position_offset.1).mul_clone(&self.style().transform_ref());
+        let allocated_position = position_offset.allocated_position();
+        let child_transform = transform.offset(allocated_position.0, allocated_position.1).mul_clone(&self.style().transform_ref());
         let mut content = self.content.borrow_mut();
         content.draw(&*self.style(), &child_transform);
         if !content.is_terminated() {
@@ -181,6 +181,34 @@ impl Element {
                 child.elem().draw(viewport, child_transform);
             }
         }
+    }
+
+    pub fn get_node_under_point(&self, x: f64, y: f64, mut transform: Transform) -> Option<TreeNodeRc<Element>> {
+        let position_offset = self.position_offset();
+        let allocated_position = position_offset.allocated_position();
+        let child_transform = transform.offset(allocated_position.0, allocated_position.1).mul_clone(&self.style().transform_ref());
+        let drawing_bounds = transform.apply_to_bounds(&position_offset.drawing_bounds());
+        if (x < drawing_bounds.0 || x >= drawing_bounds.2) && (y < drawing_bounds.1 || y >= drawing_bounds.3) {
+            return None;
+        }
+        let content = self.content.borrow_mut();
+        if content.is_terminated() {
+            if content.is_under_point(x, y, child_transform) {
+                return Some(self.tree_node());
+            }
+        } else {
+            for child in self.tree_node().iter_children().rev() {
+                let child_match = child.elem().get_node_under_point(x, y, child_transform);
+                if child_match.is_some() {
+                    return child_match;
+                }
+            }
+        }
+        let allocated_position = position_offset.allocated_position();
+        if (x < allocated_position.0 || x >= allocated_position.0 + allocated_position.2) && (y < allocated_position.1 || y >= allocated_position.1 + allocated_position.3) {
+            return None;
+        }
+        Some(self.tree_node())
     }
 }
 

@@ -9,6 +9,7 @@ pub struct PositionOffset {
     suggested_size: (f64, f64),
     requested_size: (f64, f64),
     allocated_position: (f64, f64, f64, f64),
+    drawing_bounds: (f64, f64, f64, f64),
 }
 
 impl PositionOffset {
@@ -25,6 +26,17 @@ impl PositionOffset {
     #[inline]
     pub fn allocated_position(&self) -> (f64, f64, f64, f64) {
         self.allocated_position
+    }
+    #[inline]
+    pub fn drawing_bounds(&self) -> (f64, f64, f64, f64) {
+        self.drawing_bounds
+    }
+    #[inline]
+    fn merge_drawing_bounds(&mut self, child_bounds: &(f64, f64, f64, f64)) {
+        if self.drawing_bounds.0 > child_bounds.0 { self.drawing_bounds.0 = child_bounds.0 }
+        if self.drawing_bounds.1 > child_bounds.1 { self.drawing_bounds.1 = child_bounds.1 }
+        if self.drawing_bounds.2 < child_bounds.2 { self.drawing_bounds.2 = child_bounds.2 }
+        if self.drawing_bounds.3 < child_bounds.3 { self.drawing_bounds.3 = child_bounds.3 }
     }
 
     pub fn suggest_size(&mut self, is_dirty: bool, suggested_size: (f64, f64), inline_position_status: &mut InlinePositionStatus, element: &Element) -> (f64, f64) {
@@ -115,15 +127,17 @@ impl PositionOffset {
         debug!("Suggested size for {} with ({}, {}), requested ({}, {})", element, suggested_size.0, suggested_size.1, self.requested_size.0, self.requested_size.1);
         self.requested_size
     }
-    pub fn allocate_position(&mut self, is_dirty: bool, allocated_position: (f64, f64, f64, f64), element: &Element) {
+    pub fn allocate_position(&mut self, is_dirty: bool, allocated_position: (f64, f64, f64, f64), element: &Element) -> (f64, f64, f64, f64) {
         if !is_dirty && allocated_position == self.allocated_position {
-            return
+            return self.drawing_bounds
         }
         self.allocated_position = allocated_position;
         let mut current_height = 0.;
         let mut current_inline_height = 0.;
+        self.drawing_bounds = allocated_position;
         if element.content().is_terminated() {
-            /* do nothing */
+            let child_bounds = element.content().drawing_bounds();
+            self.merge_drawing_bounds(&child_bounds);
         } else {
             for child in element.tree_node().iter_children() {
                 let element = child.elem();
@@ -141,11 +155,14 @@ impl PositionOffset {
                                     current_height += current_inline_height;
                                     current_inline_height = 0.;
                                 }
-                                element.allocate_position((0., current_height, allocated_position.2, requested_height));
+                                let child_bounds = element.allocate_position((0., current_height, allocated_position.2, requested_height));
+                                self.merge_drawing_bounds(&child_bounds);
                                 current_height += requested_height;
                             },
                             DisplayType::Inline | DisplayType::InlineBlock => {
-                                element.allocate_position((0., current_height, allocated_position.2, 0.));
+                                // the allocated height for inline nodes should be zero, so that drawing_bounds is empty for inline nodes themselves
+                                let child_bounds = element.allocate_position((0., current_height, allocated_position.2, 0.));
+                                self.merge_drawing_bounds(&child_bounds);
                                 current_inline_height += requested_height;
                             },
                             _ => {
@@ -161,7 +178,8 @@ impl PositionOffset {
                             _ => {
                                 let left = if child_style.get_left() == DEFAULT_F64 { 0. } else { child_style.get_left() };
                                 let top = if child_style.get_top() == DEFAULT_F64 { 0. } else { child_style.get_top() };
-                                element.allocate_position((left, top, requested_width, requested_height));
+                                let child_bounds = element.allocate_position((left, top, requested_width, requested_height));
+                                self.merge_drawing_bounds(&child_bounds);
                             }
                         };
                     },
@@ -172,7 +190,8 @@ impl PositionOffset {
 
             }
         }
-        debug!("Allocated position for {} with ({}, {}) size ({}, {})", element, allocated_position.0, allocated_position.1, allocated_position.2, allocated_position.3);
+        debug!("Allocated position for {} with {:?} drawing bounds {:?}", element, allocated_position, self.drawing_bounds);
+        self.drawing_bounds
     }
 }
 

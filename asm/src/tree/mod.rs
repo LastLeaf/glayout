@@ -215,14 +215,16 @@ pub enum TreeNodeSearchType {
 // iterator
 
 pub struct TreeNodeIter<T: TreeElem> {
-    cur_index: usize,
+    cur_index_start: usize,
+    cur_index_end: usize,
     node_rc: TreeNodeRc<T>,
 }
 
 impl<T: TreeElem> TreeNodeIter<T> {
     fn new(node_rc: TreeNodeRc<T>) -> Self {
         TreeNodeIter {
-            cur_index: 0,
+            cur_index_start: 0,
+            cur_index_end: node_rc.len(),
             node_rc,
         }
     }
@@ -231,10 +233,20 @@ impl<T: TreeElem> TreeNodeIter<T> {
 impl<T: TreeElem> Iterator for TreeNodeIter<T> {
     type Item = TreeNodeRc<T>;
     fn next(&mut self) -> Option<TreeNodeRc<T>> {
-        if self.cur_index >= self.node_rc.len() {
+        if self.cur_index_start >= self.cur_index_end {
             return None;
         }
-        self.cur_index += 1;
-        return Some(self.node_rc.child(self.cur_index - 1));
+        self.cur_index_start += 1;
+        return Some(self.node_rc.child(self.cur_index_start - 1));
+    }
+}
+
+impl<T: TreeElem> DoubleEndedIterator for TreeNodeIter<T> {
+    fn next_back(&mut self) -> Option<TreeNodeRc<T>> {
+        if self.cur_index_start >= self.cur_index_end {
+            return None;
+        }
+        self.cur_index_end -= 1;
+        return Some(self.node_rc.child(self.cur_index_end));
     }
 }
