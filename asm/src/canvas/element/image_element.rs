@@ -106,7 +106,7 @@ impl super::ElementContent for Image {
         if self.tex_id == -1 {
             return;
         }
-        debug!("Attempted to draw an Image at {:?}", transform.apply_to_position(&self.inline_pos));
+        // debug!("Attempted to draw an Image at {:?}", transform.apply_to_position(&self.inline_pos));
         let rm = self.canvas_config.resource_manager();
         rm.borrow_mut().request_draw(
             self.tex_id, false,
@@ -117,13 +117,15 @@ impl super::ElementContent for Image {
     #[inline]
     fn drawing_bounds(&self) -> (f64, f64, f64, f64) {
         self.inline_pos
+        // TODO fix inline bounding bug
     }
     fn is_under_point(&self, x: f64, y: f64, transform: Transform) -> bool {
         if self.tex_id == -1 {
             return false;
         }
         let pos = transform.apply_to_position(&self.inline_pos);
-        if (x < pos.0 || x >= pos.0 + pos.2) && (y < pos.1 || y >= pos.1 + pos.3) {
+        // debug!("testing {:?} in image pos {:?}", (x, y), pos);
+        if x < pos.0 || x >= pos.0 + pos.2 || y < pos.1 || y >= pos.1 + pos.3 {
             return false;
         }
         true
@@ -196,7 +198,7 @@ impl ImageLoader {
 }
 
 lib_define_callback! (ImageLoaderCallback (Rc<RefCell<ImageLoader>>) {
-    fn callback(&mut self, ret_code: i32) {
+    fn callback(&mut self, ret_code: i32, _: i32, _: i32, _: i32) -> bool {
         let mut nodes = {
             let mut loader = self.0.borrow_mut();
             assert_eq!(loader.status, ImageLoaderStatus::Loading);
@@ -224,6 +226,7 @@ lib_define_callback! (ImageLoaderCallback (Rc<RefCell<ImageLoader>>) {
             let t = x.upgrade().unwrap();
             t.elem().content_mut().downcast_mut::<Image>().unwrap().update_from_loader();
         });
+        false
     }
 });
 

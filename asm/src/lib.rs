@@ -32,9 +32,11 @@ pub extern "C" fn get_swap_buffer(size: usize) -> i32 {
 }
 
 #[no_mangle]
-pub extern "C" fn callback(callback_ptr: *mut lib_interfaces::Callback, ret_code: i32) {
+pub extern "C" fn callback(callback_ptr: *mut lib_interfaces::Callback, ret_0: i32, ret_1: i32, ret_2: i32, ret_3: i32) {
     let mut callback: Box<lib_interfaces::Callback> = unsafe { Box::from_raw(callback_ptr) };
-    callback.callback(ret_code);
+    if callback.callback(ret_0, ret_1, ret_2, ret_3) {
+        Box::into_raw(callback);
+    }
 }
 
 #[no_mangle]
@@ -52,8 +54,9 @@ pub fn window_size() -> (f64, f64) {
 }
 
 lib_define_callback!(WindowSizeCallback () {
-    fn callback(&mut self, _combined_size: i32) {
+    fn callback(&mut self, _combined_size: i32, _: i32, _: i32, _: i32) -> bool {
         WINDOW_SIZE.set((lib!(get_window_width()) as f64, lib!(get_window_height()) as f64));
+        true
     }
 });
 

@@ -20,6 +20,7 @@ extern {
     pub fn get_device_pixel_ratio() -> f64;
     pub fn set_clear_color(canvasIndex: i32, r: f32, g: f32, b: f32, a: f32);
     pub fn clear(canvasIndex: i32);
+    pub fn bind_touch_events(canvasIndex: i32, cbPtr: *mut Box<Callback>);
 
     pub fn tex_get_size(canvasIndex: i32) -> i32;
     pub fn tex_get_count(canvasIndex: i32) -> i32;
@@ -48,7 +49,7 @@ extern {
 }
 
 pub trait Callback {
-    fn callback(&mut self, ret_code: i32);
+    fn callback(&mut self, ret_0: i32, ret_1: i32, ret_2: i32, ret_3: i32) -> bool;
 }
 
 pub fn register_callback(callback: Box<Callback>) -> *mut Box<Callback> {

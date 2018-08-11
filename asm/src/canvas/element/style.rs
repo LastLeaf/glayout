@@ -152,6 +152,10 @@ impl ElementStyle {
     pub fn transform_ref(&self) -> &Transform {
         &self.transform
     }
+    #[inline]
+    pub fn transform_mut(&mut self) -> &mut Transform {
+        &mut self.transform
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]

@@ -13,6 +13,12 @@ impl Transform {
             z: (0., 0., 1., 0.),
         }
     }
+    pub fn reset(&mut self) -> &mut Self {
+        self.x = (1., 0., 0., 0.);
+        self.y = (0., 1., 0., 0.);
+        self.z = (0., 0., 1., 0.);
+        self
+    }
     pub fn offset(&mut self, left: f64, top: f64) -> &mut Self {
         self.x.3 += left;
         self.y.3 += top;

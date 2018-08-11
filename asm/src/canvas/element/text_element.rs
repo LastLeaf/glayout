@@ -133,7 +133,7 @@ impl super::ElementContent for Text {
         self.drawing_bounds.3 += add_offset;
     }
     fn draw(&mut self, style: &ElementStyle, transform: &Transform) {
-        debug!("Attempted to draw Text at {:?}", transform.apply_to_position(&(0., 0., 0., 0.)));
+        // debug!("Attempted to draw Text at {:?}", transform.apply_to_position(&(0., 0., 0., 0.)));
         // FIXME whole element edge cutting
         for (character, left, top) in self.characters.iter() {
             if character.tex_id() == -1 {
@@ -167,7 +167,8 @@ impl super::ElementContent for Text {
                 let width = char_pos.4 * self.size_ratio;
                 let height = char_pos.5 * self.size_ratio;
                 let pos = transform.apply_to_position(&(*left as f64, *top as f64, width, height));
-                if (x < pos.0 || x >= pos.0 + pos.2) && (y < pos.1 || y >= pos.1 + pos.3) {
+                // debug!("testing {:?} in text pos {:?}", (x, y), pos);
+                if x < pos.0 || x >= pos.0 + pos.2 || y < pos.1 || y >= pos.1 + pos.3 {
                     continue;
                 }
                 return true

@@ -15,6 +15,9 @@ pub type Empty = element::Empty;
 pub struct CanvasContext {
     canvas_config: Rc<CanvasConfig>,
     root_node: TreeNodeRc<Element>,
+    need_redraw: bool,
+    touching: bool,
+    touch_point: (f64, f64),
 }
 
 #[derive(Clone)]
@@ -39,18 +42,25 @@ impl Canvas {
         let ctx = Rc::new(RefCell::new(CanvasContext {
             canvas_config,
             root_node,
+            need_redraw: false,
+            touching: false,
+            touch_point: (0., 0.),
         }));
         frame::bind(ctx.clone(), frame::FramePriority::Low);
+        lib!(bind_touch_events(index, lib_callback!(TouchEventCallback(ctx.clone()))));
         return Canvas {
             context: ctx
         };
     }
+    #[inline]
     pub fn destroy(&mut self) {
         frame::unbind(self.context.clone(), frame::FramePriority::Low);
     }
+    #[inline]
     pub fn context(&self) -> Rc<RefCell<CanvasContext>> {
         self.context.clone()
     }
+    #[inline]
     pub fn ctx<F>(&mut self, f: F) where F: Fn(&mut CanvasContext) {
         f(&mut *self.context.borrow_mut());
     }
@@ -66,22 +76,26 @@ impl Drop for CanvasContext {
 impl frame::Frame for CanvasContext {
     fn frame(&mut self, _timestamp: f64) -> bool {
         let dirty = self.root_node.elem().is_dirty(); // any child or itself need update position offset
-        if dirty {
-            let now = start_measure_time!();
+        if dirty || self.need_redraw {
+            self.need_redraw = false;
+            // let now = start_measure_time!();
             self.clear();
             let root_node_rc = self.root();
             let size = self.canvas_config.canvas_size.get();
-            root_node_rc.elem().dfs_update_position_offset(size);
+            if dirty {
+                root_node_rc.elem().dfs_update_position_offset(size);
+            }
             root_node_rc.elem().draw((0., 0., size.0, size.1), element::Transform::new());
             let rm = self.canvas_config.resource_manager();
             rm.borrow_mut().flush_draw();
-            debug!("Redraw time: {}ms", end_measure_time!(now));
+            // debug!("Redraw time: {}ms", end_measure_time!(now));
         }
         return true;
     }
 }
 
 impl CanvasContext {
+    #[inline]
     pub fn canvas_config(&mut self) -> Rc<CanvasConfig> {
         self.canvas_config.clone()
     }
@@ -90,6 +104,7 @@ impl CanvasContext {
         lib!(set_canvas_size(self.canvas_config.index, w, h, pixel_ratio));
         self.root_node.elem().mark_dirty();
     }
+    #[inline]
     pub fn device_pixel_ratio(&self) -> f64 {
         lib!(get_device_pixel_ratio())
     }
@@ -102,6 +117,7 @@ impl CanvasContext {
         lib!(set_clear_color(self.canvas_config.index, r, g, b, a));
         lib!(clear(self.canvas_config.index));
     }
+    #[inline]
     pub fn root(&mut self) -> TreeNodeRc<Element> {
         self.root_node.clone()
     }
@@ -116,4 +132,46 @@ impl CanvasContext {
         });
         ret
     }
+    #[inline]
+    pub fn redraw(&mut self) {
+        self.need_redraw = true;
+    }
+    #[inline]
+    pub fn touching(&self) -> bool {
+        self.touching
+    }
+    #[inline]
+    pub fn touch_point(&self) -> (f64, f64) {
+        self.touch_point
+    }
 }
+
+const TOUCHSTART: i32 = 1;
+const TOUCHMOVE: i32 = 2;
+const TOUCHEND: i32 = 3;
+const FREEMOVE: i32 = 4;
+lib_define_callback! (TouchEventCallback (Rc<RefCell<CanvasContext>>) {
+    fn callback(&mut self, touch_type: i32, x: i32, y: i32, _: i32) -> bool {
+        let mut ctx = self.0.borrow_mut();
+        match touch_type {
+            TOUCHSTART => {
+                ctx.touching = true;
+                ctx.touch_point = (x as f64, y as f64);
+            },
+            TOUCHMOVE => {
+                ctx.touch_point = (x as f64, y as f64);
+            },
+            TOUCHEND => {
+                ctx.touch_point = (x as f64, y as f64);
+                ctx.touching = false;
+            },
+            FREEMOVE => {
+                ctx.touch_point = (x as f64, y as f64);
+            },
+            _ => {
+                panic!();
+            }
+        }
+        true
+    }
+});

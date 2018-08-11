@@ -183,16 +183,19 @@ impl Element {
         }
     }
 
-    pub fn get_node_under_point(&self, x: f64, y: f64, mut transform: Transform) -> Option<TreeNodeRc<Element>> {
+    fn get_node_under_point(&self, x: f64, y: f64, mut transform: Transform) -> Option<TreeNodeRc<Element>> {
+        if self.style().get_display() == style::DisplayType::None { return None }
         let position_offset = self.position_offset();
         let allocated_position = position_offset.allocated_position();
         let child_transform = transform.offset(allocated_position.0, allocated_position.1).mul_clone(&self.style().transform_ref());
         let drawing_bounds = transform.apply_to_bounds(&position_offset.drawing_bounds());
-        if (x < drawing_bounds.0 || x >= drawing_bounds.2) && (y < drawing_bounds.1 || y >= drawing_bounds.3) {
+        // debug!("testing {:?} in bounds {:?}", (x, y), drawing_bounds);
+        if x < drawing_bounds.0 || x >= drawing_bounds.2 || y < drawing_bounds.1 || y >= drawing_bounds.3 {
             return None;
         }
         let content = self.content.borrow_mut();
         if content.is_terminated() {
+            // debug!("testing {:?} in terminated {:?}", (x, y), content.name());
             if content.is_under_point(x, y, child_transform) {
                 return Some(self.tree_node());
             }
@@ -205,10 +208,14 @@ impl Element {
             }
         }
         let allocated_position = position_offset.allocated_position();
+        // debug!("testing {:?} in allocated_position {:?}", (x, y), allocated_position);
         if (x < allocated_position.0 || x >= allocated_position.0 + allocated_position.2) && (y < allocated_position.1 || y >= allocated_position.1 + allocated_position.3) {
             return None;
         }
         Some(self.tree_node())
+    }
+    pub fn node_under_point(&self, (x, y): (f64, f64)) -> Option<TreeNodeRc<Element>> {
+        self.get_node_under_point(x, y, Transform::new())
     }
 }
 

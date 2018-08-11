@@ -32,11 +32,11 @@ impl PositionOffset {
         self.drawing_bounds
     }
     #[inline]
-    fn merge_drawing_bounds(&mut self, child_bounds: &(f64, f64, f64, f64)) {
-        if self.drawing_bounds.0 > child_bounds.0 { self.drawing_bounds.0 = child_bounds.0 }
-        if self.drawing_bounds.1 > child_bounds.1 { self.drawing_bounds.1 = child_bounds.1 }
-        if self.drawing_bounds.2 < child_bounds.2 { self.drawing_bounds.2 = child_bounds.2 }
-        if self.drawing_bounds.3 < child_bounds.3 { self.drawing_bounds.3 = child_bounds.3 }
+    fn merge_drawing_bounds(&mut self, child_bounds: &(f64, f64, f64, f64), offset_x: f64, offset_y: f64) {
+        if self.drawing_bounds.0 > child_bounds.0 + offset_x { self.drawing_bounds.0 = child_bounds.0 + offset_x }
+        if self.drawing_bounds.1 > child_bounds.1 + offset_y { self.drawing_bounds.1 = child_bounds.1 + offset_y }
+        if self.drawing_bounds.2 < child_bounds.2 + offset_x { self.drawing_bounds.2 = child_bounds.2 + offset_x }
+        if self.drawing_bounds.3 < child_bounds.3 + offset_y { self.drawing_bounds.3 = child_bounds.3 + offset_y }
     }
 
     pub fn suggest_size(&mut self, is_dirty: bool, suggested_size: (f64, f64), inline_position_status: &mut InlinePositionStatus, element: &Element) -> (f64, f64) {
@@ -124,7 +124,7 @@ impl PositionOffset {
         }
 
         self.requested_size = (request_width, request_height);
-        debug!("Suggested size for {} with ({}, {}), requested ({}, {})", element, suggested_size.0, suggested_size.1, self.requested_size.0, self.requested_size.1);
+        // debug!("Suggested size for {} with ({}, {}), requested ({}, {})", element, suggested_size.0, suggested_size.1, self.requested_size.0, self.requested_size.1);
         self.requested_size
     }
     pub fn allocate_position(&mut self, is_dirty: bool, allocated_position: (f64, f64, f64, f64), element: &Element) -> (f64, f64, f64, f64) {
@@ -137,7 +137,7 @@ impl PositionOffset {
         self.drawing_bounds = allocated_position;
         if element.content().is_terminated() {
             let child_bounds = element.content().drawing_bounds();
-            self.merge_drawing_bounds(&child_bounds);
+            self.merge_drawing_bounds(&child_bounds, 0., 0.);
         } else {
             for child in element.tree_node().iter_children() {
                 let element = child.elem();
@@ -156,13 +156,13 @@ impl PositionOffset {
                                     current_inline_height = 0.;
                                 }
                                 let child_bounds = element.allocate_position((0., current_height, allocated_position.2, requested_height));
-                                self.merge_drawing_bounds(&child_bounds);
+                                self.merge_drawing_bounds(&child_bounds, 0., current_height);
                                 current_height += requested_height;
                             },
                             DisplayType::Inline | DisplayType::InlineBlock => {
                                 // the allocated height for inline nodes should be zero, so that drawing_bounds is empty for inline nodes themselves
                                 let child_bounds = element.allocate_position((0., current_height, allocated_position.2, 0.));
-                                self.merge_drawing_bounds(&child_bounds);
+                                self.merge_drawing_bounds(&child_bounds, 0., current_height);
                                 current_inline_height += requested_height;
                             },
                             _ => {
@@ -179,7 +179,7 @@ impl PositionOffset {
                                 let left = if child_style.get_left() == DEFAULT_F64 { 0. } else { child_style.get_left() };
                                 let top = if child_style.get_top() == DEFAULT_F64 { 0. } else { child_style.get_top() };
                                 let child_bounds = element.allocate_position((left, top, requested_width, requested_height));
-                                self.merge_drawing_bounds(&child_bounds);
+                                self.merge_drawing_bounds(&child_bounds, left, top);
                             }
                         };
                     },

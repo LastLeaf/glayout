@@ -4,7 +4,7 @@ use glayout::canvas::{Canvas, CanvasContext};
 use glayout::canvas::element::{Element, Empty, Image, Text};
 
 lib_define_callback!(Step1 (Rc<RefCell<CanvasContext>>) {
-    fn callback(&mut self, _ret_code: i32) {
+    fn callback(&mut self, _: i32, _: i32, _: i32, _: i32) -> bool {
         let mut context = self.0.borrow_mut();
         let mut root_elem = context.root();
         let elem = {
@@ -29,16 +29,18 @@ lib_define_callback!(Step1 (Rc<RefCell<CanvasContext>>) {
             elem
         };
         root_elem.append(elem);
+        false
     }
 });
 
 lib_define_callback!(Step2 (Rc<RefCell<CanvasContext>>) {
-    fn callback(&mut self, _time: i32) {
+    fn callback(&mut self, _: i32, _: i32, _: i32, _: i32) -> bool {
         let mut context = self.0.borrow_mut();
         let image_node = context.node_by_id("img").unwrap();
         let mut image = image_node.elem().content_mut();
         let t = image.downcast_mut::<Image>().unwrap();
         t.load("../resources/lastleaf.png");
+        false
     }
 });
 
