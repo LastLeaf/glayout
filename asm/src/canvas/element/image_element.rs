@@ -54,8 +54,24 @@ impl Image {
             },
             None => { }
         }
-        loader.borrow_mut().bind_tree_node(self.tree_node.clone().unwrap());
-        self.loader = Some(loader);
+        let loader_loaded = {
+            let loader = loader.borrow();
+            match loader.status {
+                ImageLoaderStatus::Loaded | ImageLoaderStatus::LoadFailed => {
+                    true
+                },
+                ImageLoaderStatus::NotLoaded | ImageLoaderStatus::Loading => {
+                    false
+                }
+            }
+        };
+        {
+            loader.borrow_mut().bind_tree_node(self.tree_node.clone().unwrap());
+            self.loader = Some(loader);
+        }
+        if loader_loaded {
+            self.update_from_loader();
+        }
     }
     pub fn load<T: Into<Vec<u8>>>(&mut self, url: T) {
         let cc = self.canvas_config.clone();
@@ -143,6 +159,7 @@ pub enum ImageLoaderStatus {
 }
 
 pub struct ImageLoader {
+    id: String,
     binded_tree_nodes: Vec<TreeNodeWeak<Element>>,
     canvas_config: Rc<CanvasConfig>,
     status: ImageLoaderStatus,
@@ -155,6 +172,7 @@ pub struct ImageLoader {
 impl ImageLoader {
     pub fn new_with_canvas_config(cfg: Rc<CanvasConfig>) -> Self {
         ImageLoader {
+            id: String::new(),
             binded_tree_nodes: vec!(),
             canvas_config: cfg,
             status: ImageLoaderStatus::NotLoaded,
@@ -165,6 +183,7 @@ impl ImageLoader {
         }
     }
 
+    #[inline]
     pub fn bind_tree_node(&mut self, tree_node: TreeNodeWeak<Element>) {
         self.binded_tree_nodes.push(tree_node)
     }
@@ -180,12 +199,27 @@ impl ImageLoader {
         };
     }
 
+    #[inline]
+    pub fn id(&self) -> String {
+        self.id.clone()
+    }
+    #[inline]
+    pub fn set_id(&mut self, id: String) {
+        self.id = id;
+    }
+    #[inline]
     pub fn img_id(&self) -> i32 {
         self.img_id
     }
+    #[inline]
     pub fn status(&self) -> ImageLoaderStatus {
         self.status
     }
+    #[inline]
+    pub fn is_loading(&self) -> bool {
+        self.status == ImageLoaderStatus::Loading
+    }
+    #[inline]
     pub fn size(&self) -> (i32, i32) {
         (self.width, self.height)
     }

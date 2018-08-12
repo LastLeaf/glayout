@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use super::super::CanvasConfig;
+use super::super::resource::DrawState;
 use super::super::character::{Character, FontStyle};
 use super::{Element, ElementStyle, InlinePositionStatus, Transform};
 use super::super::super::tree::{TreeNodeWeak};
@@ -71,7 +72,7 @@ impl Text {
         let font_size = style.get_font_size();
         self.tex_font_size = self.measure_tex_font_size(font_size);
         self.size_ratio = font_size / (self.tex_font_size as f64);
-        // debug!("Attempted to regenerate Text: \"{}\" font {} size {}", self.text, style.font_family.clone(), self.tex_font_size);
+        // debug!("Attempted to regenerate Text: \"{}\" font {:?} size {:?}", self.text, style.get_font_family(), self.tex_font_size);
         let cm = self.canvas_config.character_manager();
         let mut manager = cm.borrow_mut();
         self.font_family_id = manager.font_family_id(style.get_font_family().clone());
@@ -144,7 +145,7 @@ impl super::ElementContent for Text {
                 let height = char_pos.5 * self.size_ratio;
                 let rm = self.canvas_config.resource_manager();
                 let mut rm = rm.borrow_mut();
-                rm.set_draw_state(style.get_color());
+                rm.set_draw_state(DrawState::new().color(style.get_color()));
                 rm.request_draw(
                     character.tex_id(), true,
                     char_pos.0, char_pos.1, char_pos.2, char_pos.3,

@@ -18,6 +18,7 @@ pub struct CanvasContext {
     need_redraw: bool,
     touching: bool,
     touch_point: (f64, f64),
+    last_key_code: i32,
 }
 
 #[derive(Clone)]
@@ -45,9 +46,11 @@ impl Canvas {
             need_redraw: false,
             touching: false,
             touch_point: (0., 0.),
+            last_key_code: 0,
         }));
         frame::bind(ctx.clone(), frame::FramePriority::Low);
         lib!(bind_touch_events(index, lib_callback!(TouchEventCallback(ctx.clone()))));
+        lib!(bind_keyboard_events(index, lib_callback!(KeyboardEventCallback(ctx.clone()))));
         return Canvas {
             context: ctx
         };
@@ -144,6 +147,12 @@ impl CanvasContext {
     pub fn touch_point(&self) -> (f64, f64) {
         self.touch_point
     }
+    #[inline]
+    pub fn fetch_last_key_code(&mut self) -> i32 {
+        let last_key_code = self.last_key_code;
+        self.last_key_code = 0;
+        last_key_code
+    }
 }
 
 const TOUCHSTART: i32 = 1;
@@ -167,6 +176,34 @@ lib_define_callback! (TouchEventCallback (Rc<RefCell<CanvasContext>>) {
             },
             FREEMOVE => {
                 ctx.touch_point = (x as f64, y as f64);
+            },
+            _ => {
+                panic!();
+            }
+        }
+        true
+    }
+});
+
+const KEY_DOWN: i32 = 1;
+const KEY_PRESS: i32 = 2;
+const KEY_UP: i32 = 3;
+const SHIFT_KEY: i32 = 8;
+const CTRL_KEY: i32 = 4;
+const ALT_KEY: i32 = 2;
+const META_KEY: i32 = 1;
+lib_define_callback! (KeyboardEventCallback (Rc<RefCell<CanvasContext>>) {
+    fn callback(&mut self, event_type: i32, key_code: i32, char_code: i32, special_keys: i32) -> bool {
+        let mut ctx = self.0.borrow_mut();
+        match event_type {
+            KEY_DOWN => {
+                // TODO
+            },
+            KEY_PRESS => {
+                // TODO
+            },
+            KEY_UP => {
+                ctx.last_key_code = key_code;
             },
             _ => {
                 panic!();

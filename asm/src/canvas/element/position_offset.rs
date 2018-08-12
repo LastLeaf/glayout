@@ -103,8 +103,8 @@ impl PositionOffset {
                         request_height = 0.;
                     },
                     _ => {
-                        request_width = 0.;
-                        request_height = 0.;
+                        request_width = if style.get_width() == DEFAULT_F64 { suggested_size.0 } else { style.get_width() };
+                        request_height = if style.get_height() == DEFAULT_F64 { suggested_size.1 } else { style.get_height() };
                         let absolute_request_width = suggested_width; // FIXME calc it!
                         inline_position_status.reset(absolute_request_width);
                         if element.content().is_terminated() {
@@ -190,7 +190,7 @@ impl PositionOffset {
 
             }
         }
-        debug!("Allocated position for {} with {:?} drawing bounds {:?}", element, allocated_position, self.drawing_bounds);
+        // debug!("Allocated position for {} with {:?} drawing bounds {:?}", element, allocated_position, self.drawing_bounds);
         self.drawing_bounds
     }
 }

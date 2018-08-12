@@ -21,6 +21,7 @@ extern {
     pub fn set_clear_color(canvasIndex: i32, r: f32, g: f32, b: f32, a: f32);
     pub fn clear(canvasIndex: i32);
     pub fn bind_touch_events(canvasIndex: i32, cbPtr: *mut Box<Callback>);
+    pub fn bind_keyboard_events(canvasIndex: i32, cbPtr: *mut Box<Callback>);
 
     pub fn tex_get_size(canvasIndex: i32) -> i32;
     pub fn tex_get_count(canvasIndex: i32) -> i32;
@@ -33,7 +34,7 @@ extern {
     pub fn tex_draw(canvasIndex: i32, drawIndex: i32, texShaderIndex: i32, normalizedTexX: f64, normalizedTexY: f64, normalizedTexW: f64, normalizedTexH: f64, x: f64, y: f64, w: f64, h: f64);
     pub fn tex_set_active_texture(canvasIndex: i32, texShaderIndex: i32, texId: i32);
     pub fn tex_draw_end(canvasIndex: i32, drawCount: i32);
-    pub fn tex_set_draw_state(canvasIndex: i32, colorR: f32, colorG: f32, colorB: f32, colorA: f32);
+    pub fn tex_set_draw_state(canvasIndex: i32, colorR: f32, colorG: f32, colorB: f32, colorA: f32, alpha: f32);
 
     pub fn image_load_url(id: i32, url: *mut c_char, cbPtr: *mut Box<Callback>);
     pub fn image_unload(id: i32);

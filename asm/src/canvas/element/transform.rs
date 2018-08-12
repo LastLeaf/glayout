@@ -24,6 +24,15 @@ impl Transform {
         self.y.3 += top;
         self
     }
+    #[inline]
+    pub fn get_offset(&self) -> (f64, f64) {
+        (self.x.3, self.y.3)
+    }
+    pub fn reset_scale(&mut self, scale_x: f64, scale_y: f64) -> &mut Self {
+        self.x.0 = scale_x;
+        self.y.1 = scale_y;
+        self
+    }
     pub fn scale(&mut self, scale_x: f64, scale_y: f64) -> &mut Self {
         self.x.0 *= scale_x;
         self.y.1 *= scale_y;

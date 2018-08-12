@@ -37,6 +37,43 @@ impl ResourceIdAllocator {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct DrawState {
+    pub color: (f32, f32, f32, f32),
+    pub alpha: f32,
+}
+
+impl DrawState {
+    #[inline]
+    pub fn new() -> Self {
+        Self {
+            color: (-1., -1., -1., -1.),
+            alpha: -1.,
+        }
+    }
+    #[inline]
+    pub fn color(&mut self, color: (f32, f32, f32, f32)) -> &mut Self {
+        self.color = color;
+        self
+    }
+    #[inline]
+    pub fn alpha(&mut self, alpha: f32) -> &mut Self {
+        self.alpha = alpha;
+        self
+    }
+    #[inline]
+    pub fn get_alpha(&mut self) -> f32 {
+        self.alpha
+    }
+    #[inline]
+    pub fn mul_alpha(&mut self, alpha: f32) -> &mut Self {
+        if self.alpha >= 0. {
+            self.alpha *= alpha;
+        }
+        self
+    }
+}
+
 pub struct ResourceManager {
     canvas_index: i32,
     tex_max_draws: i32,
@@ -44,7 +81,7 @@ pub struct ResourceManager {
     pending_draws: i32,
     used_shader_tex: i32,
     tex_shader_index_map: HashMap<i32, i32>,
-    current_draw_state: (f32, f32, f32, f32),
+    current_draw_state: DrawState,
 }
 
 impl ResourceManager {
@@ -56,7 +93,7 @@ impl ResourceManager {
             pending_draws: 0,
             used_shader_tex: 0,
             tex_shader_index_map: HashMap::new(),
-            current_draw_state: (0., 0., 0., 1.),
+            current_draw_state: *DrawState::new().color((0., 0., 0., 1.)).alpha(1.),
         }
     }
 
@@ -81,13 +118,18 @@ impl ResourceManager {
     }
 
     #[inline]
-    pub fn set_draw_state(&mut self, color: (f32, f32, f32, f32)) {
-        if self.current_draw_state == color {
+    pub fn draw_state(&self) -> DrawState {
+        self.current_draw_state
+    }
+    pub fn set_draw_state(&mut self, ds: &mut DrawState) {
+        if ds.color.0 < 0. { ds.color = self.current_draw_state.color; }
+        if ds.alpha < 0. { ds.alpha = self.current_draw_state.alpha; }
+        if self.current_draw_state == *ds {
             return;
         }
-        self.current_draw_state = color;
+        self.current_draw_state.alpha = ds.alpha;
         self.flush_draw();
-        lib!(tex_set_draw_state(self.canvas_index, color.0 * color.3, color.1 * color.3, color.2 * color.3, color.3));
+        lib!(tex_set_draw_state(self.canvas_index, ds.color.0 * ds.color.3, ds.color.1 * ds.color.3, ds.color.2 * ds.color.3, ds.color.3, ds.alpha));
     }
     #[inline]
     pub fn request_draw(&mut self,
@@ -99,23 +141,28 @@ impl ResourceManager {
         if self.pending_draws == self.tex_max_draws {
             self.flush_draw();
         }
-        let tex_shader_index_option = self.tex_shader_index_map.get(&tex_id).map(|i| {*i});
-        let tex_shader_index: i32 = match tex_shader_index_option {
-            None => {
-                if self.used_shader_tex == TEX_SHADER_INDEX_MAX {
-                    self.flush_draw();
+        let tex_shader_index;
+        if tex_id >= 0 {
+            let tex_shader_index_option = self.tex_shader_index_map.get(&tex_id).map(|i| {*i});
+            tex_shader_index = match tex_shader_index_option {
+                None => {
+                    if self.used_shader_tex == TEX_SHADER_INDEX_MAX {
+                        self.flush_draw();
+                    }
+                    let t = self.used_shader_tex;
+                    self.tex_shader_index_map.insert(tex_id, t);
+                    self.used_shader_tex += 1;
+                    t
+                },
+                Some(ref t) => {
+                    *t
                 }
-                let t = self.used_shader_tex;
-                self.tex_shader_index_map.insert(tex_id, t);
-                self.used_shader_tex += 1;
-                t
-            },
-            Some(ref t) => {
-                *t
-            }
-        };
+            };
+        } else {
+            tex_shader_index = tex_id;
+        }
         lib!(tex_draw(self.canvas_index,
-            self.pending_draws, tex_shader_index + (if use_color { 0 } else { 256 }),
+            self.pending_draws, tex_shader_index + (if tex_id < 0 || use_color { 0 } else { 256 }),
             tex_left, tex_top, tex_width, tex_height,
             left, top, width, height
         ));

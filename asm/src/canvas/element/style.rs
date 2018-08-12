@@ -19,6 +19,8 @@ pub struct ElementStyle {
     inherit_font_size: bool,
     color: (f32, f32, f32, f32),
     inherit_color: bool,
+    background_color: (f32, f32, f32, f32),
+    opacity: f32,
     transform: Transform,
 }
 
@@ -39,6 +41,8 @@ impl ElementStyle {
             inherit_font_size: true,
             color: (0., 0., 0., 1.),
             inherit_color: true,
+            background_color: (-1., -1., -1., -1.),
+            opacity: 1.,
             transform: Transform::new(),
         }
     }
@@ -126,6 +130,8 @@ impl ElementStyle {
     getter_setter_inherit_dirty!(font_size, get_font_size, font_size, inherit_font_size, get_inherit_font_size, inherit_font_size, f64);
     // FIXME changing color does not need mark dirty
     getter_setter_inherit_dirty!(color, get_color, color, inherit_color, get_inherit_color, inherit_color, (f32, f32, f32, f32));
+    getter_setter!(background_color, get_background_color, background_color, (f32, f32, f32, f32));
+    getter_setter!(opacity, get_opacity, opacity, f32);
     getter_setter!(transform, get_transform, transform, Transform);
 
     fn update_inherit(&mut self, parent_node: Option<TreeNodeRc<Element>>) {

@@ -12,6 +12,7 @@ mod empty_element;
 pub type Empty = empty_element::Empty;
 mod image_element;
 pub type Image = image_element::Image;
+pub type ImageLoader = image_element::ImageLoader;
 mod text_element;
 pub type Text = text_element::Text;
 
@@ -20,6 +21,7 @@ use std::cell::{Cell, RefCell, Ref, RefMut};
 use std::fmt;
 use downcast_rs::Downcast;
 use super::CanvasConfig;
+use super::resource::DrawState;
 use super::super::tree::{TreeElem, TreeNodeRc, TreeNodeWeak, TreeNodeSearchType};
 
 pub trait ElementContent: Downcast {
@@ -43,6 +45,7 @@ pub trait ElementContent: Downcast {
 impl_downcast!(ElementContent);
 
 pub struct Element {
+    canvas_config: Rc<CanvasConfig>,
     tree_node: Cell<Option<TreeNodeWeak<Element>>>,
     dirty: Cell<bool>,
     style: RefCell<ElementStyle>,
@@ -51,8 +54,9 @@ pub struct Element {
 }
 
 impl Element {
-    pub fn new(_cfg: &Rc<CanvasConfig>, content: Box<ElementContent>) -> Self {
+    pub fn new(cfg: &Rc<CanvasConfig>, content: Box<ElementContent>) -> Self {
         Element {
+            canvas_config: cfg.clone(),
             tree_node: Cell::new(None),
             dirty: Cell::new(true),
             style: RefCell::new(ElementStyle::new()),
@@ -170,16 +174,52 @@ impl Element {
     }
 
     pub fn draw(&self, viewport: (f64, f64, f64, f64), mut transform: Transform) {
-        if self.style().get_display() == style::DisplayType::None { return }
+        let style = self.style();
+        if style.get_display() == style::DisplayType::None { return }
+
+        // set alpha
+        // TODO gives a correct alpha impl
+        let mut original_alpha = -1.;
+        if style.get_opacity() < 1. && style.get_opacity() >= 0. {
+            let rm = self.canvas_config.resource_manager();
+            let mut rm = rm.borrow_mut();
+            let mut ds = rm.draw_state();
+            original_alpha = ds.get_alpha();
+            rm.set_draw_state(ds.mul_alpha(style.get_opacity()));
+        }
+
         let position_offset = self.position_offset();
         let allocated_position = position_offset.allocated_position();
-        let child_transform = transform.offset(allocated_position.0, allocated_position.1).mul_clone(&self.style().transform_ref());
+        let child_transform = transform.offset(allocated_position.0, allocated_position.1).mul_clone(&style.transform_ref());
+
+        // draw background color
+        let bg_color = style.get_background_color();
+        if bg_color.0 >= 0. {
+            let rm = self.canvas_config.resource_manager();
+            let mut rm = rm.borrow_mut();
+            rm.set_draw_state(DrawState::new().color(bg_color));
+            // debug!("Try drawing rect at {:?} colored {:?}", child_transform.apply_to_position(&(0., 0., allocated_position.2, allocated_position.3)), bg_color);
+            rm.request_draw(
+                -2, true,
+                0., 0., 1., 1.,
+                child_transform.apply_to_position(&(0., 0., allocated_position.2, allocated_position.3))
+            );
+        }
+
+        // draw content and child
         let mut content = self.content.borrow_mut();
         content.draw(&*self.style(), &child_transform);
         if !content.is_terminated() {
             for child in self.tree_node().iter_children() {
                 child.elem().draw(viewport, child_transform);
             }
+        }
+
+        // recover alpha
+        if original_alpha >= 0. {
+            let rm = self.canvas_config.resource_manager();
+            let mut rm = rm.borrow_mut();
+            rm.set_draw_state(DrawState::new().alpha(original_alpha));
         }
     }
 
@@ -188,8 +228,8 @@ impl Element {
         let position_offset = self.position_offset();
         let allocated_position = position_offset.allocated_position();
         let child_transform = transform.offset(allocated_position.0, allocated_position.1).mul_clone(&self.style().transform_ref());
-        let drawing_bounds = transform.apply_to_bounds(&position_offset.drawing_bounds());
-        // debug!("testing {:?} in bounds {:?}", (x, y), drawing_bounds);
+        let drawing_bounds = child_transform.apply_to_bounds(&position_offset.drawing_bounds());
+        debug!("testing {:?} in bounds {:?}", (x, y), drawing_bounds);
         if x < drawing_bounds.0 || x >= drawing_bounds.2 || y < drawing_bounds.1 || y >= drawing_bounds.3 {
             return None;
         }
@@ -208,8 +248,9 @@ impl Element {
             }
         }
         let allocated_position = position_offset.allocated_position();
+        let allocated_position = child_transform.apply_to_position(&(0., 0., allocated_position.2, allocated_position.3));
         // debug!("testing {:?} in allocated_position {:?}", (x, y), allocated_position);
-        if (x < allocated_position.0 || x >= allocated_position.0 + allocated_position.2) && (y < allocated_position.1 || y >= allocated_position.1 + allocated_position.3) {
+        if x < allocated_position.0 || x >= allocated_position.0 + allocated_position.2 || y < allocated_position.1 || y >= allocated_position.1 + allocated_position.3 {
             return None;
         }
         Some(self.tree_node())
@@ -234,7 +275,10 @@ impl TreeElem for Element {
     }
     #[inline]
     fn parent_node_changed(&self, parent_node: Option<TreeNodeRc<Element>>) {
-        self.style_mut().parent_node_changed(parent_node);
+        self.style_mut().parent_node_changed(parent_node.clone());
+        if parent_node.is_some() {
+            parent_node.unwrap().elem().mark_dirty();
+        }
     }
 }
 
