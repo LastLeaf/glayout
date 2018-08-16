@@ -190,7 +190,7 @@ impl Element {
 
         let position_offset = self.position_offset();
         let allocated_position = position_offset.allocated_position();
-        let child_transform = transform.offset(allocated_position.0, allocated_position.1).mul_clone(&style.transform_ref());
+        let child_transform = transform.mul_clone(Transform::new().offset(allocated_position.0, allocated_position.1)).mul_clone(&style.transform_ref());
 
         // draw background color
         let bg_color = style.get_background_color();
@@ -227,7 +227,7 @@ impl Element {
         if self.style().get_display() == style::DisplayType::None { return None }
         let position_offset = self.position_offset();
         let allocated_position = position_offset.allocated_position();
-        let child_transform = transform.offset(allocated_position.0, allocated_position.1).mul_clone(&self.style().transform_ref());
+        let child_transform = transform.mul_clone(Transform::new().offset(allocated_position.0, allocated_position.1)).mul_clone(&self.style().transform_ref());
         let drawing_bounds = child_transform.apply_to_bounds(&position_offset.drawing_bounds());
         debug!("testing {:?} in bounds {:?}", (x, y), drawing_bounds);
         if x < drawing_bounds.0 || x >= drawing_bounds.2 || y < drawing_bounds.1 || y >= drawing_bounds.3 {

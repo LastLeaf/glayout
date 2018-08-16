@@ -102,6 +102,9 @@ impl CanvasContext {
     pub fn canvas_config(&mut self) -> Rc<CanvasConfig> {
         self.canvas_config.clone()
     }
+    pub fn canvas_size(&self) -> (f64, f64) {
+        self.canvas_config.canvas_size.get()
+    }
     pub fn set_canvas_size(&mut self, w: i32, h: i32, pixel_ratio: f64) {
         self.canvas_config.canvas_size.set((w as f64, h as f64));
         lib!(set_canvas_size(self.canvas_config.index, w, h, pixel_ratio));
@@ -110,6 +113,10 @@ impl CanvasContext {
     #[inline]
     pub fn device_pixel_ratio(&self) -> f64 {
         lib!(get_device_pixel_ratio())
+    }
+    #[inline]
+    pub fn window_size(&self) -> (i32, i32) {
+        (lib!(get_window_width()), lib!(get_window_height()))
     }
     pub fn set_clear_color(&mut self, r: f32, g: f32, b: f32, a: f32) {
         self.canvas_config.set_clear_color((r, g, b, a));
