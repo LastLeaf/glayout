@@ -1,7 +1,7 @@
-#![macro_use]
 #![allow(improper_ctypes, dead_code)]
 
 use std::os::raw::c_char;
+use super::Callback;
 
 extern {
     pub fn emscripten_exit_with_live_runtime();
@@ -47,36 +47,4 @@ extern {
     pub fn text_set_font(fontSize: i32, lineHeight: i32, fontFamilyId: i32, italic: i32, bold: i32);
     pub fn text_get_width(text: *mut c_char) -> f64;
     pub fn text_to_tex(canvasIndex: i32, texId: i32, texLeft: i32, texTop: i32, text: *mut c_char, width: i32, height: i32, lineHeight: i32);
-}
-
-pub trait Callback {
-    fn callback(&mut self, ret_0: i32, ret_1: i32, ret_2: i32, ret_3: i32) -> bool;
-}
-
-pub fn register_callback(callback: Box<Callback>) -> *mut Box<Callback> {
-    Box::into_raw(Box::new(callback))
-}
-
-#[macro_export]
-macro_rules! lib {
-    ($x:ident($($y:expr),*)) => {
-        unsafe {
-            $crate::lib_interfaces::$x($($y),*)
-        }
-    }
-}
-
-#[macro_export]
-macro_rules! lib_define_callback {
-    ($name:ident $fields:tt $block:tt) => {
-        struct $name $fields;
-        impl $crate::lib_interfaces::Callback for $name $block
-    }
-}
-
-#[macro_export]
-macro_rules! lib_callback {
-    ($x:expr) => {
-        $crate::lib_interfaces::register_callback(Box::new($x))
-    }
 }
