@@ -1,32 +1,43 @@
 #![allow(dead_code)]
 
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::cell::RefCell;
 use std::os::raw::c_char;
+use std::time::{SystemTime, Duration};
 use glutin;
 use glutin::dpi;
 use glutin::GlContext;
 use super::Callback;
 use super::super::utils::PretendSend;
 
-mod gl {
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-}
+mod gl;
+mod layout_thread;
 
 lazy_static! {
-    static ref MAIN_LOOP: PretendSend<RefCell<MainLoop>> = PretendSend::new(RefCell::new(MainLoop { events_loop: glutin::EventsLoop::new() }));
-    static ref MAIN_LOOP_WINDOWS: Arc<RwLock<HashMap<i32, MainLoopWindow>>> = Arc::new(RwLock::new(HashMap::new()));
+    static ref MAIN_LOOP: PretendSend<RefCell<MainLoop>> = PretendSend::new(RefCell::new(MainLoop::new()));
+    static ref MAIN_LOOP_WINDOWS: Arc<RwLock<HashMap<i32, Mutex<MainLoopWindow>>>> = Arc::new(RwLock::new(HashMap::new()));
 }
 
 struct MainLoop {
     events_loop: glutin::EventsLoop,
+    window_size_listener: Option<*mut Box<Callback>>,
+}
+
+impl MainLoop {
+    fn new() -> Self {
+        MainLoop {
+            events_loop: glutin::EventsLoop::new(),
+            window_size_listener: None,
+        }
+    }
 }
 
 struct MainLoopWindow {
     canvas_index: i32,
     window_id: glutin::WindowId,
     gl_window: glutin::GlWindow,
+    ctx: gl::Gles2,
 }
 
 pub fn emscripten_exit_with_live_runtime() {
@@ -34,45 +45,54 @@ pub fn emscripten_exit_with_live_runtime() {
 }
 
 pub fn init_lib() {
-    // do nothing
+    layout_thread::init();
 }
 fn main_loop() {
+    // listening to user events
     let events_loop = &mut (*MAIN_LOOP).borrow_mut().events_loop;
     let mut running = true;
     while running {
+        layout_thread::wakeup(); // TODO
         events_loop.poll_events(|event| {
             match event {
-                glutin::Event::WindowEvent { event, window_id } => match event {
-                    glutin::WindowEvent::CloseRequested => running = false,
-                    glutin::WindowEvent::Resized(logical_size) => {
-                        // MAIN_LOOP_WINDOWS.read().unwrap().
-                        // let dpi_factor = gl_window.get_hidpi_factor();
-                        // gl_window.resize(logical_size.to_physical(dpi_factor));
-                    },
-                    _ => ()
+                glutin::Event::WindowEvent { event, window_id } => {
+                    let mut cm = MAIN_LOOP_WINDOWS.write().unwrap();
+                    let window_mutex = cm.iter_mut().find(|ref x| x.1.lock().unwrap().window_id == window_id).unwrap().1;
+                    let window = window_mutex.lock().unwrap();
+                    match event {
+                        glutin::WindowEvent::CloseRequested => running = false,
+                        glutin::WindowEvent::Resized(logical_size) => {
+                            let dpi_factor = window.gl_window.get_hidpi_factor();
+                            window.gl_window.resize(logical_size.to_physical(dpi_factor));
+                            // TODO push to event queue
+                        },
+                        _ => ()
+                    }
                 },
                 _ => ()
             }
         });
 
-        unsafe {
-            gl::Clear(gl::COLOR_BUFFER_BIT);
-        }
-
         // gl_window.swap_buffers().unwrap();
     }
 }
-pub fn set_window_size_listener(cbPtr: *mut Box<Callback>) {
-    unimplemented!();
+pub fn set_window_size_listener(cb_ptr: *mut Box<Callback>) {
+    (*MAIN_LOOP).borrow_mut().window_size_listener = Some(cb_ptr);
 }
 pub fn get_window_width() -> i32 {
-    unimplemented!();
+    1
 }
 pub fn get_window_height() -> i32 {
-    unimplemented!();
+    1
 }
-pub fn timeout(ms: i32, cbPtr: *mut Box<Callback>) {
-    unimplemented!();
+pub fn timeout(ms: i32, cb_ptr: *mut Box<Callback>) {
+    layout_thread::push_event(
+        SystemTime::now() + Duration::new((ms / 1000) as u64, (ms % 1000 * 1000000) as u32),
+        layout_thread::EventDetail::TimeoutEvent,
+        move |_detail| {
+            super::callback(cb_ptr, 0, 0, 0, 0);
+        }
+    );
 }
 pub fn enable_animation_frame() {
     unimplemented!();
@@ -90,34 +110,50 @@ pub fn bind_canvas(canvas_index: i32) {
         gl_window.make_current().unwrap();
     }
 
-    unsafe {
-        gl::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
-        gl::ClearColor(0.0, 0.0, 0.0, 1.0);
-    }
+    let ctx = unsafe {
+        let ctx = gl::Gles2::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
+        ctx.ClearColor(0.0, 0.0, 0.0, 0.0);
+        ctx
+    };
 
-    MAIN_LOOP_WINDOWS.write().unwrap().insert(canvas_index, MainLoopWindow {
+    MAIN_LOOP_WINDOWS.write().unwrap().insert(canvas_index, Mutex::new(MainLoopWindow {
         canvas_index,
         window_id: gl_window.window().id(),
         gl_window,
-    });
+        ctx,
+    }));
 }
 pub fn unbind_canvas(canvas_index: i32) {
     MAIN_LOOP_WINDOWS.write().unwrap().remove(&canvas_index).unwrap();
 }
 pub fn set_title(canvas_index: i32, title: String) {
-    MAIN_LOOP_WINDOWS.write().unwrap().get(&canvas_index).unwrap().gl_window.set_title(&title);
+    let cm = MAIN_LOOP_WINDOWS.write().unwrap();
+    cm.get(&canvas_index).unwrap().lock().unwrap().gl_window.set_title(&title);
 }
 pub fn set_canvas_size(canvas_index: i32, w: i32, h: i32, pixel_ratio: f64) {
-    MAIN_LOOP_WINDOWS.write().unwrap().get(&canvas_index).unwrap().gl_window.set_inner_size(dpi::LogicalSize::new(w as f64, h as f64));
+    let cm = MAIN_LOOP_WINDOWS.write().unwrap();
+    cm.get(&canvas_index).unwrap().lock().unwrap().gl_window.set_inner_size(dpi::LogicalSize::new(w as f64, h as f64));
 }
-pub fn get_device_pixel_ratio() -> f64 {
-    unimplemented!();
+pub fn get_device_pixel_ratio(canvas_index: i32) -> f64 {
+    let cm = MAIN_LOOP_WINDOWS.write().unwrap();
+    let c = cm.get(&canvas_index).unwrap().lock().unwrap();
+    c.gl_window.get_hidpi_factor()
+}
+
+macro_rules! ctx_from_canvas_index {
+    ($x:ident, $y:ident) => {
+        let cm = MAIN_LOOP_WINDOWS.write().unwrap();
+        let mut c = cm.get(&$y).unwrap().lock().unwrap();
+        let $x = &mut c.ctx;
+    }
 }
 pub fn set_clear_color(canvas_index: i32, r: f32, g: f32, b: f32, a: f32) {
-    unimplemented!();
+    ctx_from_canvas_index!(ctx, canvas_index);
+    unsafe { ctx.ClearColor(r, g, b, a) };
 }
 pub fn clear(canvas_index: i32) {
-    unimplemented!();
+    ctx_from_canvas_index!(ctx, canvas_index);
+    unsafe { ctx.Clear(gl::COLOR_BUFFER_BIT) };
 }
 pub fn bind_touch_events(canvas_index: i32, cbPtr: *mut Box<Callback>) {
     unimplemented!();

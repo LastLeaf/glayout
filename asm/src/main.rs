@@ -34,7 +34,13 @@ pub extern "C" fn run_test_case(name_c_char: i32) {
     run_test_case!(name);
 }
 
+fn auto_run() {
+    load_test_cases();
+    let name = String::from("glayout::canvas::Canvas");
+    run_test_case!(name);
+}
+
 fn main() {
     glayout::init();
-    glayout::main_loop();
+    glayout::main_loop(auto_run);
 }

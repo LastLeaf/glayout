@@ -36,4 +36,10 @@ impl<T> PretendSend<T> {
             content,
         }
     }
+    #[inline]
+    pub fn match_thread_id(&self, thread_id: thread::ThreadId) {
+        if thread_id != self.thread_id {
+            panic!("PretendSend can only be used in the thread which creates it.");
+        }
+    }
 }
