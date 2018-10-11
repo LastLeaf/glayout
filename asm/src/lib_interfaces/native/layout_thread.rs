@@ -9,6 +9,7 @@ use super::super::utils::PretendSend;
 
 lazy_static! {
     static ref LAYOUT_THREAD: Arc<Mutex<LayoutThread>> = Arc::new(Mutex::new(LayoutThread::new()));
+    static ref UI_THREAD_TASK: Arc<Mutex<Option<Box<Fn(&glutin::EventsLoop) -> () + Send>>>> = Arc::new(Mutex::new(None));
 }
 
 const ANIMATION_FRAME_INTERVAL: u32 = 16_666_666;
@@ -60,6 +61,7 @@ struct LayoutThread {
     thread_handle: thread::JoinHandle<()>,
     events_queue: Arc<Mutex<BinaryHeap<Event>>>,
     event_id_inc: usize,
+    ui_thread_handle: Option<glutin::EventsLoopProxy>,
     animation_frame_enabled: bool,
     animation_frame_scheduled: bool,
 }
@@ -112,6 +114,7 @@ impl LayoutThread {
             thread_handle,
             events_queue: events_queue_self,
             event_id_inc: 0,
+            ui_thread_handle: None,
             animation_frame_enabled: false,
             animation_frame_scheduled: false,
         }
@@ -153,6 +156,35 @@ pub fn push_event<F: 'static + Send>(time: SystemTime, detail: EventDetail, call
 
 pub fn wakeup() {
     LAYOUT_THREAD.lock().unwrap().thread_handle.thread().unpark();
+}
+
+pub fn set_ui_thread_handle(h: glutin::EventsLoopProxy) {
+    LAYOUT_THREAD.lock().unwrap().ui_thread_handle = Some(h);
+}
+
+pub fn exec_ui_thread_task(events_loop: &glutin::EventsLoop) {
+    let mut f = UI_THREAD_TASK.lock().unwrap();
+    let f = f.take().unwrap();
+    (*f)(events_loop);
+    wakeup();
+}
+
+pub fn exec_in_ui_thread(f: Box<Fn(&glutin::EventsLoop) -> () + Send>) {
+    {
+        let mut task = UI_THREAD_TASK.lock().unwrap();
+        if (*task).is_some() { panic!() };
+        *task = Some(f);
+    }
+    {
+        let lt = LAYOUT_THREAD.lock().unwrap();
+        lt.ui_thread_handle.as_ref().unwrap().wakeup().unwrap();
+    }
+    loop {
+        thread::park();
+        if UI_THREAD_TASK.lock().unwrap().is_none() {
+            break;
+        }
+    }
 }
 
 fn schedule_animation_frame(layout_thread: &mut LayoutThread) {

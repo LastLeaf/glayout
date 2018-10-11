@@ -63,48 +63,61 @@ fn main_loop() {
             })
         }
     }
-    layout_thread::wakeup();
     let events_loop = &mut main_loop.events_loop;
-    events_loop.run_forever(|event| {
-        match event {
-            glutin::Event::WindowEvent { event, window_id } => {
-                let mut cm = MAIN_LOOP_WINDOWS.write().unwrap();
-                let window_mutex = cm.iter_mut().find(|ref x| x.1.lock().unwrap().window_id == window_id).unwrap().1;
-                let window = window_mutex.lock().unwrap();
-                match event {
-                    glutin::WindowEvent::CloseRequested => {
-                        // TODO
-                        return glutin::ControlFlow::Break;
-                    },
-                    glutin::WindowEvent::Resized(logical_size) => {
-                        let dpi_factor = window.gl_window.get_hidpi_factor();
-                        window.gl_window.resize(logical_size.to_physical(dpi_factor));
-                    },
-                    _ => {
-                        layout_thread::push_event(
-                            SystemTime::now(),
-                            layout_thread::EventDetail::WindowEvent(event, window.canvas_index),
-                            move |_time, detail| {
-                                match detail {
-                                    layout_thread::EventDetail::WindowEvent(event, canvas_index) => {
-                                        // TODO
-                                    },
-                                    _ => {
-                                        panic!()
+    layout_thread::set_ui_thread_handle(events_loop.create_proxy());
+    loop {
+        layout_thread::wakeup();
+        let mut running = true;
+        events_loop.run_forever(|event| {
+            match event {
+                glutin::Event::Awakened => {
+                    return glutin::ControlFlow::Break;
+                },
+                glutin::Event::WindowEvent { event, window_id } => {
+                    let mut cm = MAIN_LOOP_WINDOWS.write().unwrap();
+                    let window_mutex = cm.iter_mut().find(|ref x| x.1.lock().unwrap().window_id == window_id).unwrap().1;
+                    let window = window_mutex.lock().unwrap();
+                    match event {
+                        glutin::WindowEvent::CloseRequested => {
+                            // TODO
+                            running = false;
+                            return glutin::ControlFlow::Break;
+                        },
+                        glutin::WindowEvent::Resized(logical_size) => {
+                            let dpi_factor = window.gl_window.get_hidpi_factor();
+                            window.gl_window.resize(logical_size.to_physical(dpi_factor));
+                        },
+                        _ => {
+                            layout_thread::push_event(
+                                SystemTime::now(),
+                                layout_thread::EventDetail::WindowEvent(event, window.canvas_index),
+                                move |_time, detail| {
+                                    match detail {
+                                        layout_thread::EventDetail::WindowEvent(event, canvas_index) => {
+                                            // TODO
+                                        },
+                                        _ => {
+                                            panic!()
+                                        }
                                     }
                                 }
-                            }
-                        );
+                            );
+                        }
                     }
-                }
 
-            },
-            _ => ()
+                },
+                _ => ()
+            }
+            // gl_window.swap_buffers().unwrap();
+            layout_thread::wakeup();
+            glutin::ControlFlow::Continue
+        });
+        if running {
+            layout_thread::exec_ui_thread_task(events_loop);
+        } else {
+            break;
         }
-        // gl_window.swap_buffers().unwrap();
-        layout_thread::wakeup();
-        glutin::ControlFlow::Continue
-    });
+    }
 }
 pub fn set_window_size_listener(cb_ptr: *mut Box<Callback>) {
     // TODO redesign window size change fn
@@ -134,31 +147,35 @@ pub fn disable_animation_frame() {
 }
 
 pub fn bind_canvas(canvas_index: i32) {
-    let window = glutin::WindowBuilder::new().with_title("");
-    let context = glutin::ContextBuilder::new().with_vsync(true);
-    let gl_window = glutin::GlWindow::new(window, context, &(*MAIN_LOOP).borrow_mut().events_loop).unwrap();
+    layout_thread::exec_in_ui_thread(Box::new(move |events_loop| {
+        let window = glutin::WindowBuilder::new().with_title("");
+        let context = glutin::ContextBuilder::new().with_vsync(true);
+        let gl_window = glutin::GlWindow::new(window, context, events_loop).unwrap();
 
-    unsafe {
-        gl_window.make_current().unwrap();
-    }
+        unsafe {
+            gl_window.make_current().unwrap();
+        }
 
-    let ctx = unsafe {
-        let ctx = gl::Gles2::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
-        ctx.ClearColor(0.0, 0.0, 0.0, 0.0);
-        ctx
-    };
+        let ctx = unsafe {
+            let ctx = gl::Gles2::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
+            ctx.ClearColor(0.0, 0.0, 0.0, 0.0);
+            ctx
+        };
 
-    MAIN_LOOP_WINDOWS.write().unwrap().insert(canvas_index, Mutex::new(MainLoopWindow {
-        canvas_index,
-        window_id: gl_window.window().id(),
-        gl_window,
-        ctx,
-        keyboard_event_handler: PretendSend::new(None),
-        touch_event_handler: PretendSend::new(None),
+        MAIN_LOOP_WINDOWS.write().unwrap().insert(canvas_index, Mutex::new(MainLoopWindow {
+            canvas_index,
+            window_id: gl_window.window().id(),
+            gl_window,
+            ctx,
+            keyboard_event_handler: PretendSend::new(None),
+            touch_event_handler: PretendSend::new(None),
+        }));
     }));
 }
 pub fn unbind_canvas(canvas_index: i32) {
-    MAIN_LOOP_WINDOWS.write().unwrap().remove(&canvas_index).unwrap();
+    layout_thread::exec_in_ui_thread(Box::new(move |_events_loop| {
+        MAIN_LOOP_WINDOWS.write().unwrap().remove(&canvas_index).unwrap();
+    }));
 }
 pub fn set_title(canvas_index: i32, title: String) {
     let cm = MAIN_LOOP_WINDOWS.write().unwrap();
