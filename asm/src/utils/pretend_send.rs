@@ -2,6 +2,7 @@ use std::ops::{Deref, DerefMut};
 use std::thread;
 
 /// Limit T to be used in only one thread. Deref in other threads would `panic!``. Useful for statics.
+#[derive(Debug)]
 pub struct PretendSend<T> {
     thread_id: thread::ThreadId,
     content: T,
@@ -30,6 +31,7 @@ impl<T> DerefMut for PretendSend<T> {
 }
 
 impl<T> PretendSend<T> {
+    #[inline]
     pub fn new(content: T) -> Self {
         PretendSend {
             thread_id: thread::current().id(),
@@ -37,9 +39,10 @@ impl<T> PretendSend<T> {
         }
     }
     #[inline]
-    pub fn match_thread_id(&self, thread_id: thread::ThreadId) {
-        if thread_id != self.thread_id {
-            panic!("PretendSend can only be used in the thread which creates it.");
+    pub fn new_with_thread_id(content: T, thread_id: thread::ThreadId) -> Self {
+        PretendSend {
+            thread_id,
+            content,
         }
     }
 }

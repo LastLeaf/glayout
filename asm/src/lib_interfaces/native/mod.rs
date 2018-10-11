@@ -21,14 +21,14 @@ lazy_static! {
 
 struct MainLoop {
     events_loop: glutin::EventsLoop,
-    window_size_listener: Option<*mut Box<Callback>>,
+    start_fn: Option<fn() -> ()>,
 }
 
 impl MainLoop {
     fn new() -> Self {
         MainLoop {
             events_loop: glutin::EventsLoop::new(),
-            window_size_listener: None,
+            start_fn: None,
         }
     }
 }
@@ -38,46 +38,77 @@ struct MainLoopWindow {
     window_id: glutin::WindowId,
     gl_window: glutin::GlWindow,
     ctx: gl::Gles2,
+    keyboard_event_handler: PretendSend<Option<*mut Box<Callback>>>,
+    touch_event_handler: PretendSend<Option<*mut Box<Callback>>>,
 }
 
 pub fn emscripten_exit_with_live_runtime() {
     main_loop();
 }
-
 pub fn init_lib() {
     layout_thread::init();
 }
+pub fn set_start_fn(f: fn() -> ()) {
+    (*MAIN_LOOP).borrow_mut().start_fn = Some(f);
+}
 fn main_loop() {
     // listening to user events
-    let events_loop = &mut (*MAIN_LOOP).borrow_mut().events_loop;
-    let mut running = true;
-    while running {
-        layout_thread::wakeup(); // TODO
-        events_loop.poll_events(|event| {
-            match event {
-                glutin::Event::WindowEvent { event, window_id } => {
-                    let mut cm = MAIN_LOOP_WINDOWS.write().unwrap();
-                    let window_mutex = cm.iter_mut().find(|ref x| x.1.lock().unwrap().window_id == window_id).unwrap().1;
-                    let window = window_mutex.lock().unwrap();
-                    match event {
-                        glutin::WindowEvent::CloseRequested => running = false,
-                        glutin::WindowEvent::Resized(logical_size) => {
-                            let dpi_factor = window.gl_window.get_hidpi_factor();
-                            window.gl_window.resize(logical_size.to_physical(dpi_factor));
-                            // TODO push to event queue
-                        },
-                        _ => ()
-                    }
-                },
-                _ => ()
-            }
-        });
-
-        // gl_window.swap_buffers().unwrap();
+    let mut main_loop = (*MAIN_LOOP).borrow_mut();
+    match main_loop.start_fn.take() {
+        None => { panic!() },
+        Some(f) => {
+            layout_thread::push_event(SystemTime::now(), layout_thread::EventDetail::TimeoutEvent,
+            move |_time, _detail| {
+                f()
+            })
+        }
     }
+    layout_thread::wakeup();
+    let events_loop = &mut main_loop.events_loop;
+    events_loop.run_forever(|event| {
+        match event {
+            glutin::Event::WindowEvent { event, window_id } => {
+                let mut cm = MAIN_LOOP_WINDOWS.write().unwrap();
+                let window_mutex = cm.iter_mut().find(|ref x| x.1.lock().unwrap().window_id == window_id).unwrap().1;
+                let window = window_mutex.lock().unwrap();
+                match event {
+                    glutin::WindowEvent::CloseRequested => {
+                        // TODO
+                        return glutin::ControlFlow::Break;
+                    },
+                    glutin::WindowEvent::Resized(logical_size) => {
+                        let dpi_factor = window.gl_window.get_hidpi_factor();
+                        window.gl_window.resize(logical_size.to_physical(dpi_factor));
+                    },
+                    _ => {
+                        layout_thread::push_event(
+                            SystemTime::now(),
+                            layout_thread::EventDetail::WindowEvent(event, window.canvas_index),
+                            move |_time, detail| {
+                                match detail {
+                                    layout_thread::EventDetail::WindowEvent(event, canvas_index) => {
+                                        // TODO
+                                    },
+                                    _ => {
+                                        panic!()
+                                    }
+                                }
+                            }
+                        );
+                    }
+                }
+
+            },
+            _ => ()
+        }
+        // gl_window.swap_buffers().unwrap();
+        layout_thread::wakeup();
+        glutin::ControlFlow::Continue
+    });
 }
 pub fn set_window_size_listener(cb_ptr: *mut Box<Callback>) {
-    (*MAIN_LOOP).borrow_mut().window_size_listener = Some(cb_ptr);
+    // TODO redesign window size change fn
+    // (*MAIN_LOOP).borrow_mut().window_size_listener = Some(cb_ptr);
 }
 pub fn get_window_width() -> i32 {
     1
@@ -86,19 +117,20 @@ pub fn get_window_height() -> i32 {
     1
 }
 pub fn timeout(ms: i32, cb_ptr: *mut Box<Callback>) {
-    layout_thread::push_event(
+    layout_thread::push_event_from_layout_thread(
         SystemTime::now() + Duration::new((ms / 1000) as u64, (ms % 1000 * 1000000) as u32),
         layout_thread::EventDetail::TimeoutEvent,
-        move |_detail| {
+        move |_time, _detail| {
             super::callback(cb_ptr, 0, 0, 0, 0);
         }
     );
+    layout_thread::wakeup();
 }
 pub fn enable_animation_frame() {
-    unimplemented!();
+    layout_thread::set_animation_frame_enabled(true);
 }
 pub fn disable_animation_frame() {
-    unimplemented!();
+    layout_thread::set_animation_frame_enabled(false);
 }
 
 pub fn bind_canvas(canvas_index: i32) {
@@ -121,6 +153,8 @@ pub fn bind_canvas(canvas_index: i32) {
         window_id: gl_window.window().id(),
         gl_window,
         ctx,
+        keyboard_event_handler: PretendSend::new(None),
+        touch_event_handler: PretendSend::new(None),
     }));
 }
 pub fn unbind_canvas(canvas_index: i32) {
@@ -155,11 +189,15 @@ pub fn clear(canvas_index: i32) {
     ctx_from_canvas_index!(ctx, canvas_index);
     unsafe { ctx.Clear(gl::COLOR_BUFFER_BIT) };
 }
-pub fn bind_touch_events(canvas_index: i32, cbPtr: *mut Box<Callback>) {
-    unimplemented!();
+pub fn bind_touch_events(canvas_index: i32, cb_ptr: *mut Box<Callback>) {
+    let cm = MAIN_LOOP_WINDOWS.write().unwrap();
+    let mut c = cm.get(&canvas_index).unwrap().lock().unwrap();
+    c.touch_event_handler = PretendSend::new(Some(cb_ptr));
 }
-pub fn bind_keyboard_events(canvas_index: i32, cbPtr: *mut Box<Callback>) {
-    unimplemented!();
+pub fn bind_keyboard_events(canvas_index: i32, cb_ptr: *mut Box<Callback>) {
+    let cm = MAIN_LOOP_WINDOWS.write().unwrap();
+    let mut c = cm.get(&canvas_index).unwrap().lock().unwrap();
+    c.keyboard_event_handler = PretendSend::new(Some(cb_ptr));
 }
 
 pub fn tex_get_size(canvas_index: i32) -> i32 {

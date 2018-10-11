@@ -18,6 +18,7 @@ lazy_static! {
     static ref FRAME_OBJECTS: PretendSend<Rc<RefCell<FrameObjectsGroup>>> = PretendSend::new(Rc::new(RefCell::new(FrameObjectsGroup::new())));
 }
 
+#[derive(Clone)]
 struct FrameObjectsGroup {
     high: Vec<Rc<RefCell<Frame>>>,
     normal: Vec<Rc<RefCell<Frame>>>,
@@ -78,7 +79,8 @@ macro_rules! exec {
 }
 
 pub fn generate(timestamp: f64) {
-    FRAME_OBJECTS.borrow_mut().high.iter_mut().for_each(exec!(FramePriority::High, timestamp));
-    FRAME_OBJECTS.borrow_mut().normal.iter_mut().for_each(exec!(FramePriority::Normal, timestamp));
-    FRAME_OBJECTS.borrow_mut().low.iter_mut().for_each(exec!(FramePriority::Low, timestamp));
+    let mut fo = (*FRAME_OBJECTS.borrow_mut()).clone();
+    fo.high.iter_mut().for_each(exec!(FramePriority::High, timestamp));
+    fo.normal.iter_mut().for_each(exec!(FramePriority::Normal, timestamp));
+    fo.low.iter_mut().for_each(exec!(FramePriority::Low, timestamp));
 }

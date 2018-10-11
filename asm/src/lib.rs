@@ -33,14 +33,7 @@ pub fn init() {
     lib!(set_window_size_listener(lib_callback!(WindowSizeCallback())));
 }
 
-lib_define_callback!(MainLoopCallback (fn() -> ()) {
-    fn callback(&mut self, _: i32, _: i32, _: i32, _: i32) -> bool {
-        self.0();
-        false
-    }
-});
-
 pub fn main_loop(f: fn() -> ()) {
-    lib!(timeout(0, lib_callback!(MainLoopCallback(f))));
+    lib!(set_start_fn(f));
     lib!(emscripten_exit_with_live_runtime());
 }
