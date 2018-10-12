@@ -8,7 +8,7 @@ pub fn init() {
         let mut canvas = Canvas::new(0);
 
         canvas.ctx(|ctx| {
-            ctx.set_canvas_size(400, 300, 1.);
+            ctx.set_canvas_size(1280, 720, 1.);
         });
 
         struct BackgroundColorAni(Canvas);
@@ -16,6 +16,7 @@ pub fn init() {
             fn progress(&mut self, current_value: f64, _current_time: f64, _total_time: f64) {
                 self.0.ctx(|ctx| {
                     ctx.set_clear_color(0., current_value as f32, current_value as f32, 1.);
+                    ctx.redraw();
                 })
             }
         }

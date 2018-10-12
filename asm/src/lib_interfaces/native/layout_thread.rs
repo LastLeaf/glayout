@@ -187,8 +187,9 @@ pub fn exec_in_ui_thread(f: Box<Fn(&glutin::EventsLoop) -> () + Send>) {
     }
 }
 
-fn schedule_animation_frame(layout_thread: &mut LayoutThread) {
-    layout_thread.push_event(SystemTime::now() + Duration::new(0, ANIMATION_FRAME_INTERVAL), EventDetail::AnimationFrameEvent, Box::new(move |time: SystemTime, _detail| {
+fn schedule_animation_frame(layout_thread: &mut LayoutThread, time: SystemTime) {
+    layout_thread.push_event(time, EventDetail::AnimationFrameEvent, Box::new(move |time: SystemTime, _detail| {
+        let next_frame_time = SystemTime::now() + Duration::new(0, ANIMATION_FRAME_INTERVAL);
         {
             let mut layout_thread = LAYOUT_THREAD.lock().unwrap();
             if !layout_thread.animation_frame_enabled {
@@ -200,9 +201,10 @@ fn schedule_animation_frame(layout_thread: &mut LayoutThread) {
         let secs = dur.as_secs() as f64;
         let nanos = dur.subsec_nanos() as f64;
         super::super::animation_frame(secs * 1000. + nanos / 1000_000.);
+        super::trigger_painting();
         {
             let mut layout_thread = LAYOUT_THREAD.lock().unwrap();
-            schedule_animation_frame(&mut layout_thread);
+            schedule_animation_frame(&mut layout_thread, next_frame_time);
         }
     }), thread::current().id());
 }
@@ -215,7 +217,7 @@ pub fn set_animation_frame_enabled(enabled: bool) {
     layout_thread.animation_frame_enabled = enabled;
     if enabled && !layout_thread.animation_frame_scheduled {
         layout_thread.animation_frame_scheduled = true;
-        schedule_animation_frame(&mut layout_thread);
+        schedule_animation_frame(&mut layout_thread, SystemTime::now() + Duration::new(0, ANIMATION_FRAME_INTERVAL));
         layout_thread.thread_handle.thread().unpark();
     }
 }
