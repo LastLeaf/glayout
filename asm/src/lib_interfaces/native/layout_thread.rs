@@ -19,6 +19,7 @@ pub enum EventDetail {
     WindowEvent(glutin::WindowEvent, i32),
     TimeoutEvent,
     AnimationFrameEvent,
+    ImageLoadEvent,
 }
 
 struct Event {

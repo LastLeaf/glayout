@@ -248,6 +248,7 @@ lib_define_callback! (ImageLoaderCallback (Rc<RefCell<ImageLoader>>) {
                 }
                 let rm = loader.canvas_config.resource_manager();
                 loader.tex_id = rm.borrow_mut().alloc_tex_id();
+                log!("Image loaded: {}", loader.img_id);
                 lib!(tex_from_image(loader.canvas_config.index, loader.tex_id, loader.img_id));
             } else {
                 loader.status = ImageLoaderStatus::LoadFailed;

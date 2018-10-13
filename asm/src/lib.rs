@@ -3,6 +3,7 @@ extern crate lazy_static;
 #[macro_use]
 extern crate downcast_rs;
 extern crate glutin;
+extern crate image;
 
 mod utils;
 pub mod lib_interfaces;

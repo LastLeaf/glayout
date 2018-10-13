@@ -18,20 +18,20 @@ pub fn init() {
             let cfg = context.canvas_config();
             let elem = element! {
                 [&cfg] Empty {
-                    Text {
-                        position: PositionType::Absolute;
-                        left: 10.;
-                        top: 10.;
-                        width: 50.;
-                        set_text("Absolute Positioning");
-                    };
+                    // Text {
+                    //     position: PositionType::Absolute;
+                    //     left: 10.;
+                    //     top: 10.;
+                    //     width: 50.;
+                    //     set_text("Absolute Positioning");
+                    // };
                     color: (0., 0., 1., 0.5);
                     Empty {
                         display: DisplayType::Block;
-                        Text {
-                            font_size: 24.;
-                            set_text("LARGE TEXT");
-                        };
+                        // Text {
+                        //     font_size: 24.;
+                        //     set_text("LARGE TEXT");
+                        // };
                         Empty;
                         Image {
                             width: 400.;
@@ -39,10 +39,10 @@ pub fn init() {
                             load("../resources/test.png");
                         };
                         Empty {
-                            Text {
-                                font_size: 16.;
-                                set_text(ARTICLE);
-                            };
+                            // Text {
+                            //     font_size: 16.;
+                            //     set_text(ARTICLE);
+                            // };
                             top: 750.;
                         };
                     };

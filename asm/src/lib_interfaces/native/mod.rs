@@ -4,7 +4,11 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 use std::cell::RefCell;
 use std::os::raw::c_char;
+use std::ffi::CStr;
+use std::path::Path;
 use std::time::{SystemTime, Duration};
+use std::thread;
+use image;
 use glutin;
 use glutin::dpi;
 use glutin::GlContext;
@@ -14,6 +18,7 @@ use super::super::utils::PretendSend;
 mod gl;
 mod layout_thread;
 mod painting_thread;
+
 use self::painting_thread::PaintingCommand;
 
 const GL_DRAW_RECT_MAX: i32 = 65536 / 8;
@@ -22,6 +27,7 @@ const TEXTURE_MAX: i32 = 16;
 lazy_static! {
     static ref MAIN_LOOP: PretendSend<RefCell<MainLoop>> = PretendSend::new(RefCell::new(MainLoop::new()));
     static ref MAIN_LOOP_WINDOWS: Arc<RwLock<HashMap<i32, Mutex<MainLoopWindow>>>> = Arc::new(RwLock::new(HashMap::new()));
+    static ref IMAGES: Arc<Mutex<HashMap<i32, (u32, u32, Vec<u8>)>>> = Arc::new(Mutex::new(HashMap::new()));
 }
 
 struct MainLoop {
@@ -299,17 +305,27 @@ pub fn tex_set_draw_state(canvas_index: i32, colorR: f32, colorG: f32, colorB: f
     unimplemented!();
 }
 
-pub fn image_load_url(id: i32, url: *mut c_char, cbPtr: *mut Box<Callback>) {
-    unimplemented!();
+pub fn image_load_url(id: i32, url: *mut c_char, cb_ptr: *mut Box<Callback>) {
+    let url = unsafe { CStr::from_ptr(url) };
+    let url = Path::new(url.to_str().unwrap());
+    let cb_ptr = PretendSend::new(cb_ptr);
+    thread::spawn(move || {
+        let rgba_image = image::open(url).unwrap().to_rgba();
+        let image_info = (rgba_image.width(), rgba_image.height(), rgba_image.into_raw());
+        IMAGES.lock().unwrap().insert(id, image_info);
+        layout_thread::push_event(SystemTime::now(), layout_thread::EventDetail::ImageLoadEvent, move |_time, _detail| {
+            super::callback(*cb_ptr, 0, 0, 0, 0);
+        })
+    });
 }
 pub fn image_unload(id: i32) {
-    unimplemented!();
+    IMAGES.lock().unwrap().remove(&id);
 }
 pub fn image_get_natural_width(id: i32) -> i32 {
-    unimplemented!();
+    IMAGES.lock().unwrap().get(&id).unwrap().0 as i32
 }
 pub fn image_get_natural_height(id: i32) -> i32 {
-    unimplemented!();
+    IMAGES.lock().unwrap().get(&id).unwrap().1 as i32
 }
 pub fn tex_from_image(canvas_index: i32, texId: i32, imgId: i32) {
     unimplemented!();

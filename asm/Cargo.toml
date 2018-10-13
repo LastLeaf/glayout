@@ -16,6 +16,7 @@ path = "src/main.rs"
 lazy_static = "1.0"
 downcast-rs = "1.0"
 glutin = "*"
+image = "*"
 
 [build-dependencies]
 gl_generator = "*"
