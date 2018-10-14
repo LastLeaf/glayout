@@ -4,6 +4,8 @@ extern crate lazy_static;
 extern crate downcast_rs;
 extern crate glutin;
 extern crate image;
+extern crate euclid;
+extern crate font_kit;
 
 mod utils;
 pub mod lib_interfaces;

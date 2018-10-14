@@ -19,6 +19,7 @@ mod gl;
 mod layout_thread;
 mod painting_thread;
 mod tex_manager;
+mod font_manager;
 
 use self::gl::Gles2 as Gl;
 use self::painting_thread::PaintingCommand;
@@ -60,6 +61,7 @@ pub fn emscripten_exit_with_live_runtime() {
     main_loop();
 }
 pub fn init_lib() {
+    font_manager::init();
     layout_thread::init();
 }
 pub fn set_start_fn(f: fn() -> ()) {
