@@ -1,3 +1,10 @@
+#ifdef GL_ES
+#else
+#define highp
+#define mediump
+#define lowp
+#endif
+
 attribute vec2 aDrawPos;
 attribute vec2 aTexPos;
 attribute float aTexIndex;

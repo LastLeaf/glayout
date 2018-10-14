@@ -20,6 +20,7 @@ mod layout_thread;
 mod painting_thread;
 mod tex_manager;
 
+use self::gl::Gles2 as Gl;
 use self::painting_thread::PaintingCommand;
 
 const GL_DRAW_RECT_MAX: i32 = 65536 / 8;
@@ -51,8 +52,6 @@ struct MainLoopWindow {
     gl_window: glutin::GlWindow,
     painting_thread: painting_thread::PaintingThread,
     redraw_needed: bool,
-    max_tex_size: i32,
-    max_tex_count: i32,
     keyboard_event_handler: PretendSend<Option<*mut Box<Callback>>>,
     touch_event_handler: PretendSend<Option<*mut Box<Callback>>>,
 }
@@ -137,7 +136,6 @@ fn main_loop() {
                             );
                         }
                     }
-
                 },
                 _ => ()
             }
@@ -183,31 +181,34 @@ pub fn bind_canvas(canvas_index: i32) {
         let window = glutin::WindowBuilder::new().with_title("").with_dimensions(dpi::LogicalSize::new(1280., 720.));
         let context = glutin::ContextBuilder::new().with_vsync(true);
         let gl_window = glutin::GlWindow::new(window, context, events_loop).unwrap();
-        let ctx = Box::new(gl::Gl::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _));
 
         let barrier = Arc::new(Barrier::new(2));
-        let barrier2 = barrier.clone();
-        let painting_thread = painting_thread::PaintingThread::new(ctx, move || {
+        let barrier_self = barrier.clone();
+        let ready_barrier = Arc::new(Barrier::new(2));
+        let painting_thread = painting_thread::PaintingThread::new(move || {
             barrier.wait();
-            let w = MAIN_LOOP_WINDOWS.read().unwrap();
-            let w = w.get(&canvas_index).unwrap();
-            let w = w.lock().unwrap();
-            unsafe { w.gl_window.make_current().unwrap() };
-        });
+            {
+                let w = MAIN_LOOP_WINDOWS.read().unwrap();
+                let w = w.get(&canvas_index).unwrap();
+                let w = w.lock().unwrap();
+                unsafe { w.gl_window.make_current().unwrap() };
+                let ctx = Box::new(Gl::load_with(|symbol| w.gl_window.get_proc_address(symbol) as *const _));
+                ctx
+            }
+        }, ready_barrier.clone());
 
         MAIN_LOOP_WINDOWS.write().unwrap().insert(canvas_index, Mutex::new(MainLoopWindow {
             canvas_index,
             window_id: gl_window.window().id(),
             gl_window,
-            max_tex_size: painting_thread.get_tex_size(),
-            max_tex_count: painting_thread.get_tex_count(),
             painting_thread,
             redraw_needed: false,
             keyboard_event_handler: PretendSend::new(None),
             touch_event_handler: PretendSend::new(None),
         }));
 
-        barrier2.wait();
+        barrier_self.wait();
+        ready_barrier.wait();
     }));
 }
 pub fn unbind_canvas(canvas_index: i32) {
@@ -230,10 +231,12 @@ macro_rules! paint {
 }
 
 pub fn set_canvas_size(canvas_index: i32, w: i32, h: i32, pixel_ratio: f64) {
-    let cm = MAIN_LOOP_WINDOWS.read().unwrap();
-    let window = cm.get(&canvas_index).unwrap().lock().unwrap();
-    window.gl_window.set_inner_size(dpi::LogicalSize::new(w as f64, h as f64));
-    window.gl_window.resize(dpi::PhysicalSize::new(w as f64 * pixel_ratio, h as f64 * pixel_ratio));
+    {
+        let cm = MAIN_LOOP_WINDOWS.read().unwrap();
+        let window = cm.get(&canvas_index).unwrap().lock().unwrap();
+        window.gl_window.set_inner_size(dpi::LogicalSize::new(w as f64, h as f64));
+        window.gl_window.resize(dpi::PhysicalSize::new(w as f64 * pixel_ratio, h as f64 * pixel_ratio));
+    }
     paint!(canvas_index, move |ctx, tex_manager| {
         tex_manager.set_tex_draw_size(ctx, w, h, pixel_ratio);
     });
@@ -273,13 +276,13 @@ pub fn tex_get_size(canvas_index: i32) -> i32 {
     let w = MAIN_LOOP_WINDOWS.read().unwrap();
     let w = w.get(&canvas_index).unwrap();
     let w = w.lock().unwrap();
-    w.max_tex_size
+    w.painting_thread.get_tex_size()
 }
 pub fn tex_get_count(canvas_index: i32) -> i32 {
     let w = MAIN_LOOP_WINDOWS.read().unwrap();
     let w = w.get(&canvas_index).unwrap();
     let w = w.lock().unwrap();
-    w.max_tex_count
+    w.painting_thread.get_tex_count()
 }
 pub fn tex_get_max_draws() -> i32 {
     GL_DRAW_RECT_MAX

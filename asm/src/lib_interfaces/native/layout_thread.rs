@@ -1,5 +1,5 @@
 use std::cmp::{Ord, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Barrier};
 use std::time::Duration;
 use std::thread;
 use std::collections::binary_heap::BinaryHeap;
@@ -167,25 +167,24 @@ pub fn exec_ui_thread_task(events_loop: &glutin::EventsLoop) {
     let mut f = UI_THREAD_TASK.lock().unwrap();
     let f = f.take().unwrap();
     (*f)(events_loop);
-    wakeup();
 }
 
 pub fn exec_in_ui_thread(f: Box<Fn(&glutin::EventsLoop) -> () + Send>) {
+    let barrier = Arc::new(Barrier::new(2));
+    let barrier_self = barrier.clone();
     {
         let mut task = UI_THREAD_TASK.lock().unwrap();
         if (*task).is_some() { panic!() };
-        *task = Some(f);
+        *task = Some(Box::new(move |events_loop| {
+            f(events_loop);
+            barrier.wait();
+        }));
     }
     {
         let lt = LAYOUT_THREAD.lock().unwrap();
         lt.ui_thread_handle.as_ref().unwrap().wakeup().unwrap();
     }
-    loop {
-        thread::park();
-        if UI_THREAD_TASK.lock().unwrap().is_none() {
-            break;
-        }
-    }
+    barrier_self.wait();
 }
 
 fn schedule_animation_frame(layout_thread: &mut LayoutThread, time: SystemTime) {

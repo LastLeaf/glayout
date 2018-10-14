@@ -3,7 +3,7 @@ use std::ptr;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_void, c_char};
 use super::gl;
-use super::gl::Gl as Gl;
+use super::gl::Gles2 as Gl;
 
 const GL_DRAW_RECT_MAX: i32 = super::GL_DRAW_RECT_MAX;
 const TEXTURE_MAX: i32 = super::TEXTURE_MAX;
@@ -18,15 +18,16 @@ macro_rules! paint {
 }
 
 fn string_from_buffer(buf: &[u8]) -> String {
-    CStr::from_bytes_with_nul(buf).unwrap().to_string_lossy().into_owned()
+    unsafe { CStr::from_ptr(buf.as_ptr() as *const i8).to_string_lossy().into_owned() }
 }
 
 fn buffer_from_str(str: &str) -> *mut c_char {
     CString::new(str).unwrap().into_raw()
 }
 
-fn create_shader(ctx: &mut Gl, shader_type: u32, vs: &str) -> u32 {
-    let ptr = Box::into_raw(Box::new(CString::new(vs).unwrap().as_ptr()));
+fn create_shader(ctx: &mut Gl, shader_type: u32, src: &str) -> u32 {
+    let src = CString::new(src).unwrap();
+    let ptr = Box::into_raw(Box::new(src.as_ptr()));
     unsafe {
         let shader = ctx.CreateShader(shader_type);
         ctx.ShaderSource(shader, 1, ptr, ptr::null());
@@ -38,8 +39,8 @@ fn create_shader(ctx: &mut Gl, shader_type: u32, vs: &str) -> u32 {
             let mut buf: [u8; 4096] = [0; 4096];
             let mut buf_len: i32 = 0;
             ctx.GetShaderInfoLog(shader, 4096, &mut buf_len, buf.as_mut_ptr() as *mut i8);
-            ctx.DeleteShader(shader);
             error!("Compiling shader failed: {}", string_from_buffer(&buf));
+            ctx.DeleteShader(shader);
             panic!();
         }
         shader
@@ -49,9 +50,9 @@ fn create_program(ctx: &mut Gl, vs: &str, fs: &str) -> u32 {
     let vs = create_shader(ctx, gl::VERTEX_SHADER, vs);
     let fs = create_shader(ctx, gl::FRAGMENT_SHADER, fs);
     let program = unsafe { ctx.CreateProgram() };
-    unsafe { ctx.AttachShader(program, vs) };
-    unsafe { ctx.AttachShader(program, fs) };
     unsafe {
+        ctx.AttachShader(program, vs);
+        ctx.AttachShader(program, fs);
         ctx.LinkProgram(program);
         let mut ret = 0;
         ctx.GetProgramiv(program, gl::LINK_STATUS, &mut ret);
@@ -59,8 +60,8 @@ fn create_program(ctx: &mut Gl, vs: &str, fs: &str) -> u32 {
             let mut buf: [u8; 4096] = [0; 4096];
             let mut buf_len: i32 = 0;
             ctx.GetShaderInfoLog(program, 4096, &mut buf_len, buf.as_mut_ptr() as *mut i8);
-            ctx.DeleteProgram(program);
             error!("Linking shader program failed: {}", string_from_buffer(&buf));
+            ctx.DeleteProgram(program);
             panic!();
         }
     }

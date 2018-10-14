@@ -8,7 +8,7 @@ pub fn init() {
         let mut canvas = Canvas::new(0);
 
         canvas.ctx(|ctx| {
-            ctx.set_canvas_size(1280, 720, 1.);
+            ctx.set_canvas_size(256, 256, 1.);
         });
 
         struct BackgroundColorAni(Canvas);

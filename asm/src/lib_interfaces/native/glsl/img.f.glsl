@@ -1,3 +1,10 @@
+#ifdef GL_ES
+#else
+#define highp
+#define mediump
+#define lowp
+#endif
+
 varying highp vec2 vTexPos;
 varying highp float vTexIndex;
 uniform sampler2D uTex0;
