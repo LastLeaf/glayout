@@ -18,6 +18,14 @@ pub fn init() {
             let cfg = context.canvas_config();
             let elem = element! {
                 [&cfg] Empty {
+                    Empty {
+                        position: PositionType::Absolute;
+                        left: 500.;
+                        top: 100.;
+                        width: 100.;
+                        height: 100.;
+                        background_color: (1., 0.5, 0.5, 1.);
+                    };
                     // Text {
                     //     position: PositionType::Absolute;
                     //     left: 10.;

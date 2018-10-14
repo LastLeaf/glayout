@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::ptr;
+use std::mem;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_void, c_char};
 use super::gl;
@@ -113,27 +114,27 @@ impl TexManager {
 
             // the texture position buffer
             let tex_pos_gl_buf = gl_bufs[0];
-            let tex_pos_buf = Box::new([0.; GL_DRAW_RECT_MAX as usize * 8]);
+            let tex_pos_buf = Box::new([0. as f32; GL_DRAW_RECT_MAX as usize * 8]);
             ctx.BindBuffer(gl::ARRAY_BUFFER, tex_pos_gl_buf);
-            ctx.BufferData(gl::ARRAY_BUFFER, GL_DRAW_RECT_MAX as isize * 8, tex_pos_buf.as_ptr() as *const c_void, gl::DYNAMIC_DRAW);
+            ctx.BufferData(gl::ARRAY_BUFFER, GL_DRAW_RECT_MAX as isize * 8 * mem::size_of::<f32>() as isize, tex_pos_buf.as_ptr() as *const c_void, gl::STREAM_DRAW);
             let a_tex_pos = ctx.GetAttribLocation(img_shader_program, buffer_from_str("aTexPos")) as u32;
             ctx.EnableVertexAttribArray(a_tex_pos);
             ctx.VertexAttribPointer(a_tex_pos, 2, gl::FLOAT, gl::FALSE, 0, 0 as *const c_void);
 
             // the draw position buffer
             let draw_pos_gl_buf = gl_bufs[1];
-            let draw_pos_buf = Box::new([0.; GL_DRAW_RECT_MAX as usize * 8]);
+            let draw_pos_buf = Box::new([0. as f32; GL_DRAW_RECT_MAX as usize * 8]);
             ctx.BindBuffer(gl::ARRAY_BUFFER, draw_pos_gl_buf);
-            ctx.BufferData(gl::ARRAY_BUFFER, GL_DRAW_RECT_MAX as isize * 8, draw_pos_buf.as_ptr() as *const c_void, gl::DYNAMIC_DRAW);
+            ctx.BufferData(gl::ARRAY_BUFFER, GL_DRAW_RECT_MAX as isize * 8 * mem::size_of::<f32>() as isize, draw_pos_buf.as_ptr() as *const c_void, gl::STREAM_DRAW);
             let a_draw_pos = ctx.GetAttribLocation(img_shader_program, buffer_from_str("aDrawPos")) as u32;
             ctx.EnableVertexAttribArray(a_draw_pos);
             ctx.VertexAttribPointer(a_draw_pos, 2, gl::FLOAT, gl::FALSE, 0, 0 as *const c_void);
 
             // the draw position buffer
             let tex_index_gl_buf = gl_bufs[2];
-            let tex_index_buf = Box::new([0.; GL_DRAW_RECT_MAX as usize * 4]);
+            let tex_index_buf = Box::new([0. as f32; GL_DRAW_RECT_MAX as usize * 4]);
             ctx.BindBuffer(gl::ARRAY_BUFFER, tex_index_gl_buf);
-            ctx.BufferData(gl::ARRAY_BUFFER, GL_DRAW_RECT_MAX as isize * 4, tex_index_buf.as_ptr() as *const c_void, gl::DYNAMIC_DRAW);
+            ctx.BufferData(gl::ARRAY_BUFFER, GL_DRAW_RECT_MAX as isize * 4 * mem::size_of::<f32>() as isize, tex_index_buf.as_ptr() as *const c_void, gl::STREAM_DRAW);
             let a_tex_index = ctx.GetAttribLocation(img_shader_program, buffer_from_str("aTexIndex")) as u32;
             ctx.EnableVertexAttribArray(a_tex_index);
             ctx.VertexAttribPointer(a_tex_index, 1, gl::FLOAT, gl::FALSE, 0, 0 as *const c_void);
@@ -143,7 +144,7 @@ impl TexManager {
             let mut index_buf = Box::new([0 as u16; GL_DRAW_RECT_MAX as usize * 6]);
             generate_index_buf_content(&mut index_buf);
             ctx.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, index_gl_buf);
-            ctx.BufferData(gl::ELEMENT_ARRAY_BUFFER, GL_DRAW_RECT_MAX as isize * 6, index_buf.as_ptr() as *const c_void, gl::STATIC_DRAW);
+            ctx.BufferData(gl::ELEMENT_ARRAY_BUFFER, GL_DRAW_RECT_MAX as isize * 6 * mem::size_of::<u16>() as isize, index_buf.as_ptr() as *const c_void, gl::STATIC_DRAW);
 
             // the temp framebuffer and texture
             let mut gl_framebuffers = [0 as u32; 1];
@@ -228,32 +229,109 @@ impl TexManager {
     }
 }
 
-pub fn tex_create_empty(canvas_index: i32, tex_id: i32, width: i32, height: i32) {
-    paint!(canvas_index, move |ctx, _tex_manager| {
-        // TODO
+pub fn tex_copy(canvas_index: i32, dest_tex_id: i32, dest_left: i32, dest_top: i32, src_left: i32, src_top: i32, width: i32, height: i32) {
+    paint!(canvas_index, move |ctx, tex_manager| {
+        unsafe {
+            ctx.BindTexture(gl::TEXTURE_2D, tex_manager.tex_map[&dest_tex_id]);
+            ctx.CopyTexSubImage2D(gl::TEXTURE_2D, 0, dest_left, dest_top, src_left, src_top, width, height);
+            ctx.BindTexture(gl::TEXTURE_2D, 0);
+        }
     });
 }
-pub fn tex_copy(canvas_index: i32, dest_tex_id: i32, dest_left: i32, dest_top: i32, src_left: i32, src_top: i32, width: i32, height: i32) {
-    unimplemented!();
-}
-pub fn tex_bind_rendering_target(canvas_index: i32, texId: i32, width: i32, height: i32) {
-    unimplemented!();
+pub fn tex_bind_rendering_target(canvas_index: i32, tex_id: i32, width: i32, height: i32) {
+    paint!(canvas_index, move |ctx, tex_manager| {
+        unsafe {
+            ctx.BindFramebuffer(gl::FRAMEBUFFER, tex_manager.temp_framebuffer);
+            ctx.FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, if tex_id < 0 { tex_manager.temp_tex } else { tex_manager.tex_map[&tex_id] }, 0);
+            ctx.UseProgram(tex_manager.img_shader_program);
+            ctx.Viewport(0, 0, width, height);
+            ctx.Uniform2f(tex_manager.u_area_size, width as f32, height as f32);
+            ctx.ClearColor(0., 0., 0., 0.);
+            ctx.Clear(gl::COLOR_BUFFER_BIT);
+        }
+    });
 }
 pub fn tex_unbind_rendering_target(canvas_index: i32) {
-    unimplemented!();
+    paint!(canvas_index, move |ctx, tex_manager| {
+        unsafe {
+            ctx.BindFramebuffer(gl::FRAMEBUFFER, 0);
+            ctx.UseProgram(tex_manager.img_shader_program);
+            ctx.Viewport(0, 0, (tex_manager.width as f64 * tex_manager.pixel_ratio) as i32, (tex_manager.height as f64 * tex_manager.pixel_ratio) as i32);
+            ctx.Uniform2f(tex_manager.u_area_size, tex_manager.width as f32, tex_manager.height as f32);
+        }
+    });
 }
-pub fn tex_delete(canvas_index: i32, texId: i32) {
-    unimplemented!();
+pub fn tex_create_empty(_canvas_index: i32, _tex_id: i32, _width: i32, _height: i32) {
+    paint!(_canvas_index, move |_ctx, _tex_manager| {
+        unimplemented!();
+    });
 }
-pub fn tex_draw(canvas_index: i32, drawIndex: i32, texShaderIndex: i32, normalizedTexX: f64, normalizedTexY: f64, normalizedTexW: f64, normalizedTexH: f64, x: f64, y: f64, w: f64, h: f64) {
-    unimplemented!();
+pub fn tex_delete(canvas_index: i32, tex_id: i32) {
+    paint!(canvas_index, move |ctx, tex_manager| {
+        unsafe {
+            let texture = tex_manager.tex_map.remove(&tex_id).unwrap();
+            ctx.DeleteTextures(1, &texture);
+        }
+    });
 }
-pub fn tex_set_active_texture(canvas_index: i32, texShaderIndex: i32, texId: i32) {
-    unimplemented!();
+pub fn tex_draw(canvas_index: i32, draw_index: i32, tex_shader_index: i32, normalized_tex_x: f32, normalized_tex_y: f32, normalized_tex_w: f32, normalized_tex_h: f32, x: f32, y: f32, w: f32, h: f32) {
+    paint!(canvas_index, move |_ctx, tex_manager| {
+        let tex_pos_buf = &mut *tex_manager.tex_pos_buf;
+        let draw_pos_buf = &mut *tex_manager.draw_pos_buf;
+        let tex_index_buf = &mut *tex_manager.tex_index_buf;
+        let draw_index_8 = draw_index as usize * 8;
+        let draw_index_4 = draw_index as usize * 4;
+        tex_pos_buf[draw_index_8 + 0] = normalized_tex_x;
+        tex_pos_buf[draw_index_8 + 1] = normalized_tex_y;
+        tex_pos_buf[draw_index_8 + 2] = normalized_tex_x;
+        tex_pos_buf[draw_index_8 + 3] = normalized_tex_y + normalized_tex_h;
+        tex_pos_buf[draw_index_8 + 4] = normalized_tex_x + normalized_tex_w;
+        tex_pos_buf[draw_index_8 + 5] = normalized_tex_y + normalized_tex_h;
+        tex_pos_buf[draw_index_8 + 6] = normalized_tex_x + normalized_tex_w;
+        tex_pos_buf[draw_index_8 + 7] = normalized_tex_y;
+        draw_pos_buf[draw_index_8 + 0] = x;
+        draw_pos_buf[draw_index_8 + 1] = y;
+        draw_pos_buf[draw_index_8 + 2] = x;
+        draw_pos_buf[draw_index_8 + 3] = y + h;
+        draw_pos_buf[draw_index_8 + 4] = x + w;
+        draw_pos_buf[draw_index_8 + 5] = y + h;
+        draw_pos_buf[draw_index_8 + 6] = x + w;
+        draw_pos_buf[draw_index_8 + 7] = y;
+        tex_index_buf[draw_index_4 + 0] = tex_shader_index as f32;
+        tex_index_buf[draw_index_4 + 1] = tex_shader_index as f32;
+        tex_index_buf[draw_index_4 + 2] = tex_shader_index as f32;
+        tex_index_buf[draw_index_4 + 3] = tex_shader_index as f32;
+    });
 }
-pub fn tex_draw_end(canvas_index: i32, drawCount: i32) {
-    unimplemented!();
+pub fn tex_set_active_texture(canvas_index: i32, tex_shader_index: i32, tex_id: i32) {
+    paint!(canvas_index, move |ctx, tex_manager| {
+        unsafe {
+            ctx.ActiveTexture(gl::TEXTURE0 + tex_shader_index as u32);
+            ctx.BindTexture(gl::TEXTURE_2D, if tex_id < 0 { tex_manager.temp_tex } else {tex_manager.tex_map[&tex_id]});
+        }
+    });
 }
-pub fn tex_set_draw_state(canvas_index: i32, colorR: f32, colorG: f32, colorB: f32, colorA: f32, alpha: f32) {
-    unimplemented!();
+pub fn tex_draw_end(canvas_index: i32, draw_count: i32) {
+    paint!(canvas_index, move |ctx, tex_manager| {
+        unsafe {
+            let tex_pos_buf = &mut *tex_manager.tex_pos_buf;
+            let draw_pos_buf = &mut *tex_manager.draw_pos_buf;
+            let tex_index_buf = &mut *tex_manager.tex_index_buf;
+            ctx.BindBuffer(gl::ARRAY_BUFFER, tex_manager.tex_pos_gl_buf);
+            ctx.BufferData(gl::ARRAY_BUFFER, draw_count as isize * 8 * mem::size_of::<f32>() as isize, tex_pos_buf.as_ptr() as *const c_void, gl::STREAM_DRAW);
+            ctx.BindBuffer(gl::ARRAY_BUFFER, tex_manager.draw_pos_gl_buf);
+            ctx.BufferData(gl::ARRAY_BUFFER, draw_count as isize * 8 * mem::size_of::<f32>() as isize, draw_pos_buf.as_ptr() as *const c_void, gl::STREAM_DRAW);
+            ctx.BindBuffer(gl::ARRAY_BUFFER, tex_manager.tex_index_gl_buf);
+            ctx.BufferData(gl::ARRAY_BUFFER, draw_count as isize * 4 * mem::size_of::<f32>() as isize, tex_index_buf.as_ptr() as *const c_void, gl::STREAM_DRAW);
+            ctx.DrawElements(gl::TRIANGLES, draw_count * 6, gl::UNSIGNED_SHORT, 0 as *const c_void);
+        }
+    });
+}
+pub fn tex_set_draw_state(canvas_index: i32, color_r: f32, color_g: f32, color_b: f32, color_a: f32, alpha: f32) {
+    paint!(canvas_index, move |ctx, tex_manager| {
+        unsafe {
+            ctx.Uniform4f(tex_manager.u_color, color_r, color_g, color_b, color_a);
+            ctx.Uniform1f(tex_manager.u_alpha, alpha);
+        }
+    });
 }

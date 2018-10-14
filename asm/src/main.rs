@@ -1,3 +1,5 @@
+#![windows_subsystem = "console"]
+
 #[macro_use]
 extern crate lazy_static;
 
@@ -37,11 +39,12 @@ pub extern "C" fn run_test_case(name_c_char: i32) {
 fn auto_run() {
     set_test_log_level_num(-1);
     load_test_cases();
-    let name = String::from("canvas");
+    let name = String::from("element");
     run_test_case!(name);
 }
 
 fn main() {
     glayout::init();
+    glayout::set_log_level_num(-1);
     glayout::main_loop(auto_run);
 }

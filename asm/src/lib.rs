@@ -17,6 +17,16 @@ lazy_static! {
     static ref WINDOW_SIZE: Arc<Mutex<(f64, f64)>> = Arc::new(Mutex::new((0., 0.)));
 }
 
+/// Set the log level number
+/// * `-1` debug
+/// * `0` log
+/// * `1` info
+/// * `2` warn
+/// * `3` error
+pub fn set_log_level_num(level: i32) {
+    utils::log_level::set_log_level_num(level);
+}
+
 pub fn window_size() -> (f64, f64) {
     *WINDOW_SIZE.lock().unwrap()
 }

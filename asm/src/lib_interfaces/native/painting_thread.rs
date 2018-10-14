@@ -1,9 +1,14 @@
 use std::thread;
-use std::sync::{Arc, Mutex, Barrier};
+use std::sync::{Arc, Mutex, mpsc, Barrier};
 use std::cell::Cell;
 use super::{gl, tex_manager};
 use super::gl::Gles2 as Gl;
 use super::super::super::utils::PretendSend;
+
+enum PaintingJob {
+    Immediate(Box<Fn(&mut Gl, &mut super::tex_manager::TexManager) -> () + Send>),
+    Queue,
+}
 
 pub enum PaintingCommand {
     CustomCommand(Box<Fn(&mut Gl, &mut super::tex_manager::TexManager) -> () + Send>),
@@ -12,6 +17,7 @@ pub enum PaintingCommand {
 pub struct PaintingThread {
     tex_size: Arc<Mutex<Cell<i32>>>,
     tex_count: Arc<Mutex<Cell<i32>>>,
+    sender: mpsc::Sender<PaintingJob>,
     thread_handle: thread::JoinHandle<()>,
     cmd_buffer: Arc<Mutex<Cell<Vec<PaintingCommand>>>>,
     cmd_buffer_pending: Cell<Vec<PaintingCommand>>,
@@ -35,6 +41,7 @@ impl PaintingThread {
         let max_tex_count = Arc::new(Mutex::new(Cell::new(0)));
         let tex_size = max_tex_size.clone();
         let tex_count = max_tex_size.clone();
+        let (sender, receiver) = mpsc::channel();
         let thread_handle = thread::Builder::new()
             .spawn(move || {
                 let ctx = thread_init();
@@ -56,10 +63,16 @@ impl PaintingThread {
                 let mut tex_manager = Box::new(tex_manager::TexManager::new(&mut ctx, tex_size, tex_count));
                 ready_barrier.wait();
                 loop {
-                    thread::park();
-                    let buf = cmd_buffer.lock().unwrap().replace(vec![]);
-                    for cmd in buf {
-                        exec_command(&mut ctx, &mut tex_manager, cmd);
+                    match receiver.recv().unwrap() {
+                        PaintingJob::Immediate(f) => {
+                            f(&mut ctx, &mut tex_manager);
+                        },
+                        PaintingJob::Queue => {
+                            let buf = cmd_buffer.lock().unwrap().replace(vec![]);
+                            for cmd in buf {
+                                exec_command(&mut ctx, &mut tex_manager, cmd);
+                            }
+                        }
                     }
                 }
             })
@@ -67,6 +80,7 @@ impl PaintingThread {
         Self {
             tex_size,
             tex_count,
+            sender,
             thread_handle,
             cmd_buffer: cmd_buffer_self,
             cmd_buffer_pending,
@@ -81,13 +95,18 @@ impl PaintingThread {
         self.tex_count.lock().unwrap().get()
     }
 
+    pub fn exec(&mut self, f: Box<Fn(&mut Gl, &mut super::tex_manager::TexManager) -> () + Send>) {
+        self.sender.send(PaintingJob::Immediate(f)).unwrap();
+    }
+
     pub fn append_command(&mut self, cmd: PaintingCommand) {
         self.cmd_buffer_pending.get_mut().push(cmd);
     }
 
     pub fn redraw(&mut self) {
+        // FIXME consider swap but not create new vec
         let pending = self.cmd_buffer_pending.replace(vec![]);
         self.cmd_buffer.lock().unwrap().set(pending);
-        self.thread_handle.thread().unpark();
+        self.sender.send(PaintingJob::Queue).unwrap();
     }
 }

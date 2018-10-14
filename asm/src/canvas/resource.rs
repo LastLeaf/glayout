@@ -163,8 +163,8 @@ impl ResourceManager {
         }
         lib!(tex_draw(self.canvas_index,
             self.pending_draws, tex_shader_index + (if tex_id < 0 || use_color { 0 } else { 256 }),
-            tex_left, tex_top, tex_width, tex_height,
-            left, top, width, height
+            tex_left as f32, tex_top as f32, tex_width as f32, tex_height as f32,
+            left as f32, top as f32, width as f32, height as f32
         ));
         self.pending_draws += 1;
     }

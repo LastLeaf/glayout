@@ -229,6 +229,14 @@ macro_rules! paint {
         w.painting_thread.append_command(PaintingCommand::CustomCommand(Box::new($f)));
     }
 }
+macro_rules! paint_now {
+    ($canvas_index: expr, $f: expr) => {
+        let w = MAIN_LOOP_WINDOWS.read().unwrap();
+        let w = w.get(&$canvas_index).unwrap();
+        let mut w = w.lock().unwrap();
+        w.painting_thread.exec(Box::new($f));
+    }
+}
 
 pub fn set_canvas_size(canvas_index: i32, w: i32, h: i32, pixel_ratio: f64) {
     {
@@ -237,7 +245,7 @@ pub fn set_canvas_size(canvas_index: i32, w: i32, h: i32, pixel_ratio: f64) {
         window.gl_window.set_inner_size(dpi::LogicalSize::new(w as f64, h as f64));
         window.gl_window.resize(dpi::PhysicalSize::new(w as f64 * pixel_ratio, h as f64 * pixel_ratio));
     }
-    paint!(canvas_index, move |ctx, tex_manager| {
+    paint_now!(canvas_index, move |ctx, tex_manager| {
         tex_manager.set_tex_draw_size(ctx, w, h, pixel_ratio);
     });
 }
@@ -312,12 +320,15 @@ pub fn image_get_natural_height(id: i32) -> i32 {
     IMAGES.lock().unwrap().get(&id).unwrap().1 as i32
 }
 pub fn tex_from_image(canvas_index: i32, tex_id: i32, img_id: i32) {
-    paint!(canvas_index, move |ctx, tex_manager| {
+    let barrier = Arc::new(Barrier::new(2));
+    let barrier_self = barrier.clone();
+    paint_now!(canvas_index, move |ctx, tex_manager| {
         let images = &IMAGES.lock().unwrap();
-        let image = images.get(&img_id);
-        let image = image.as_ref().unwrap();
+        let image = &images[&img_id];
         tex_manager.tex_create(ctx, image.0, image.1, &image.2, tex_id);
+        barrier.wait();
     });
+    barrier_self.wait();
 }
 
 pub fn text_bind_font_family(id: i32, fontFamily: *mut c_char) {
