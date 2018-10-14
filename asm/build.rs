@@ -9,7 +9,7 @@ fn main() {
     let dest = env::var("OUT_DIR").unwrap();
     let mut file = File::create(&Path::new(&dest).join("bindings.rs")).unwrap();
 
-    Registry::new(Api::Gles2, (2, 0), Profile::Core, Fallbacks::All, [])
+    Registry::new(Api::Gl, (4, 5), Profile::Core, Fallbacks::All, [])
         .write_bindings(StructGenerator, &mut file)
         .unwrap();
 }

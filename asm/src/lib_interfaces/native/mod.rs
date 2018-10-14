@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock, Barrier};
 use std::cell::RefCell;
 use std::os::raw::c_char;
 use std::ffi::CStr;
@@ -18,6 +18,7 @@ use super::super::utils::PretendSend;
 mod gl;
 mod layout_thread;
 mod painting_thread;
+mod tex_manager;
 
 use self::painting_thread::PaintingCommand;
 
@@ -27,7 +28,7 @@ const TEXTURE_MAX: i32 = 16;
 lazy_static! {
     static ref MAIN_LOOP: PretendSend<RefCell<MainLoop>> = PretendSend::new(RefCell::new(MainLoop::new()));
     static ref MAIN_LOOP_WINDOWS: Arc<RwLock<HashMap<i32, Mutex<MainLoopWindow>>>> = Arc::new(RwLock::new(HashMap::new()));
-    static ref IMAGES: Arc<Mutex<HashMap<i32, (u32, u32, Vec<u8>)>>> = Arc::new(Mutex::new(HashMap::new()));
+    static ref IMAGES: Arc<Mutex<HashMap<i32, (i32, i32, Box<[u8]>)>>> = Arc::new(Mutex::new(HashMap::new()));
 }
 
 struct MainLoop {
@@ -49,6 +50,7 @@ struct MainLoopWindow {
     window_id: glutin::WindowId,
     gl_window: glutin::GlWindow,
     painting_thread: painting_thread::PaintingThread,
+    redraw_needed: bool,
     max_tex_size: i32,
     max_tex_count: i32,
     keyboard_event_handler: PretendSend<Option<*mut Box<Callback>>>,
@@ -65,15 +67,18 @@ pub fn set_start_fn(f: fn() -> ()) {
     (*MAIN_LOOP).borrow_mut().start_fn = Some(f);
 }
 pub fn trigger_painting() {
-    for window in MAIN_LOOP_WINDOWS.write().unwrap().iter_mut() {
+    for window in MAIN_LOOP_WINDOWS.read().unwrap().iter() {
         let mut window = window.1.lock().unwrap();
         let canvas_index = window.canvas_index;
         let painting_thread = &mut window.painting_thread;
-        painting_thread.append_command(PaintingCommand::CustomCommand(Box::new(move |_ctx| {
-            let w = MAIN_LOOP_WINDOWS.write().unwrap();
+        painting_thread.append_command(PaintingCommand::CustomCommand(Box::new(move |_ctx, _tex_manager| {
+            let w = MAIN_LOOP_WINDOWS.read().unwrap();
             let w = w.get(&canvas_index).unwrap();
-            let w = w.lock().unwrap();
-            w.gl_window.swap_buffers().unwrap();
+            let mut w = w.lock().unwrap();
+            if w.redraw_needed {
+                w.redraw_needed = false;
+                w.gl_window.swap_buffers().unwrap();
+            }
         })));
         painting_thread.redraw();
     }
@@ -101,8 +106,8 @@ fn main_loop() {
                     return glutin::ControlFlow::Break;
                 },
                 glutin::Event::WindowEvent { event, window_id } => {
-                    let mut cm = MAIN_LOOP_WINDOWS.write().unwrap();
-                    let window_mutex = cm.iter_mut().find(|ref x| x.1.lock().unwrap().window_id == window_id).unwrap().1;
+                    let mut cm = MAIN_LOOP_WINDOWS.read().unwrap();
+                    let window_mutex = cm.iter().find(|ref x| x.1.lock().unwrap().window_id == window_id).unwrap().1;
                     let window = window_mutex.lock().unwrap();
                     match event {
                         glutin::WindowEvent::CloseRequested => {
@@ -178,37 +183,31 @@ pub fn bind_canvas(canvas_index: i32) {
         let window = glutin::WindowBuilder::new().with_title("").with_dimensions(dpi::LogicalSize::new(1280., 720.));
         let context = glutin::ContextBuilder::new().with_vsync(true);
         let gl_window = glutin::GlWindow::new(window, context, events_loop).unwrap();
-        let ctx = gl::Gles2::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
+        let ctx = Box::new(gl::Gl::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _));
 
-        let max_tex_size = unsafe {
-            let mut ret = 4096;
-            ctx.GetIntegerv(gl::MAX_TEXTURE_SIZE, &mut ret as *mut i32);
-            ret
-        };
-        let max_tex_count = unsafe {
-            let mut ret = 16;
-            ctx.GetIntegerv(gl::MAX_TEXTURE_IMAGE_UNITS, &mut ret as *mut i32);
-            ret
-        };
-
-        let mut painting_thread = painting_thread::PaintingThread::new(ctx);
-        painting_thread.append_command(PaintingCommand::CustomCommand(Box::new(move |_ctx| {
-            let w = MAIN_LOOP_WINDOWS.write().unwrap();
+        let barrier = Arc::new(Barrier::new(2));
+        let barrier2 = barrier.clone();
+        let painting_thread = painting_thread::PaintingThread::new(ctx, move || {
+            barrier.wait();
+            let w = MAIN_LOOP_WINDOWS.read().unwrap();
             let w = w.get(&canvas_index).unwrap();
             let w = w.lock().unwrap();
             unsafe { w.gl_window.make_current().unwrap() };
-        })));
+        });
 
         MAIN_LOOP_WINDOWS.write().unwrap().insert(canvas_index, Mutex::new(MainLoopWindow {
             canvas_index,
             window_id: gl_window.window().id(),
             gl_window,
+            max_tex_size: painting_thread.get_tex_size(),
+            max_tex_count: painting_thread.get_tex_count(),
             painting_thread,
-            max_tex_size,
-            max_tex_count,
+            redraw_needed: false,
             keyboard_event_handler: PretendSend::new(None),
             touch_event_handler: PretendSend::new(None),
         }));
+
+        barrier2.wait();
     }));
 }
 pub fn unbind_canvas(canvas_index: i32) {
@@ -217,19 +216,8 @@ pub fn unbind_canvas(canvas_index: i32) {
     }));
 }
 pub fn set_title(canvas_index: i32, title: String) {
-    let cm = MAIN_LOOP_WINDOWS.write().unwrap();
+    let cm = MAIN_LOOP_WINDOWS.read().unwrap();
     cm.get(&canvas_index).unwrap().lock().unwrap().gl_window.set_title(&title);
-}
-pub fn set_canvas_size(canvas_index: i32, w: i32, h: i32, pixel_ratio: f64) {
-    let cm = MAIN_LOOP_WINDOWS.write().unwrap();
-    let window = cm.get(&canvas_index).unwrap().lock().unwrap();
-    window.gl_window.set_inner_size(dpi::LogicalSize::new(w as f64, h as f64));
-    window.gl_window.resize(dpi::PhysicalSize::new(w as f64 * pixel_ratio, h as f64 * pixel_ratio));
-}
-pub fn get_device_pixel_ratio(canvas_index: i32) -> f64 {
-    let cm = MAIN_LOOP_WINDOWS.write().unwrap();
-    let c = cm.get(&canvas_index).unwrap().lock().unwrap();
-    c.gl_window.get_hidpi_factor()
 }
 
 macro_rules! paint {
@@ -241,23 +229,42 @@ macro_rules! paint {
     }
 }
 
+pub fn set_canvas_size(canvas_index: i32, w: i32, h: i32, pixel_ratio: f64) {
+    let cm = MAIN_LOOP_WINDOWS.read().unwrap();
+    let window = cm.get(&canvas_index).unwrap().lock().unwrap();
+    window.gl_window.set_inner_size(dpi::LogicalSize::new(w as f64, h as f64));
+    window.gl_window.resize(dpi::PhysicalSize::new(w as f64 * pixel_ratio, h as f64 * pixel_ratio));
+    paint!(canvas_index, move |ctx, tex_manager| {
+        tex_manager.set_tex_draw_size(ctx, w, h, pixel_ratio);
+    });
+}
+pub fn get_device_pixel_ratio(canvas_index: i32) -> f64 {
+    let cm = MAIN_LOOP_WINDOWS.read().unwrap();
+    let c = cm.get(&canvas_index).unwrap().lock().unwrap();
+    c.gl_window.get_hidpi_factor()
+}
+
 pub fn set_clear_color(canvas_index: i32, r: f32, g: f32, b: f32, a: f32) {
-    paint!(canvas_index, move |ctx| {
+    paint!(canvas_index, move |ctx, _tex_manager| {
         unsafe { ctx.ClearColor(r, g, b, a) };
     });
 }
 pub fn clear(canvas_index: i32) {
-    paint!(canvas_index, move |ctx| {
+    paint!(canvas_index, move |ctx, _tex_manager| {
         unsafe { ctx.Clear(gl::COLOR_BUFFER_BIT) };
+        let w = MAIN_LOOP_WINDOWS.read().unwrap();
+        let w = w.get(&canvas_index).unwrap();
+        let mut w = w.lock().unwrap();
+        w.redraw_needed = true;
     });
 }
 pub fn bind_touch_events(canvas_index: i32, cb_ptr: *mut Box<Callback>) {
-    let cm = MAIN_LOOP_WINDOWS.write().unwrap();
+    let cm = MAIN_LOOP_WINDOWS.read().unwrap();
     let mut c = cm.get(&canvas_index).unwrap().lock().unwrap();
     c.touch_event_handler = PretendSend::new(Some(cb_ptr));
 }
 pub fn bind_keyboard_events(canvas_index: i32, cb_ptr: *mut Box<Callback>) {
-    let cm = MAIN_LOOP_WINDOWS.write().unwrap();
+    let cm = MAIN_LOOP_WINDOWS.read().unwrap();
     let mut c = cm.get(&canvas_index).unwrap().lock().unwrap();
     c.keyboard_event_handler = PretendSend::new(Some(cb_ptr));
 }
@@ -277,33 +284,7 @@ pub fn tex_get_count(canvas_index: i32) -> i32 {
 pub fn tex_get_max_draws() -> i32 {
     GL_DRAW_RECT_MAX
 }
-pub fn tex_create_empty(canvas_index: i32, texId: i32, width: i32, height: i32) {
-    unimplemented!();
-}
-pub fn tex_copy(canvas_index: i32, destTexId: i32, destLeft: i32, destTop: i32, srcLeft: i32, srcTop: i32, width: i32, height: i32) {
-    unimplemented!();
-}
-pub fn tex_bind_rendering_target(canvas_index: i32, texId: i32, width: i32, height: i32) {
-    unimplemented!();
-}
-pub fn tex_unbind_rendering_target(canvas_index: i32) {
-    unimplemented!();
-}
-pub fn tex_delete(canvas_index: i32, texId: i32) {
-    unimplemented!();
-}
-pub fn tex_draw(canvas_index: i32, drawIndex: i32, texShaderIndex: i32, normalizedTexX: f64, normalizedTexY: f64, normalizedTexW: f64, normalizedTexH: f64, x: f64, y: f64, w: f64, h: f64) {
-    unimplemented!();
-}
-pub fn tex_set_active_texture(canvas_index: i32, texShaderIndex: i32, texId: i32) {
-    unimplemented!();
-}
-pub fn tex_draw_end(canvas_index: i32, drawCount: i32) {
-    unimplemented!();
-}
-pub fn tex_set_draw_state(canvas_index: i32, colorR: f32, colorG: f32, colorB: f32, colorA: f32, alpha: f32) {
-    unimplemented!();
-}
+pub use self::tex_manager::{tex_create_empty, tex_copy, tex_bind_rendering_target, tex_unbind_rendering_target, tex_delete, tex_draw, tex_set_active_texture, tex_draw_end, tex_set_draw_state};
 
 pub fn image_load_url(id: i32, url: *mut c_char, cb_ptr: *mut Box<Callback>) {
     let url = unsafe { CStr::from_ptr(url) };
@@ -311,7 +292,7 @@ pub fn image_load_url(id: i32, url: *mut c_char, cb_ptr: *mut Box<Callback>) {
     let cb_ptr = PretendSend::new(cb_ptr);
     thread::spawn(move || {
         let rgba_image = image::open(url).unwrap().to_rgba();
-        let image_info = (rgba_image.width(), rgba_image.height(), rgba_image.into_raw());
+        let image_info = (rgba_image.width() as i32, rgba_image.height() as i32, rgba_image.into_raw().into_boxed_slice());
         IMAGES.lock().unwrap().insert(id, image_info);
         layout_thread::push_event(SystemTime::now(), layout_thread::EventDetail::ImageLoadEvent, move |_time, _detail| {
             super::callback(*cb_ptr, 0, 0, 0, 0);
@@ -327,8 +308,13 @@ pub fn image_get_natural_width(id: i32) -> i32 {
 pub fn image_get_natural_height(id: i32) -> i32 {
     IMAGES.lock().unwrap().get(&id).unwrap().1 as i32
 }
-pub fn tex_from_image(canvas_index: i32, texId: i32, imgId: i32) {
-    unimplemented!();
+pub fn tex_from_image(canvas_index: i32, tex_id: i32, img_id: i32) {
+    paint!(canvas_index, move |ctx, tex_manager| {
+        let images = &IMAGES.lock().unwrap();
+        let image = images.get(&img_id);
+        let image = image.as_ref().unwrap();
+        tex_manager.tex_create(ctx, image.0, image.1, &image.2, tex_id);
+    });
 }
 
 pub fn text_bind_font_family(id: i32, fontFamily: *mut c_char) {
