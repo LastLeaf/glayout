@@ -46,6 +46,12 @@ impl PaintingThread {
             .spawn(move || {
                 let ctx = thread_init();
 
+                unsafe {
+                    ctx.Enable(gl::BLEND);
+                    ctx.BlendFunc(gl::ONE, gl::ONE_MINUS_SRC_ALPHA);
+                    ctx.Viewport(0, 0, super::DEFAULT_WINDOW_SIZE.0, super::DEFAULT_WINDOW_SIZE.1);
+                };
+
                 let tex_size = unsafe {
                     let mut ret = 4096;
                     ctx.GetIntegerv(gl::MAX_TEXTURE_SIZE, &mut ret as *mut i32);
@@ -106,7 +112,10 @@ impl PaintingThread {
     pub fn redraw(&mut self) {
         // FIXME consider swap but not create new vec
         let pending = self.cmd_buffer_pending.replace(vec![]);
-        self.cmd_buffer.lock().unwrap().set(pending);
+        let dropped = self.cmd_buffer.lock().unwrap().replace(pending);
+        if dropped.len() > 0 {
+            debug!("Draw call dropped!");
+        }
         self.sender.send(PaintingJob::Queue).unwrap();
     }
 }

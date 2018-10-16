@@ -3,12 +3,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock, Barrier};
 use std::cell::RefCell;
-use std::os::raw::c_char;
-use std::ffi::CStr;
-use std::path::Path;
 use std::time::{SystemTime, Duration};
-use std::thread;
-use image;
 use glutin;
 use glutin::dpi;
 use glutin::GlContext;
@@ -19,18 +14,19 @@ mod gl;
 mod layout_thread;
 mod painting_thread;
 mod tex_manager;
+mod image_manager;
 mod font_manager;
 
 use self::gl::Gles2 as Gl;
 use self::painting_thread::PaintingCommand;
 
+const DEFAULT_WINDOW_SIZE: (i32, i32) = (1280, 720);
 const GL_DRAW_RECT_MAX: i32 = 65536 / 8;
 const TEXTURE_MAX: i32 = 16;
 
 lazy_static! {
     static ref MAIN_LOOP: PretendSend<RefCell<MainLoop>> = PretendSend::new(RefCell::new(MainLoop::new()));
     static ref MAIN_LOOP_WINDOWS: Arc<RwLock<HashMap<i32, Mutex<MainLoopWindow>>>> = Arc::new(RwLock::new(HashMap::new()));
-    static ref IMAGES: Arc<Mutex<HashMap<i32, (i32, i32, Box<[u8]>)>>> = Arc::new(Mutex::new(HashMap::new()));
 }
 
 struct MainLoop {
@@ -68,10 +64,13 @@ pub fn set_start_fn(f: fn() -> ()) {
     (*MAIN_LOOP).borrow_mut().start_fn = Some(f);
 }
 pub fn trigger_painting() {
-    for window in MAIN_LOOP_WINDOWS.read().unwrap().iter() {
+    let windows = MAIN_LOOP_WINDOWS.read().unwrap();
+    let barrier_self = Arc::new(Barrier::new(windows.len() + 1));
+    for window in windows.iter() {
         let mut window = window.1.lock().unwrap();
         let canvas_index = window.canvas_index;
         let painting_thread = &mut window.painting_thread;
+        let barrier = barrier_self.clone();
         painting_thread.append_command(PaintingCommand::CustomCommand(Box::new(move |_ctx, _tex_manager| {
             let w = MAIN_LOOP_WINDOWS.read().unwrap();
             let w = w.get(&canvas_index).unwrap();
@@ -80,9 +79,11 @@ pub fn trigger_painting() {
                 w.redraw_needed = false;
                 w.gl_window.swap_buffers().unwrap();
             }
+            barrier.wait();
         })));
         painting_thread.redraw();
     }
+    barrier_self.wait();
 }
 fn main_loop() {
     // listening to user events
@@ -180,7 +181,7 @@ pub fn disable_animation_frame() {
 
 pub fn bind_canvas(canvas_index: i32) {
     layout_thread::exec_in_ui_thread(Box::new(move |events_loop| {
-        let window = glutin::WindowBuilder::new().with_title("").with_dimensions(dpi::LogicalSize::new(1280., 720.));
+        let window = glutin::WindowBuilder::new().with_title("").with_dimensions(dpi::LogicalSize::new(DEFAULT_WINDOW_SIZE.0 as f64, DEFAULT_WINDOW_SIZE.1 as f64));
         let context = glutin::ContextBuilder::new().with_vsync(true);
         let gl_window = glutin::GlWindow::new(window, context, events_loop).unwrap();
 
@@ -297,54 +298,7 @@ pub fn tex_get_count(canvas_index: i32) -> i32 {
 pub fn tex_get_max_draws() -> i32 {
     GL_DRAW_RECT_MAX
 }
+
 pub use self::tex_manager::{tex_create_empty, tex_copy, tex_bind_rendering_target, tex_unbind_rendering_target, tex_delete, tex_draw, tex_set_active_texture, tex_draw_end, tex_set_draw_state};
-
-pub fn image_load_url(id: i32, url: *mut c_char, cb_ptr: *mut Box<Callback>) {
-    let url = unsafe { CStr::from_ptr(url) };
-    let url = Path::new(url.to_str().unwrap());
-    let cb_ptr = PretendSend::new(cb_ptr);
-    thread::spawn(move || {
-        let rgba_image = image::open(url).unwrap().to_rgba();
-        let image_info = (rgba_image.width() as i32, rgba_image.height() as i32, rgba_image.into_raw().into_boxed_slice());
-        IMAGES.lock().unwrap().insert(id, image_info);
-        layout_thread::push_event(SystemTime::now(), layout_thread::EventDetail::ImageLoadEvent, move |_time, _detail| {
-            super::callback(*cb_ptr, 0, 0, 0, 0);
-        })
-    });
-}
-pub fn image_unload(id: i32) {
-    IMAGES.lock().unwrap().remove(&id);
-}
-pub fn image_get_natural_width(id: i32) -> i32 {
-    IMAGES.lock().unwrap().get(&id).unwrap().0 as i32
-}
-pub fn image_get_natural_height(id: i32) -> i32 {
-    IMAGES.lock().unwrap().get(&id).unwrap().1 as i32
-}
-pub fn tex_from_image(canvas_index: i32, tex_id: i32, img_id: i32) {
-    let barrier = Arc::new(Barrier::new(2));
-    let barrier_self = barrier.clone();
-    paint_now!(canvas_index, move |ctx, tex_manager| {
-        let images = &IMAGES.lock().unwrap();
-        let image = &images[&img_id];
-        tex_manager.tex_create(ctx, image.0, image.1, &image.2, tex_id);
-        barrier.wait();
-    });
-    barrier_self.wait();
-}
-
-pub fn text_bind_font_family(id: i32, fontFamily: *mut c_char) {
-    unimplemented!();
-}
-pub fn text_unbind_font_family(id: i32) {
-    unimplemented!();
-}
-pub fn text_set_font(fontSize: i32, lineHeight: i32, fontFamilyId: i32, italic: i32, bold: i32) {
-    unimplemented!();
-}
-pub fn text_get_width(text: *mut c_char) -> f64 {
-    unimplemented!();
-}
-pub fn text_to_tex(canvas_index: i32, texId: i32, texLeft: i32, texTop: i32, text: *mut c_char, width: i32, height: i32, lineHeight: i32) {
-    unimplemented!();
-}
+pub use self::image_manager::{image_load_url, image_unload, image_get_natural_width, image_get_natural_height, tex_from_image};
+pub use self::font_manager::{text_bind_font_family, text_unbind_font_family, text_set_font, text_get_width, text_to_tex};

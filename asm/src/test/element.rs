@@ -18,6 +18,7 @@ pub fn init() {
             let cfg = context.canvas_config();
             let elem = element! {
                 [&cfg] Empty {
+                    font_family: String::from("Consolas, 宋体");
                     Empty {
                         position: PositionType::Absolute;
                         left: 500.;
@@ -36,14 +37,15 @@ pub fn init() {
                     color: (0., 0., 1., 0.5);
                     Empty {
                         display: DisplayType::Block;
-                        // Text {
-                        //     font_size: 24.;
-                        //     set_text("LARGE TEXT");
-                        // };
+                        Text {
+                            font_size: 24.;
+                            set_text("A");
+                        };
                         Empty;
                         Image {
                             width: 400.;
                             height: 400.;
+                            opacity: 0.8;
                             load("../resources/test.png");
                         };
                         Empty {

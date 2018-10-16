@@ -127,7 +127,7 @@ impl ResourceManager {
         if self.current_draw_state == *ds {
             return;
         }
-        self.current_draw_state.alpha = ds.alpha;
+        self.current_draw_state = *ds;
         self.flush_draw();
         lib!(tex_set_draw_state(self.canvas_index, ds.color.0 * ds.color.3, ds.color.1 * ds.color.3, ds.color.2 * ds.color.3, ds.color.3, ds.alpha));
     }
