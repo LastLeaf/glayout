@@ -38,10 +38,10 @@ fn get_glyph_size(font: &Font, font_metrics: &Metrics, glyph_id: u32, font_size:
 }
 
 #[inline]
-fn get_typographic_offset(font: &Font, font_metrics: &Metrics, glyph_id: u32, font_size: f32) -> (f32, f32) {
+fn get_typographic_offset(font: &Font, font_metrics: &Metrics, glyph_id: u32, font_size: f32) -> (f32, f32, f32, f32) {
 	let v = font.typographic_bounds(glyph_id).unwrap();
 	let scale = font_size / font_metrics.units_per_em as f32;
-	(v.min_x() * scale, v.min_y() * scale)
+	(v.min_x() * scale, (font_metrics.ascent - v.max_y()) * scale, v.size.width * scale, v.size.height * scale)
 }
 
 #[inline]
@@ -59,7 +59,8 @@ fn select_font(fonts_info: &Vec<SingleFontFamily>, glyph: char) -> (&SingleFontF
 }
 
 fn load_font_family(names: &String, properties: &Properties) -> Vec<SingleFontFamily> {
-	names.split(',').map(|s| {
+	let mut ret = vec![];
+	names.split(',').for_each(|s| {
 		let name = String::from(s.trim());
 		let name = if (name.starts_with('"') && name.ends_with('"')) || (name.starts_with('\'') && name.ends_with('\'')) {
 			(name[1..name.len() - 1]).to_string()
@@ -86,17 +87,28 @@ fn load_font_family(names: &String, properties: &Properties) -> Vec<SingleFontFa
 				FamilyName::Title(name)
 			}
 		};
-		let font = SystemSource::new()
-			.select_best_match(&[family_name], properties)
-		    .unwrap()
-		    .load()
-		    .unwrap();
+		let font_select = SystemSource::new().select_best_match(&[family_name], properties);
+		match font_select {
+			Ok(loader) => {
+				let font = loader.load().unwrap();
+				let metrics = font.metrics();
+				ret.push(SingleFontFamily {
+					font,
+					metrics,
+				});
+			},
+			Err(_) => { }
+		};
+	});
+	if ret.len() == 0 {
+		let font = SystemSource::new().select_best_match(&[FamilyName::SansSerif], properties).unwrap().load().unwrap();
 		let metrics = font.metrics();
-		SingleFontFamily {
+		ret.push(SingleFontFamily {
 			font,
 			metrics,
-		}
-	}).collect()
+		});
+	}
+	ret
 }
 
 fn init_default_font_family() -> i32 {
@@ -191,14 +203,15 @@ pub fn text_to_tex(canvas_index: i32, tex_id: i32, tex_left: i32, tex_top: i32, 
 		} else if c >= ' ' {
 			let (single_font_family, glyph_id) = select_font(fonts, c);
 			let (w, _) = get_glyph_size(&single_font_family.font, &single_font_family.metrics, glyph_id, current_font.font_size as f32);
-			let canvas_w = (w + 1.).floor() as usize;
-			let canvas_h = current_font.font_size as usize;
-			let mut canvas = Canvas::new(&Size2D::new(canvas_w as u32, canvas_h as u32), Format::A8);
 			if c != ' ' {
-				let typographic_offset = get_typographic_offset(&single_font_family.font, &single_font_family.metrics, glyph_id, current_font.font_size as f32);
+				let typographic_bound = get_typographic_offset(&single_font_family.font, &single_font_family.metrics, glyph_id, current_font.font_size as f32);
+				let canvas_w = typographic_bound.2.ceil() as usize;
+				let canvas_h = typographic_bound.3.ceil() as usize;
+				let mut canvas = Canvas::new(&Size2D::new(canvas_w as u32, canvas_h as u32), Format::A8);
 				single_font_family.font.rasterize_glyph(&mut canvas, glyph_id, current_font.font_size as f32, &Point2D::zero(), HintingOptions::None, RasterizationOptions::GrayscaleAa).unwrap();
-				let x = (offset_x + typographic_offset.0).round() as usize;
-				let y = (offset_y + typographic_offset.1).round() as usize;
+				let x = (offset_x + typographic_bound.0).round() as usize;
+				let y = (offset_y + typographic_bound.1).round() as usize;
+				// FIXME this way causes the font to left aligned to pixel
 				for dx in 0..canvas_w {
 					for dy in 0..canvas_h {
 						let dest_index = (x + dx) + (y + dy) * width as usize;

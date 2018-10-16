@@ -21,7 +21,7 @@ pub fn init() {
             let cfg = context.canvas_config();
             let elem = element! {
                 [&cfg] Empty {
-                    font_family: String::from("宋体");
+                    font_family: String::from("serif, 宋体");
                     Empty {
                         position: PositionType::Absolute;
                         left: 500.;
