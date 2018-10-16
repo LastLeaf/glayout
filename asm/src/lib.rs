@@ -14,6 +14,7 @@ pub mod tree;
 pub mod canvas;
 
 use std::sync::{Arc, Mutex};
+use std::time;
 
 lazy_static! {
     static ref WINDOW_SIZE: Arc<Mutex<(f64, f64)>> = Arc::new(Mutex::new((0., 0.)));
@@ -27,6 +28,18 @@ lazy_static! {
 /// * `3` error
 pub fn set_log_level_num(level: i32) {
     utils::log_level::set_log_level_num(level);
+}
+
+lib_define_callback!(TimeoutCallback (Box<Fn() + Send + 'static>) {
+    fn callback(&mut self, _: i32, _: i32, _: i32, _: i32) -> bool {
+        self.0();
+        false
+    }
+});
+
+pub fn set_timeout<F>(f: F, dur: time::Duration) where F: Fn() + Send + 'static {
+    let ms = dur.as_secs() as i32 * 1000 + (dur.subsec_nanos() as f64 / 1_000_000.).ceil() as i32;
+    lib!(timeout(ms, lib_callback!(TimeoutCallback(Box::new(f)))));
 }
 
 pub fn window_size() -> (f64, f64) {

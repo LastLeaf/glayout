@@ -232,13 +232,13 @@ impl TexManager {
 
 pub fn tex_create(canvas_index: i32, width: i32, height: i32, buf: Vec<u8>, tex_id: i32) {
     paint!(canvas_index, move |ctx, tex_manager| {
-        println!("tex_create {:?}", (canvas_index, tex_id, width, height));
+        // println!("tex_create {:?}", (canvas_index, tex_id, width, height));
         tex_manager.tex_create(ctx, width, height, &buf, tex_id);
     });
 }
 pub fn tex_rewrite(canvas_index: i32, buf: Vec<u8>, tex_id: i32, left: i32, top: i32, width: i32, height: i32) {
     paint!(canvas_index, move |ctx, tex_manager| {
-        println!("tex_rewrite {:?}", (canvas_index, tex_id, left, top, width, height));
+        // println!("tex_rewrite {:?}", (canvas_index, tex_id, left, top, width, height));
         let ptr = buf.as_ptr() as *const c_void;
         unsafe {
             ctx.BindTexture(gl::TEXTURE_2D, if tex_id < 0 { tex_manager.temp_tex } else { tex_manager.tex_map[&tex_id] });
@@ -256,34 +256,42 @@ pub fn tex_copy(canvas_index: i32, dest_tex_id: i32, dest_left: i32, dest_top: i
         }
     });
 }
+
+fn tex_bind_rendering_target_self(ctx: &mut Gl, tex_manager: &mut TexManager, tex_id: i32, width: i32, height: i32) {
+    unsafe {
+        ctx.BindFramebuffer(gl::FRAMEBUFFER, tex_manager.temp_framebuffer);
+        ctx.FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, if tex_id < 0 { tex_manager.temp_tex } else { tex_manager.tex_map[&tex_id] }, 0);
+        ctx.UseProgram(tex_manager.img_shader_program);
+        ctx.Viewport(0, 0, width, height);
+        ctx.Uniform2f(tex_manager.u_area_size, width as f32, height as f32);
+        ctx.ClearColor(0., 0., 0., 0.);
+        ctx.Clear(gl::COLOR_BUFFER_BIT);
+    }
+}
 pub fn tex_bind_rendering_target(canvas_index: i32, tex_id: i32, width: i32, height: i32) {
     paint!(canvas_index, move |ctx, tex_manager| {
-        println!("tex_bind_rendering_target {:?}", (canvas_index, tex_id, width, height));
-        unsafe {
-            ctx.BindFramebuffer(gl::FRAMEBUFFER, tex_manager.temp_framebuffer);
-            ctx.FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, if tex_id < 0 { tex_manager.temp_tex } else { tex_manager.tex_map[&tex_id] }, 0);
-            ctx.UseProgram(tex_manager.img_shader_program);
-            ctx.Viewport(0, 0, width, height);
-            ctx.Uniform2f(tex_manager.u_area_size, width as f32, height as f32);
-            ctx.ClearColor(0., 0., 0., 0.);
-            ctx.Clear(gl::COLOR_BUFFER_BIT);
-        }
+        // println!("tex_bind_rendering_target {:?}", (canvas_index, tex_id, width, height));
+        tex_bind_rendering_target_self(ctx, tex_manager, tex_id, width, height)
     });
+}
+fn tex_unbind_rendering_target_self(ctx: &mut Gl, tex_manager: &mut TexManager) {
+    unsafe {
+        ctx.BindFramebuffer(gl::FRAMEBUFFER, 0);
+        ctx.UseProgram(tex_manager.img_shader_program);
+        ctx.Viewport(0, 0, (tex_manager.width as f64 * tex_manager.pixel_ratio) as i32, (tex_manager.height as f64 * tex_manager.pixel_ratio) as i32);
+        ctx.Uniform2f(tex_manager.u_area_size, tex_manager.width as f32, tex_manager.height as f32);
+    }
 }
 pub fn tex_unbind_rendering_target(canvas_index: i32) {
     paint!(canvas_index, move |ctx, tex_manager| {
-        println!("tex_unbind_rendering_target {:?}", (canvas_index));
-        unsafe {
-            ctx.BindFramebuffer(gl::FRAMEBUFFER, 0);
-            ctx.UseProgram(tex_manager.img_shader_program);
-            ctx.Viewport(0, 0, (tex_manager.width as f64 * tex_manager.pixel_ratio) as i32, (tex_manager.height as f64 * tex_manager.pixel_ratio) as i32);
-            ctx.Uniform2f(tex_manager.u_area_size, tex_manager.width as f32, tex_manager.height as f32);
-        }
+        // println!("tex_unbind_rendering_target {:?}", (canvas_index));
+        tex_unbind_rendering_target_self(ctx, tex_manager);
     });
 }
+
 pub fn tex_create_empty(canvas_index: i32, tex_id: i32, width: i32, height: i32) {
     paint!(canvas_index, move |ctx, tex_manager| {
-        println!("tex_create_empty {:?}", (canvas_index, tex_id, width, height));
+        // println!("tex_create_empty {:?}", (canvas_index, tex_id, width, height));
         let mut gl_textures = [0 as u32; 1];
         unsafe { ctx.GenTextures(1, gl_textures.as_mut_ptr()) };
         let tex = gl_textures[0];
@@ -294,15 +302,15 @@ pub fn tex_create_empty(canvas_index: i32, tex_id: i32, width: i32, height: i32)
             ctx.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32);
             ctx.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32);
             ctx.TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as i32, width, height, 0, gl::RGBA, gl::UNSIGNED_BYTE, ptr::null());
-            tex_bind_rendering_target(canvas_index, tex_id, width, height);
-            tex_unbind_rendering_target(canvas_index);
+            tex_bind_rendering_target_self(ctx, tex_manager, tex_id, width, height);
+            tex_unbind_rendering_target_self(ctx, tex_manager);
             ctx.BindTexture(gl::TEXTURE_2D, 0);
         }
     });
 }
 pub fn tex_delete(canvas_index: i32, tex_id: i32) {
     paint!(canvas_index, move |ctx, tex_manager| {
-        println!("tex_delete {:?}", (canvas_index, tex_id));
+        // println!("tex_delete {:?}", (canvas_index, tex_id));
         unsafe {
             let texture = tex_manager.tex_map.remove(&tex_id).unwrap();
             ctx.DeleteTextures(1, &texture);
@@ -311,7 +319,7 @@ pub fn tex_delete(canvas_index: i32, tex_id: i32) {
 }
 pub fn tex_draw(canvas_index: i32, draw_index: i32, tex_shader_index: i32, normalized_tex_x: f32, normalized_tex_y: f32, normalized_tex_w: f32, normalized_tex_h: f32, x: f32, y: f32, w: f32, h: f32) {
     paint!(canvas_index, move |_ctx, tex_manager| {
-        println!("tex_draw {:?}", (canvas_index, draw_index, tex_shader_index, normalized_tex_x, normalized_tex_y, normalized_tex_w, normalized_tex_h, x, y, w, h));
+        // println!("tex_draw {:?}", (canvas_index, draw_index, tex_shader_index, normalized_tex_x, normalized_tex_y, normalized_tex_w, normalized_tex_h, x, y, w, h));
         let tex_pos_buf = &mut *tex_manager.tex_pos_buf;
         let draw_pos_buf = &mut *tex_manager.draw_pos_buf;
         let tex_index_buf = &mut *tex_manager.tex_index_buf;
@@ -341,17 +349,16 @@ pub fn tex_draw(canvas_index: i32, draw_index: i32, tex_shader_index: i32, norma
 }
 pub fn tex_set_active_texture(canvas_index: i32, tex_shader_index: i32, tex_id: i32) {
     paint!(canvas_index, move |ctx, tex_manager| {
-        println!("tex_set_active_texture {:?}", (canvas_index, tex_shader_index, tex_id));
+        // println!("tex_set_active_texture {:?}", (canvas_index, tex_shader_index, tex_id));
         unsafe {
             ctx.ActiveTexture(gl::TEXTURE0 + tex_shader_index as u32);
             ctx.BindTexture(gl::TEXTURE_2D, if tex_id < 0 { tex_manager.temp_tex } else { tex_manager.tex_map[&tex_id] });
-            println!("Real binded: {:?}", if tex_id < 0 { tex_manager.temp_tex } else { tex_manager.tex_map[&tex_id] });
         }
     });
 }
 pub fn tex_draw_end(canvas_index: i32, draw_count: i32) {
     paint!(canvas_index, move |ctx, tex_manager| {
-        println!("tex_draw_end {:?}", (canvas_index, draw_count));
+        // println!("tex_draw_end {:?}", (canvas_index, draw_count));
         unsafe {
             let tex_pos_buf = &mut *tex_manager.tex_pos_buf;
             let draw_pos_buf = &mut *tex_manager.draw_pos_buf;
@@ -368,7 +375,7 @@ pub fn tex_draw_end(canvas_index: i32, draw_count: i32) {
 }
 pub fn tex_set_draw_state(canvas_index: i32, color_r: f32, color_g: f32, color_b: f32, color_a: f32, alpha: f32) {
     paint!(canvas_index, move |ctx, tex_manager| {
-        println!("tex_set_draw_state {:?}", (canvas_index, color_r, color_g, color_b, color_a, alpha));
+        // println!("tex_set_draw_state {:?}", (canvas_index, color_r, color_g, color_b, color_a, alpha));
         unsafe {
             ctx.Uniform4f(tex_manager.u_color, color_r, color_g, color_b, color_a);
             ctx.Uniform1f(tex_manager.u_alpha, alpha);

@@ -38,6 +38,13 @@ fn get_glyph_size(font: &Font, font_metrics: &Metrics, glyph_id: u32, font_size:
 }
 
 #[inline]
+fn get_typographic_offset(font: &Font, font_metrics: &Metrics, glyph_id: u32, font_size: f32) -> (f32, f32) {
+	let v = font.typographic_bounds(glyph_id).unwrap();
+	let scale = font_size / font_metrics.units_per_em as f32;
+	(v.min_x() * scale, v.min_y() * scale)
+}
+
+#[inline]
 fn select_font(fonts_info: &Vec<SingleFontFamily>, glyph: char) -> (&SingleFontFamily, u32) {
 	let mut glyph_id = 0;
 	let mut font_family = None;
@@ -169,10 +176,13 @@ pub fn text_get_width(text: *mut c_char) -> f64 {
 pub fn text_to_tex(canvas_index: i32, tex_id: i32, tex_left: i32, tex_top: i32, text: *mut c_char, width: i32, height: i32, line_height: i32) {
 	let current_font = CURRENT_FONT.lock().unwrap();
 	let font_info = FONT_INFO.lock().unwrap();
-    let mut canvas = Canvas::new(&Size2D::new(width as u32, height as u32), Format::A8);
 	let fonts: &Vec<SingleFontFamily> = &font_info[&current_font.font_info];
 	let s = unsafe { CStr::from_ptr(text as *const i8).to_str().unwrap() };
-	let mut offset_x = 0.;
+
+	let mut buf: Vec<u8> = Vec::with_capacity((width * height * 4) as usize);
+	buf.resize((width * height * 4) as usize, 0);
+
+	let mut offset_x: f32 = 0.;
 	let mut offset_y = (line_height - current_font.font_size) as f32 / 2.;
 	for c in s.chars() {
 		if c == '\n' {
@@ -181,17 +191,23 @@ pub fn text_to_tex(canvas_index: i32, tex_id: i32, tex_left: i32, tex_top: i32, 
 		} else if c >= ' ' {
 			let (single_font_family, glyph_id) = select_font(fonts, c);
 			let (w, _) = get_glyph_size(&single_font_family.font, &single_font_family.metrics, glyph_id, current_font.font_size as f32);
+			let canvas_w = (w + 1.).floor() as usize;
+			let canvas_h = current_font.font_size as usize;
+			let mut canvas = Canvas::new(&Size2D::new(canvas_w as u32, canvas_h as u32), Format::A8);
 			if c != ' ' {
-				let pos_x = offset_x * single_font_family.metrics.units_per_em as f32 / current_font.font_size as f32;
-				let pos_y = - offset_y * single_font_family.metrics.units_per_em as f32 / current_font.font_size as f32;
-				single_font_family.font.rasterize_glyph(&mut canvas, glyph_id, current_font.font_size as f32, &Point2D::new(pos_x, pos_y), HintingOptions::None, RasterizationOptions::GrayscaleAa).unwrap();
+				let typographic_offset = get_typographic_offset(&single_font_family.font, &single_font_family.metrics, glyph_id, current_font.font_size as f32);
+				single_font_family.font.rasterize_glyph(&mut canvas, glyph_id, current_font.font_size as f32, &Point2D::zero(), HintingOptions::None, RasterizationOptions::GrayscaleAa).unwrap();
+				let x = (offset_x + typographic_offset.0).round() as usize;
+				let y = (offset_y + typographic_offset.1).round() as usize;
+				for dx in 0..canvas_w {
+					for dy in 0..canvas_h {
+						let dest_index = (x + dx) + (y + dy) * width as usize;
+						buf[dest_index * 4 + 3] = canvas.pixels[dx + dy * canvas_w as usize];
+					}
+				}
 			}
 			offset_x += w;
 		}
-	}
-	let mut buf: Vec<u8> = Vec::with_capacity(canvas.pixels.len() * 4);
-	for a in canvas.pixels.into_iter() {
-		buf.extend_from_slice(&[0, 0, 0, a]);
 	}
     super::tex_manager::tex_rewrite(canvas_index, buf, tex_id, tex_left, tex_top, width, height);
 }
