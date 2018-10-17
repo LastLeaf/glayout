@@ -7,6 +7,7 @@ use std::time::{SystemTime, Duration};
 use glutin;
 use glutin::dpi;
 use glutin::GlContext;
+use glutin::WindowEvent;
 use super::Callback;
 use super::super::utils::PretendSend;
 
@@ -32,6 +33,7 @@ lazy_static! {
 struct MainLoop {
     events_loop: glutin::EventsLoop,
     start_fn: Option<fn() -> ()>,
+    window_size_listener: Option<*mut Box<Callback>>,
 }
 
 impl MainLoop {
@@ -39,6 +41,7 @@ impl MainLoop {
         MainLoop {
             events_loop: glutin::EventsLoop::new(),
             start_fn: None,
+            window_size_listener: None,
         }
     }
 }
@@ -51,6 +54,8 @@ struct MainLoopWindow {
     redraw_needed: bool,
     keyboard_event_handler: PretendSend<Option<*mut Box<Callback>>>,
     touch_event_handler: PretendSend<Option<*mut Box<Callback>>>,
+    touching: bool,
+    mouse_location: (i32, i32),
 }
 
 pub fn emscripten_exit_with_live_runtime() {
@@ -97,6 +102,7 @@ fn main_loop() {
             })
         }
     }
+    let window_size_listener = main_loop.window_size_listener.clone();
     let events_loop = &mut main_loop.events_loop;
     layout_thread::set_ui_thread_handle(events_loop.create_proxy());
     loop {
@@ -112,15 +118,21 @@ fn main_loop() {
                     let window_mutex = cm.iter().find(|ref x| x.1.lock().unwrap().window_id == window_id).unwrap().1;
                     let window = window_mutex.lock().unwrap();
                     match event {
-                        glutin::WindowEvent::CloseRequested => {
-                            // TODO
+                        WindowEvent::CloseRequested => {
+                            // FIXME should provide an event but not quit directly
                             running = false;
                             return glutin::ControlFlow::Break;
                         },
-                        glutin::WindowEvent::Resized(logical_size) => {
-                            // TODO should do nothing
-                            let dpi_factor = window.gl_window.get_hidpi_factor();
-                            window.gl_window.resize(logical_size.to_physical(dpi_factor));
+                        WindowEvent::Destroyed => {
+                            // empty
+                        },
+                        WindowEvent::Resized(_logical_size) => {
+                            match window_size_listener {
+                                Some(cb) => {
+                                    super::callback(cb, 0, 0, 0, 0);
+                                },
+                                None => { }
+                            }
                         },
                         _ => {
                             layout_thread::push_event(
@@ -129,7 +141,90 @@ fn main_loop() {
                                 move |_time, detail| {
                                     match detail {
                                         layout_thread::EventDetail::WindowEvent(event, canvas_index) => {
-                                            // TODO
+                                            let compose_modifiers = |modifier: glutin::ModifiersState| {
+                                                (if modifier.shift {1} else {0}) * 8 +
+                                                (if modifier.ctrl {1} else {0}) * 4 +
+                                                (if modifier.alt {1} else {0}) * 2 +
+                                                if modifier.logo {1} else {0}
+                                            };
+                                            let generate_touch_event = |touch_phase, loc| {
+                                                let (cb, touching, mouse_location) = {
+                                                    let mut cm = MAIN_LOOP_WINDOWS.read().unwrap();
+                                                    let window = cm[&canvas_index].lock().unwrap();
+                                                    ((*window.touch_event_handler).clone(), window.touching, window.mouse_location)
+                                                };
+                                                let loc = match loc {
+                                                    Some(x) => x,
+                                                    None => mouse_location,
+                                                };
+                                                match cb {
+                                                    None => { },
+                                                    Some(cb) => {
+                                                        if touching && touch_phase != glutin::TouchPhase::Started ||
+                                                        !touching && touch_phase == glutin::TouchPhase::Started {
+                                                            super::callback(cb, match touch_phase {
+                                                                glutin::TouchPhase::Started => 1,
+                                                                glutin::TouchPhase::Moved => 2,
+                                                                glutin::TouchPhase::Ended => 3,
+                                                                glutin::TouchPhase::Cancelled => 4,
+                                                            }, loc.0 as i32, loc.1 as i32, 0);
+                                                        }
+                                                    }
+                                                };
+                                            };
+                                            match event {
+                                                WindowEvent::CursorEntered { device_id: _ } => {},
+                                                WindowEvent::CursorLeft { device_id: _ } => {
+                                                    generate_touch_event(glutin::TouchPhase::Cancelled, None);
+                                                },
+                                                WindowEvent::CursorMoved { device_id: _, position, modifiers: _ } => {
+                                                    let touching = {
+                                                        let mut cm = MAIN_LOOP_WINDOWS.read().unwrap();
+                                                        let mut window = cm[&canvas_index].lock().unwrap();
+                                                        window.mouse_location = (position.x as i32, position.y as i32);
+                                                        window.touching
+                                                    };
+                                                    if touching {
+                                                        generate_touch_event(glutin::TouchPhase::Moved, None);
+                                                    }
+                                                },
+                                                WindowEvent::MouseInput { device_id: _, state, button, modifiers: _ } => {
+                                                    if button == glutin::MouseButton::Left {
+                                                        generate_touch_event(match state {
+                                                            glutin::ElementState::Pressed => glutin::TouchPhase::Started,
+                                                            glutin::ElementState::Released => glutin::TouchPhase::Ended,
+                                                        }, None);
+                                                    }
+                                                },
+                                                WindowEvent::Touch(touch) => {
+                                                    generate_touch_event(touch.phase, Some((touch.location.x as i32, touch.location.y as i32)));
+                                                },
+                                                WindowEvent::KeyboardInput { device_id: _, input } => {
+                                                    let cb = {
+                                                        let mut cm = MAIN_LOOP_WINDOWS.read().unwrap();
+                                                        let window = cm[&canvas_index].lock().unwrap();
+                                                        (*window.keyboard_event_handler).clone()
+                                                    };
+                                                    match cb {
+                                                        None => { },
+                                                        Some(cb) => {
+                                                            println!("!!! {:?}", input.scancode);
+                                                            super::callback(cb, match input.state {
+                                                                glutin::ElementState::Pressed => 1,
+                                                                glutin::ElementState::Released => 3,
+                                                            }, input.scancode as i32, 0, compose_modifiers(input.modifiers));
+                                                        }
+                                                    };
+                                                },
+                                                WindowEvent::ReceivedCharacter(_c) => {
+                                                    // FIXME impl this
+                                                    println!("??? {:?}", _c);
+                                                },
+                                                WindowEvent::Refresh => {
+                                                    // FIXME should impl this
+                                                },
+                                                _ => { }
+                                            }
                                         },
                                         _ => {
                                             panic!()
@@ -153,8 +248,7 @@ fn main_loop() {
     }
 }
 pub fn set_window_size_listener(cb_ptr: *mut Box<Callback>) {
-    // TODO redesign window size change fn
-    // (*MAIN_LOOP).borrow_mut().window_size_listener = Some(cb_ptr);
+    (*MAIN_LOOP).borrow_mut().window_size_listener = Some(cb_ptr);
 }
 pub fn get_window_width() -> i32 {
     1
@@ -184,6 +278,7 @@ pub fn bind_canvas(canvas_index: i32) {
         let window = glutin::WindowBuilder::new().with_title("").with_dimensions(dpi::LogicalSize::new(DEFAULT_WINDOW_SIZE.0 as f64, DEFAULT_WINDOW_SIZE.1 as f64));
         let context = glutin::ContextBuilder::new().with_vsync(true);
         let gl_window = glutin::GlWindow::new(window, context, events_loop).unwrap();
+        // gl_window.window().set_ime_spot(dpi::LogicalPosition::new(100., 100.));
 
         let barrier = Arc::new(Barrier::new(2));
         let barrier_self = barrier.clone();
@@ -208,6 +303,8 @@ pub fn bind_canvas(canvas_index: i32) {
             redraw_needed: false,
             keyboard_event_handler: PretendSend::new(None),
             touch_event_handler: PretendSend::new(None),
+            touching: false,
+            mouse_location: (0, 0),
         }));
 
         barrier_self.wait();
