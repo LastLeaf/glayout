@@ -150,8 +150,18 @@ fn main_loop() {
                                             let generate_touch_event = |touch_phase, loc| {
                                                 let (cb, touching, mouse_location) = {
                                                     let mut cm = MAIN_LOOP_WINDOWS.read().unwrap();
-                                                    let window = cm[&canvas_index].lock().unwrap();
-                                                    ((*window.touch_event_handler).clone(), window.touching, window.mouse_location)
+                                                    let mut window = cm[&canvas_index].lock().unwrap();
+                                                    let ret = ((*window.touch_event_handler).clone(), window.touching, window.mouse_location);
+                                                    match touch_phase {
+                                                        glutin::TouchPhase::Started => {
+                                                            window.touching = true
+                                                        },
+                                                        glutin::TouchPhase::Ended | glutin::TouchPhase::Cancelled => {
+                                                            window.touching = false
+                                                        },
+                                                        _ => { }
+                                                    };
+                                                    ret
                                                 };
                                                 let loc = match loc {
                                                     Some(x) => x,
