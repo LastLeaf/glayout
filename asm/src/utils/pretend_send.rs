@@ -38,6 +38,7 @@ impl<T> PretendSend<T> {
             content,
         }
     }
+    #[allow(dead_code)]
     #[inline]
     pub fn new_with_thread_id(content: T, thread_id: thread::ThreadId) -> Self {
         PretendSend {

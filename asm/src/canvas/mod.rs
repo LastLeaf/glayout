@@ -12,13 +12,22 @@ pub type CanvasConfig = config::CanvasConfig;
 pub type Element = element::Element;
 pub type Empty = element::Empty;
 
+#[derive(Default, Clone, Debug)]
+pub struct KeyDescriptor {
+    key_code: i32,
+    shift: bool,
+    ctrl: bool,
+    alt: bool,
+    logo: bool,
+}
+
 pub struct CanvasContext {
     canvas_config: Rc<CanvasConfig>,
     root_node: TreeNodeRc<Element>,
     need_redraw: bool,
     touching: bool,
     touch_point: (f64, f64),
-    last_key_code: i32,
+    last_key: KeyDescriptor,
 }
 
 #[derive(Clone)]
@@ -46,7 +55,7 @@ impl Canvas {
             need_redraw: false,
             touching: false,
             touch_point: (0., 0.),
-            last_key_code: 0,
+            last_key: Default::default(),
         }));
         frame::bind(ctx.clone(), frame::FramePriority::Low);
         lib!(bind_touch_events(index, lib_callback!(TouchEventCallback(ctx.clone()))));
@@ -155,10 +164,10 @@ impl CanvasContext {
         self.touch_point
     }
     #[inline]
-    pub fn fetch_last_key_code(&mut self) -> i32 {
-        let last_key_code = self.last_key_code;
-        self.last_key_code = 0;
-        last_key_code
+    pub fn fetch_last_key_code(&mut self) -> KeyDescriptor {
+        let last_key = self.last_key.clone();
+        self.last_key = Default::default();
+        last_key
     }
 }
 
@@ -198,10 +207,17 @@ const KEY_UP: i32 = 3;
 const SHIFT_KEY: i32 = 8;
 const CTRL_KEY: i32 = 4;
 const ALT_KEY: i32 = 2;
-const META_KEY: i32 = 1;
+const LOGO_KEY: i32 = 1;
 lib_define_callback! (KeyboardEventCallback (Rc<RefCell<CanvasContext>>) {
-    fn callback(&mut self, event_type: i32, key_code: i32, char_code: i32, special_keys: i32) -> bool {
+    fn callback(&mut self, event_type: i32, key_code: i32, _char_code: i32, special_keys: i32) -> bool {
         let mut ctx = self.0.borrow_mut();
+        let kd = KeyDescriptor {
+            key_code,
+            shift: if special_keys & SHIFT_KEY > 0 { true } else { false },
+            ctrl: if special_keys & CTRL_KEY > 0 { true } else { false },
+            alt: if special_keys & ALT_KEY > 0 { true } else { false },
+            logo: if special_keys & LOGO_KEY > 0 { true } else { false },
+        };
         match event_type {
             KEY_DOWN => {
                 // TODO
@@ -210,7 +226,7 @@ lib_define_callback! (KeyboardEventCallback (Rc<RefCell<CanvasContext>>) {
                 // TODO
             },
             KEY_UP => {
-                ctx.last_key_code = key_code;
+                ctx.last_key = kd;
             },
             _ => {
                 panic!();

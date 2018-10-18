@@ -1,4 +1,3 @@
-use std::sync::{Arc, Mutex, Barrier};
 use std::collections::HashMap;
 use std::ptr;
 use std::mem;
