@@ -2,9 +2,13 @@
 extern crate lazy_static;
 #[macro_use]
 extern crate downcast_rs;
+#[cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))]
 extern crate glutin;
+#[cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))]
 extern crate image;
+#[cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))]
 extern crate euclid;
+#[cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))]
 extern crate font_kit;
 
 mod utils;
@@ -13,12 +17,7 @@ pub mod frame;
 pub mod tree;
 pub mod canvas;
 
-use std::sync::{Arc, Mutex};
 use std::time;
-
-lazy_static! {
-    static ref WINDOW_SIZE: Arc<Mutex<(f64, f64)>> = Arc::new(Mutex::new((0., 0.)));
-}
 
 /// Set the log level number
 /// * `-1` debug
@@ -42,24 +41,10 @@ pub fn set_timeout<F>(f: F, dur: time::Duration) where F: Fn() + 'static {
     lib!(timeout(ms, lib_callback!(TimeoutCallback(Box::new(f)))));
 }
 
-pub fn window_size() -> (f64, f64) {
-    *WINDOW_SIZE.lock().unwrap()
-}
-
-lib_define_callback!(WindowSizeCallback () {
-    fn callback(&mut self, _combined_size: i32, _: i32, _: i32, _: i32) -> bool {
-        *WINDOW_SIZE.lock().unwrap() = (lib!(get_window_width()) as f64, lib!(get_window_height()) as f64);
-        true
-    }
-});
-
 pub fn init() {
     lib!(init_lib());
-    *WINDOW_SIZE.lock().unwrap() = (lib!(get_window_width()) as f64, lib!(get_window_height()) as f64);
-    lib!(set_window_size_listener(lib_callback!(WindowSizeCallback())));
 }
 
 pub fn main_loop(f: fn() -> ()) {
-    lib!(set_start_fn(f));
-    lib!(emscripten_exit_with_live_runtime());
+    lib!(main_loop(f));
 }

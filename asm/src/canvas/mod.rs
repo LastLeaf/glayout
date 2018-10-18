@@ -60,6 +60,7 @@ impl Canvas {
         frame::bind(ctx.clone(), frame::FramePriority::Low);
         lib!(bind_touch_events(index, lib_callback!(TouchEventCallback(ctx.clone()))));
         lib!(bind_keyboard_events(index, lib_callback!(KeyboardEventCallback(ctx.clone()))));
+        lib!(bind_canvas_size_change(index, lib_callback!(CanvasSizeChangeCallback(ctx.clone()))));
         return Canvas {
             context: ctx
         };
@@ -111,21 +112,22 @@ impl CanvasContext {
     pub fn canvas_config(&mut self) -> Rc<CanvasConfig> {
         self.canvas_config.clone()
     }
-    pub fn canvas_size(&self) -> (f64, f64) {
-        self.canvas_config.canvas_size.get()
+    fn set_canvas_size_inner(&mut self, w: i32, h: i32, pixel_ratio: f64, update_logical_size: bool) {
+        log!("Canvas size changed: {}", self.canvas_config.index);
+        self.canvas_config.canvas_size.set((w as f64, h as f64));
+        lib!(set_canvas_size(self.canvas_config.index, w, h, pixel_ratio, update_logical_size as i32));
+        self.root_node.elem().mark_dirty();
     }
     pub fn set_canvas_size(&mut self, w: i32, h: i32, pixel_ratio: f64) {
-        self.canvas_config.canvas_size.set((w as f64, h as f64));
-        lib!(set_canvas_size(self.canvas_config.index, w, h, pixel_ratio));
-        self.root_node.elem().mark_dirty();
+        self.set_canvas_size_inner(w, h, pixel_ratio, true)
     }
     #[inline]
     pub fn device_pixel_ratio(&self) -> f64 {
         lib!(get_device_pixel_ratio(self.canvas_config.index))
     }
     #[inline]
-    pub fn window_size(&self) -> (i32, i32) {
-        (lib!(get_window_width()), lib!(get_window_height()))
+    pub fn canvas_size(&self) -> (i32, i32) {
+        (lib!(get_canvas_width(self.canvas_config.index)), lib!(get_canvas_height(self.canvas_config.index)))
     }
     pub fn set_clear_color(&mut self, r: f32, g: f32, b: f32, a: f32) {
         self.canvas_config.set_clear_color((r, g, b, a));
@@ -232,6 +234,14 @@ lib_define_callback! (KeyboardEventCallback (Rc<RefCell<CanvasContext>>) {
                 panic!();
             }
         }
+        true
+    }
+});
+
+lib_define_callback! (CanvasSizeChangeCallback (Rc<RefCell<CanvasContext>>) {
+    fn callback(&mut self, w: i32, h: i32, dpi: i32, _: i32) -> bool {
+        let mut ctx = self.0.borrow_mut();
+        ctx.set_canvas_size_inner(w, h, dpi as f64 / 100000000., false);
         true
     }
 });

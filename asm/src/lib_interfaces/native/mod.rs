@@ -32,16 +32,12 @@ lazy_static! {
 
 struct MainLoop {
     events_loop: glutin::EventsLoop,
-    start_fn: Option<fn() -> ()>,
-    window_size_listener: Option<*mut Box<Callback>>,
 }
 
 impl MainLoop {
     fn new() -> Self {
         MainLoop {
             events_loop: glutin::EventsLoop::new(),
-            start_fn: None,
-            window_size_listener: None,
         }
     }
 }
@@ -54,19 +50,14 @@ struct MainLoopWindow {
     redraw_needed: bool,
     keyboard_event_handler: PretendSend<Option<*mut Box<Callback>>>,
     touch_event_handler: PretendSend<Option<*mut Box<Callback>>>,
+    window_size_listener: PretendSend<Option<*mut Box<Callback>>>,
     touching: bool,
     mouse_location: (i32, i32),
 }
 
-pub fn emscripten_exit_with_live_runtime() {
-    main_loop();
-}
 pub fn init_lib() {
     font_manager::init();
     layout_thread::init();
-}
-pub fn set_start_fn(f: fn() -> ()) {
-    (*MAIN_LOOP).borrow_mut().start_fn = Some(f);
 }
 pub fn trigger_painting() {
     let windows = MAIN_LOOP_WINDOWS.read().unwrap();
@@ -90,19 +81,13 @@ pub fn trigger_painting() {
     }
     barrier_self.wait();
 }
-fn main_loop() {
+pub fn main_loop(f: fn() -> ()) {
     // listening to user events
     let mut main_loop = (*MAIN_LOOP).borrow_mut();
-    match main_loop.start_fn.take() {
-        None => { panic!() },
-        Some(f) => {
-            layout_thread::push_event(SystemTime::now(), layout_thread::EventDetail::TimeoutEvent,
-            move |_time, _detail| {
-                f()
-            })
-        }
-    }
-    let window_size_listener = main_loop.window_size_listener.clone();
+    layout_thread::push_event(SystemTime::now(), layout_thread::EventDetail::TimeoutEvent,
+        move |_time, _detail| {
+            f()
+        });
     let events_loop = &mut main_loop.events_loop;
     layout_thread::set_ui_thread_handle(events_loop.create_proxy());
     loop {
@@ -125,14 +110,6 @@ fn main_loop() {
                         },
                         WindowEvent::Destroyed => {
                             // empty
-                        },
-                        WindowEvent::Resized(_logical_size) => {
-                            match window_size_listener {
-                                Some(cb) => {
-                                    super::callback(cb, 0, 0, 0, 0);
-                                },
-                                None => { }
-                            }
                         },
                         _ => {
                             layout_thread::push_event(
@@ -218,7 +195,6 @@ fn main_loop() {
                                                     match cb {
                                                         None => { },
                                                         Some(cb) => {
-                                                            println!("!!! {:?}", input.scancode);
                                                             super::callback(cb, match input.state {
                                                                 glutin::ElementState::Pressed => 1,
                                                                 glutin::ElementState::Released => 3,
@@ -228,10 +204,22 @@ fn main_loop() {
                                                 },
                                                 WindowEvent::ReceivedCharacter(_c) => {
                                                     // FIXME impl this
-                                                    println!("??? {:?}", _c);
+                                                },
+                                                WindowEvent::Resized(logical_size) => {
+                                                    let (cb, dpi) = {
+                                                        let mut cm = MAIN_LOOP_WINDOWS.read().unwrap();
+                                                        let window = cm[&canvas_index].lock().unwrap();
+                                                        ((*window.window_size_listener).clone(), window.gl_window.get_hidpi_factor())
+                                                    };
+                                                    match cb {
+                                                        None => { },
+                                                        Some(cb) => {
+                                                            super::callback(cb, logical_size.width as i32, logical_size.height as i32, (dpi * 100000000.) as i32, 0);
+                                                        }
+                                                    };
                                                 },
                                                 WindowEvent::Refresh => {
-                                                    // FIXME should impl this
+                                                    // NOTE here triggers a window size change event to simulate
                                                 },
                                                 _ => { }
                                             }
@@ -256,15 +244,6 @@ fn main_loop() {
             break;
         }
     }
-}
-pub fn set_window_size_listener(cb_ptr: *mut Box<Callback>) {
-    (*MAIN_LOOP).borrow_mut().window_size_listener = Some(cb_ptr);
-}
-pub fn get_window_width() -> i32 {
-    1
-}
-pub fn get_window_height() -> i32 {
-    1
 }
 pub fn timeout(ms: i32, cb_ptr: *mut Box<Callback>) {
     layout_thread::push_event_from_layout_thread(
@@ -313,6 +292,7 @@ pub fn bind_canvas(canvas_index: i32) {
             redraw_needed: false,
             keyboard_event_handler: PretendSend::new(None),
             touch_event_handler: PretendSend::new(None),
+            window_size_listener: PretendSend::new(None),
             touching: false,
             mouse_location: (0, 0),
         }));
@@ -348,16 +328,28 @@ macro_rules! paint_now {
     }
 }
 
-pub fn set_canvas_size(canvas_index: i32, w: i32, h: i32, pixel_ratio: f64) {
+pub fn set_canvas_size(canvas_index: i32, w: i32, h: i32, pixel_ratio: f64, update_logical_size: i32) {
     {
         let cm = MAIN_LOOP_WINDOWS.read().unwrap();
         let window = cm.get(&canvas_index).unwrap().lock().unwrap();
-        window.gl_window.set_inner_size(dpi::LogicalSize::new(w as f64, h as f64));
+        if update_logical_size != 0 {
+            window.gl_window.set_inner_size(dpi::LogicalSize::new(w as f64, h as f64));
+        }
         window.gl_window.resize(dpi::PhysicalSize::new(w as f64 * pixel_ratio, h as f64 * pixel_ratio));
     }
     paint_now!(canvas_index, move |ctx, tex_manager| {
         tex_manager.set_tex_draw_size(ctx, w, h, pixel_ratio);
     });
+}
+pub fn get_canvas_width(canvas_index: i32) -> i32 {
+    let cm = MAIN_LOOP_WINDOWS.read().unwrap();
+    let c = cm.get(&canvas_index).unwrap().lock().unwrap();
+    c.gl_window.get_inner_size().unwrap().width as i32
+}
+pub fn get_canvas_height(canvas_index: i32) -> i32 {
+    let cm = MAIN_LOOP_WINDOWS.read().unwrap();
+    let c = cm.get(&canvas_index).unwrap().lock().unwrap();
+    c.gl_window.get_inner_size().unwrap().height as i32
 }
 pub fn get_device_pixel_ratio(canvas_index: i32) -> f64 {
     let cm = MAIN_LOOP_WINDOWS.read().unwrap();
@@ -388,6 +380,11 @@ pub fn bind_keyboard_events(canvas_index: i32, cb_ptr: *mut Box<Callback>) {
     let cm = MAIN_LOOP_WINDOWS.read().unwrap();
     let mut c = cm.get(&canvas_index).unwrap().lock().unwrap();
     c.keyboard_event_handler = PretendSend::new(Some(cb_ptr));
+}
+pub fn bind_canvas_size_change(canvas_index: i32, cb_ptr: *mut Box<Callback>) {
+    let cm = MAIN_LOOP_WINDOWS.read().unwrap();
+    let mut c = cm.get(&canvas_index).unwrap().lock().unwrap();
+    c.window_size_listener = PretendSend::new(Some(cb_ptr));
 }
 
 pub fn tex_get_size(canvas_index: i32) -> i32 {

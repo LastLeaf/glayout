@@ -15,6 +15,8 @@ path = "src/main.rs"
 [dependencies]
 lazy_static = "1.0"
 downcast-rs = "1.0"
+
+[target.'cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))'.dependencies]
 glutin = "*"
 image = "*"
 font-kit = "*"
