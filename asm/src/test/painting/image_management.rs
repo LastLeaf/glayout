@@ -1,48 +1,9 @@
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::time;
+use glayout;
 use glayout::canvas::{Canvas, CanvasContext};
 use glayout::canvas::element::{Element, Empty, Image, Text};
-
-lib_define_callback!(Step1 (Rc<RefCell<CanvasContext>>) {
-    fn callback(&mut self, _: i32, _: i32, _: i32, _: i32) -> bool {
-        let mut context = self.0.borrow_mut();
-        let mut root_elem = context.root();
-        let elem = {
-            let cfg = context.canvas_config();
-            let elem = element! {
-                [&cfg] Empty {
-                    left: 10.;
-                    top: 20.;
-                    Empty;
-                    Image {
-                        id: String::from("img");
-                        width: 400.;
-                        height: 400.;
-                        load("../resources/test.png");
-                    };
-                    Text {
-                        font_size: 16.;
-                        set_text("Changing images");
-                    };
-                }
-            };
-            elem
-        };
-        root_elem.append(elem);
-        false
-    }
-});
-
-lib_define_callback!(Step2 (Rc<RefCell<CanvasContext>>) {
-    fn callback(&mut self, _: i32, _: i32, _: i32, _: i32) -> bool {
-        let mut context = self.0.borrow_mut();
-        let image_node = context.node_by_id("img").unwrap();
-        let mut image = image_node.elem().content_mut();
-        let t = image.downcast_mut::<Image>().unwrap();
-        t.load("../resources/lastleaf.png");
-        false
-    }
-});
 
 pub fn init() {
     register_test_case!(module_path!(), {
@@ -55,9 +16,43 @@ pub fn init() {
         });
 
         let rc_context = canvas.context();
+        let rc_context_1 = rc_context.clone();
+        let rc_context_2 = rc_context.clone();
 
-        lib!(timeout(1000, lib_callback!(Step1(rc_context.clone()))));
-        lib!(timeout(2000, lib_callback!(Step2(rc_context.clone()))));
+        glayout::set_timeout(move || {
+            let mut context = rc_context_1.borrow_mut();
+            let mut root_elem = context.root();
+            let elem = {
+                let cfg = context.canvas_config();
+                let elem = element! {
+                    [&cfg] Empty {
+                        left: 10.;
+                        top: 20.;
+                        Empty;
+                        Image {
+                            id: String::from("img");
+                            width: 400.;
+                            height: 400.;
+                            load("../resources/test.png");
+                        };
+                        Text {
+                            font_size: 16.;
+                            set_text("Changing images");
+                        };
+                    }
+                };
+                elem
+            };
+            root_elem.append(elem);
+        }, time::Duration::new(1, 0));
+
+        glayout::set_timeout(move || {
+            let mut context = rc_context_2.borrow_mut();
+            let image_node = context.node_by_id("img").unwrap();
+            let mut image = image_node.elem().content_mut();
+            let t = image.downcast_mut::<Image>().unwrap();
+            t.load("../resources/lastleaf.jpg");
+        }, time::Duration::new(2, 0));
 
         return 0;
     });

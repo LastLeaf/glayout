@@ -30,14 +30,14 @@ pub fn set_log_level_num(level: i32) {
     utils::log_level::set_log_level_num(level);
 }
 
-lib_define_callback!(TimeoutCallback (Box<Fn() + Send + 'static>) {
+lib_define_callback!(TimeoutCallback (Box<Fn() + 'static>) {
     fn callback(&mut self, _: i32, _: i32, _: i32, _: i32) -> bool {
         self.0();
         false
     }
 });
 
-pub fn set_timeout<F>(f: F, dur: time::Duration) where F: Fn() + Send + 'static {
+pub fn set_timeout<F>(f: F, dur: time::Duration) where F: Fn() + 'static {
     let ms = dur.as_secs() as i32 * 1000 + (dur.subsec_nanos() as f64 / 1_000_000.).ceil() as i32;
     lib!(timeout(ms, lib_callback!(TimeoutCallback(Box::new(f)))));
 }
