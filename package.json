@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build-asmjs-debug": "sh scripts/build-asmjs-debug.sh",
-    "build-asmjs-release": "sh scripts/build-asmjs-release.sh"
+    "build-asmjs-debug": "gulp build-debug",
+    "build-asmjs-release": "gulp build-release"
   },
   "repository": {
     "type": "git",

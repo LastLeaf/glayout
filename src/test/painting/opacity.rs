@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use glayout::canvas::{Canvas, CanvasContext};
-use glayout::canvas::element::{Element, Empty, Image};
+use glayout::canvas::element::{Element, Empty, Image, Text};
 use glayout::canvas::element::style::PositionType;
 
 pub fn init() {
@@ -23,6 +23,9 @@ pub fn init() {
                 [&cfg] Empty {
                     opacity: 0.7;
                     Empty;
+                    Text {
+                        set_text("The second image should cover the first image.");
+                    };
                     Image {
                         position: PositionType::Absolute;
                         left: 100.;

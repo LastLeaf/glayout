@@ -12,6 +12,9 @@ path = "src/lib.rs"
 name = "glayout-main"
 path = "src/main.rs"
 
+[build-dependencies]
+gl_generator = "0.9"
+
 [dependencies]
 lazy_static = "1.0"
 downcast-rs = "1.0"
@@ -21,6 +24,3 @@ glutin = "*"
 image = "*"
 font-kit = "*"
 euclid = "*"
-
-[build-dependencies]
-gl_generator = "0.9"

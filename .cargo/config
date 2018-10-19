@@ -1,0 +1,15 @@
+[target.'cfg(any(target_arch = "asmjs", target_arch = "wasm32"))']
+rustflags = [
+  "-C", "link-arg=-s",
+  "-C", "link-arg=WASM=0",
+  "-C", "link-arg=-s",
+  "-C", "link-arg=SINGLE_FILE=1",
+  "-C", "link-arg=-s",
+  "-C", "link-arg=EXTRA_EXPORTED_RUNTIME_METHODS=['UTF8ToString','stringToUTF8']",
+  "-C", "link-arg=--js-library",
+  "-C", "link-arg=asmjs/bin/interfaces.js",
+  "-C", "link-arg=--pre-js",
+  "-C", "link-arg=asmjs/wrapper/pre.js",
+  "-C", "link-arg=--post-js",
+  "-C", "link-arg=asmjs/wrapper/post.js"
+]

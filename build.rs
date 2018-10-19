@@ -1,10 +1,14 @@
+#[cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))]
 extern crate gl_generator;
 
+#[cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))]
 use gl_generator::{Registry, Api, Profile, Fallbacks, StructGenerator};
+
 use std::env;
 use std::fs::File;
 use std::path::Path;
 
+#[cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))]
 fn main() {
     let dest = env::var("OUT_DIR").unwrap();
     let mut file = File::create(&Path::new(&dest).join("bindings.rs")).unwrap();
@@ -46,4 +50,9 @@ fn main() {
     gles_registry
         .write_bindings(StructGenerator, &mut file)
         .unwrap();
+}
+
+#[cfg(any(target_arch = "asmjs", target_arch = "wasm32"))]
+fn main() {
+    // do nothing
 }
