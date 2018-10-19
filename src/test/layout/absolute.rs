@@ -72,7 +72,7 @@ pub fn init() {
                                 id: String::from("d");
                                 width: 400.;
                                 height: 400.;
-                                load("../resources/test.png");
+                                load("resources/test.png");
                             };
                         };
                         Empty {

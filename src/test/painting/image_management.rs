@@ -33,7 +33,7 @@ pub fn init() {
                             id: String::from("img");
                             width: 400.;
                             height: 400.;
-                            load("../resources/test.png");
+                            load("resources/test.png");
                         };
                         Text {
                             font_size: 16.;
@@ -51,7 +51,7 @@ pub fn init() {
             let image_node = context.node_by_id("img").unwrap();
             let mut image = image_node.elem().content_mut();
             let t = image.downcast_mut::<Image>().unwrap();
-            t.load("../resources/lastleaf.jpg");
+            t.load("resources/lastleaf.jpg");
         }, time::Duration::new(2, 0));
 
         return 0;

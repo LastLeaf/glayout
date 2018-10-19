@@ -1,4 +1,5 @@
 var fs = require('fs-extra')
+var process = require('process')
 var execFile = require('child_process').execFile
 var gulp = require('gulp')
 var concat = require('gulp-concat')
@@ -8,13 +9,15 @@ var webpack = require('webpack')
 var libCompilerConfig = require('./asmjs/webpack.config')
 
 var execCommand = function(cmd, args, cwd, cb) {
-  execFile(cmd, args, {cwd: cwd}, function(err, stdout, stderr) {
+  var cp = execFile(cmd, args, {cwd: cwd}, function(err, stdout, stderr) {
     if (err) {
       cb(err)
       return
     }
     cb()
   })
+  cp.stdout.pipe(process.stdout)
+  cp.stderr.pipe(process.stderr)
 }
 
 var convertSourceMapPath = function() {
@@ -22,14 +25,14 @@ var convertSourceMapPath = function() {
     if (sourcePath.match(/^webpack:\/\/__glayoutLib__\/webpack\//)) {
       return sourcePath.replace('webpack://__glayoutLib__/webpack/', '__internal__/webpack/')
     }
-    if (sourcePath.match(/^webpack:\/\/__glayoutLib__\/lib\//)) {
-      return sourcePath.replace('webpack://__glayoutLib__/lib/', 'asmjs/src/')
+    if (sourcePath.match(/^webpack:\/\/__glayoutLib__\/asmjs\//)) {
+      return sourcePath.replace('webpack://__glayoutLib__/asmjs/', 'asmjs/')
     }
     if (sourcePath.match(/^..\//)) {
       return sourcePath.replace(/^(..\/)+/, '__internal__/')
     }
     if (sourcePath.match(/^src\//)) {
-      return sourcePath.replace('src/', 'src/')
+      return sourcePath
     }
     return '__internal__/' + sourcePath
   })

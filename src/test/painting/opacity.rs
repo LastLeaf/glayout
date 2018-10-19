@@ -32,7 +32,7 @@ pub fn init() {
                         top: 100.;
                         width: 400.;
                         height: 400.;
-                        load("../resources/test.png");
+                        load("resources/test.png");
                     };
                     Image {
                         position: PositionType::Absolute;
@@ -40,7 +40,7 @@ pub fn init() {
                         top: 200.;
                         width: 400.;
                         height: 400.;
-                        load("../resources/lastleaf.jpg");
+                        load("resources/lastleaf.jpg");
                     };
                 }
             };

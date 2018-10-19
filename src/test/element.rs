@@ -49,7 +49,7 @@ pub fn init() {
                             width: 400.;
                             height: 400.;
                             opacity: 0.8;
-                            load("../resources/test.png");
+                            load("resources/test.png");
                         };
                         Empty {
                             Text {
