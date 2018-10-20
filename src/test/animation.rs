@@ -10,7 +10,7 @@ pub fn init() {
         let ani_obj = TimingAnimation::new(Box::new(move |current_time, total_time| -> bool {
             debug!("Animation progress: {:?}", ani_time_to_ms(current_time) / ani_time_to_ms(total_time));
             true
-        }), time::Duration::new(3, 0), false);
+        }), time::Duration::new(3, 0), false).exec();
         return 0;
     });
 }

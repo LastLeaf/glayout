@@ -47,6 +47,9 @@ impl Text {
         let t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
         t.elem().mark_dirty();
     }
+    pub fn get_text(&mut self) -> String {
+        self.text.clone()
+    }
 
     // FIXME update if font_style updated
     fn check_font_changed(&mut self, style: &ElementStyle) {

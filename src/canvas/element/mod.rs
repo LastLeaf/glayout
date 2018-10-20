@@ -1,21 +1,7 @@
 #![macro_use]
 
-pub mod style;
-pub type ElementStyle = style::ElementStyle;
-mod position_offset;
-pub type PositionOffset = position_offset::PositionOffset;
-pub type InlinePositionStatus = position_offset::InlinePositionStatus;
-mod transform;
-pub type Transform = transform::Transform;
-
-mod empty_element;
-pub type Empty = empty_element::Empty;
-mod image_element;
-pub type Image = image_element::Image;
-pub type ImageLoader = image_element::ImageLoader;
-mod text_element;
-pub type Text = text_element::Text;
-
+use std::fmt::Debug;
+use std::any::Any;
 use std::rc::Rc;
 use std::cell::{Cell, RefCell, Ref, RefMut};
 use std::fmt;
@@ -23,6 +9,25 @@ use downcast_rs::Downcast;
 use super::CanvasConfig;
 use super::resource::DrawState;
 use super::super::tree::{TreeElem, TreeNodeRc, TreeNodeWeak, TreeNodeSearchType};
+
+pub mod style;
+pub use self::style::ElementStyle;
+mod position_offset;
+pub use self::position_offset::PositionOffset;
+pub use self::position_offset::InlinePositionStatus;
+mod transform;
+pub use self::transform::Transform;
+
+mod empty_element;
+pub use self::empty_element::Empty;
+mod image_element;
+pub use self::image_element::Image;
+pub use self::image_element::ImageLoader;
+mod text_element;
+pub use self::text_element::Text;
+
+mod event;
+pub use self::event::{Event, EventReceiver, EventCallback};
 
 pub trait ElementContent: Downcast {
     fn name(&self) -> &'static str;
@@ -47,10 +52,17 @@ impl_downcast!(ElementContent);
 pub struct Element {
     canvas_config: Rc<CanvasConfig>,
     tree_node: Cell<Option<TreeNodeWeak<Element>>>,
+    event_receiver: RefCell<EventReceiver>,
     dirty: Cell<bool>,
     style: RefCell<ElementStyle>,
     position_offset: RefCell<PositionOffset>,
     content: RefCell<Box<ElementContent>>,
+}
+
+impl Debug for Element {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "<{} id={:?}>", self.name(), self.style().get_id())
+    }
 }
 
 impl Element {
@@ -58,6 +70,7 @@ impl Element {
         Element {
             canvas_config: cfg.clone(),
             tree_node: Cell::new(None),
+            event_receiver: RefCell::new(EventReceiver::new()),
             dirty: Cell::new(true),
             style: RefCell::new(ElementStyle::new()),
             position_offset: RefCell::new(PositionOffset::new()),
@@ -75,6 +88,32 @@ impl Element {
         self.tree_node.replace(tn);
         ret.upgrade().unwrap()
     }
+
+    #[inline]
+    pub fn add_event_listener(&self, event_name: String, f: EventCallback) {
+        self.event_receiver.borrow_mut().add_listener(event_name, f);
+    }
+    #[inline]
+    pub fn remove_event_listener(&self, event_name: String, f: EventCallback) {
+        self.event_receiver.borrow_mut().remove_listener(event_name, f);
+    }
+    #[inline]
+    pub fn dispatch_event(&self, event_name: String, detail: Box<Any + 'static>, bubbles: bool) {
+        self.do_dispatch_event(event_name, &detail, bubbles, self.tree_node().clone())
+    }
+    fn do_dispatch_event(&self, event_name: String, detail: &Box<Any + 'static>, bubbles: bool, target: TreeNodeRc<Element>) {
+        // debug!("Dispatch {:?} event for {:?}", event_name, self);
+        self.event_receiver.borrow().new_event(event_name.clone(), target.clone(), self.tree_node().clone(), detail);
+        if bubbles {
+            match self.tree_node().parent() {
+                None => { },
+                Some(node) => {
+                    node.elem().do_dispatch_event(event_name, detail, true, target);
+                }
+            }
+        }
+    }
+
     #[inline]
     pub fn style(&self) -> Ref<ElementStyle> {
         self.style.borrow()
@@ -229,7 +268,7 @@ impl Element {
         let allocated_position = position_offset.allocated_position();
         let child_transform = transform.mul_clone(Transform::new().offset(allocated_position.0, allocated_position.1)).mul_clone(&self.style().transform_ref());
         let drawing_bounds = child_transform.apply_to_bounds(&position_offset.drawing_bounds());
-        debug!("testing {:?} in bounds {:?}", (x, y), drawing_bounds);
+        // debug!("testing {:?} in bounds {:?}", (x, y), drawing_bounds);
         if x < drawing_bounds.0 || x >= drawing_bounds.2 || y < drawing_bounds.1 || y >= drawing_bounds.3 {
             return None;
         }
@@ -285,6 +324,10 @@ impl TreeElem for Element {
 #[macro_export]
 macro_rules! __element_children {
     ($cfg:expr, $v:ident, $t:ident, ) => {};
+    ($cfg:expr, $v:ident, $t:ident, @ $k:expr => $a:expr; $($r:tt)*) => {
+        $v.elem().add_event_listener(String::from($k), Rc::new(RefCell::new($a)));
+        __element_children! ($cfg, $v, $t, $($r)*);
+    };
     ($cfg:expr, $v:ident, $t:ident, $k:ident : $a:expr; $($r:tt)*) => {
         $v.elem().style_mut().$k($a);
         __element_children! ($cfg, $v, $t, $($r)*);

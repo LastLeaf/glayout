@@ -141,7 +141,7 @@ export const bindTouchEvents = function(canvasIndex, cbPtr) {
       if (!inTouchingProgress) return
       inTouchingProgress = false
       const rect = canvas.getBoundingClientRect()
-      __glayoutAsm__._callback(cbPtr, 3, e.changedTouches[0].clientX - rect.left, e.changedTouches[0].clientY - rect.top, 0)
+      __glayoutAsm__._callback(cbPtr, 4, e.changedTouches[0].clientX - rect.left, e.changedTouches[0].clientY - rect.top, 0)
     })
   } else {
     canvas.addEventListener('mousedown', function(e) {
@@ -152,7 +152,7 @@ export const bindTouchEvents = function(canvasIndex, cbPtr) {
     })
     canvas.addEventListener('mousemove', function(e) {
       const rect = canvas.getBoundingClientRect()
-      __glayoutAsm__._callback(cbPtr, inTouchingProgress ? 2 : 4, e.clientX - rect.left, e.clientY - rect.top, 0)
+      __glayoutAsm__._callback(cbPtr, inTouchingProgress ? 2 : 5, e.clientX - rect.left, e.clientY - rect.top, 0)
     })
     canvas.addEventListener('mouseup', function(e) {
       if (!inTouchingProgress) return
@@ -164,7 +164,7 @@ export const bindTouchEvents = function(canvasIndex, cbPtr) {
       if (!inTouchingProgress) return
       inTouchingProgress = false
       const rect = canvas.getBoundingClientRect()
-      __glayoutAsm__._callback(cbPtr, 3, e.clientX - rect.left, e.clientY - rect.top, 0)
+      __glayoutAsm__._callback(cbPtr, 4, e.clientX - rect.left, e.clientY - rect.top, 0)
     })
   }
 }

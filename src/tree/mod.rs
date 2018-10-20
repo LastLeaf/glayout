@@ -150,7 +150,7 @@ impl<T: TreeElem> TreeNodeRc<T> {
         let ret = match p {
             None => None,
             Some(ref x) => {
-                Some(x.upgrade().unwrap())
+                x.upgrade()
             }
         };
         self.rc.parent.set(p);

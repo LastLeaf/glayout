@@ -177,28 +177,53 @@ impl CanvasContext {
 const TOUCHSTART: i32 = 1;
 const TOUCHMOVE: i32 = 2;
 const TOUCHEND: i32 = 3;
-const FREEMOVE: i32 = 4;
+const TOUCHCANCEL: i32 = 4;
+const FREEMOVE: i32 = 5;
+pub struct TouchEventDetail {
+    clientX: f64,
+    clientY: f64,
+}
 lib_define_callback! (TouchEventCallback (Rc<RefCell<CanvasContext>>) {
     fn callback(&mut self, touch_type: i32, x: i32, y: i32, _: i32) -> bool {
-        let mut ctx = self.0.borrow_mut();
-        match touch_type {
-            TOUCHSTART => {
-                ctx.touching = true;
-                ctx.touch_point = (x as f64, y as f64);
-            },
-            TOUCHMOVE => {
-                ctx.touch_point = (x as f64, y as f64);
-            },
-            TOUCHEND => {
-                ctx.touch_point = (x as f64, y as f64);
-                ctx.touching = false;
-            },
-            FREEMOVE => {
-                ctx.touch_point = (x as f64, y as f64);
-            },
-            _ => {
-                panic!();
+        let node = {
+            let mut ctx = self.0.borrow_mut();
+            match touch_type {
+                TOUCHSTART => {
+                    ctx.touching = true;
+                    ctx.touch_point = (x as f64, y as f64);
+                },
+                TOUCHMOVE => {
+                    ctx.touch_point = (x as f64, y as f64);
+                },
+                TOUCHEND => {
+                    ctx.touch_point = (x as f64, y as f64);
+                    ctx.touching = false;
+                },
+                TOUCHCANCEL => {
+                    ctx.touch_point = (x as f64, y as f64);
+                    ctx.touching = false;
+                },
+                FREEMOVE => {
+                    ctx.touch_point = (x as f64, y as f64);
+                },
+                _ => {
+                    panic!();
+                }
             }
+            ctx.root().elem().node_under_point((x as f64, y as f64))
+        };
+        if node.is_some() {
+            let event_name = String::from(match touch_type {
+                TOUCHSTART => "touchstart",
+                TOUCHMOVE => "touchmove",
+                TOUCHEND => "touchend",
+                TOUCHCANCEL => "touchcancel",
+                _ => "",
+            });
+            node.unwrap().elem().dispatch_event(event_name, Box::new(TouchEventDetail {
+                clientX: x as f64,
+                clientY: y as f64,
+            }), true);
         }
         true
     }
