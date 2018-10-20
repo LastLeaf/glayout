@@ -30,9 +30,9 @@ pub struct CanvasContext {
     last_key: KeyDescriptor,
 }
 
-#[derive(Clone)]
 pub struct Canvas {
-    context: Rc<RefCell<CanvasContext>>
+    context: Rc<RefCell<CanvasContext>>,
+    frame_fn: frame::FrameCallback,
 }
 
 impl Canvas {
@@ -46,9 +46,7 @@ impl Canvas {
             lib!(get_device_pixel_ratio(index)) as f64
         ));
         log!("Canvas binded: {}", index);
-        let root_node = element! {
-            [&canvas_config] Empty
-        };
+        let root_node = element!(&canvas_config, Empty);
         let ctx = Rc::new(RefCell::new(CanvasContext {
             canvas_config,
             root_node,
@@ -57,17 +55,23 @@ impl Canvas {
             touch_point: (0., 0.),
             last_key: Default::default(),
         }));
-        frame::bind(ctx.clone(), frame::FramePriority::Low);
+        let frame_ctx = ctx.clone();
+        let frame_fn = frame::FrameCallback::new(Box::new(move |_time| {
+            frame_ctx.borrow_mut().generate_frame();
+            true
+        }));
+        frame::bind(frame_fn.clone(), frame::FramePriority::Low);
         lib!(bind_touch_events(index, lib_callback!(TouchEventCallback(ctx.clone()))));
         lib!(bind_keyboard_events(index, lib_callback!(KeyboardEventCallback(ctx.clone()))));
         lib!(bind_canvas_size_change(index, lib_callback!(CanvasSizeChangeCallback(ctx.clone()))));
         return Canvas {
-            context: ctx
+            context: ctx,
+            frame_fn,
         };
     }
     #[inline]
     pub fn destroy(&mut self) {
-        frame::unbind(self.context.clone(), frame::FramePriority::Low);
+        frame::unbind(self.frame_fn.clone(), frame::FramePriority::Low);
     }
     #[inline]
     pub fn context(&self) -> Rc<RefCell<CanvasContext>> {
@@ -83,27 +87,6 @@ impl Drop for CanvasContext {
     fn drop(&mut self) {
         log!("Canvas unbinded: {}", self.canvas_config.index);
         lib!(unbind_canvas(self.canvas_config.index));
-    }
-}
-
-impl frame::Frame for CanvasContext {
-    fn frame(&mut self, _timestamp: f64) -> bool {
-        let dirty = self.root_node.elem().is_dirty(); // any child or itself need update position offset
-        if dirty || self.need_redraw {
-            self.need_redraw = false;
-            // let now = start_measure_time!();
-            self.clear();
-            let root_node_rc = self.root();
-            let size = self.canvas_config.canvas_size.get();
-            if dirty {
-                root_node_rc.elem().dfs_update_position_offset(size);
-            }
-            root_node_rc.elem().draw((0., 0., size.0, size.1), element::Transform::new());
-            let rm = self.canvas_config.resource_manager();
-            rm.borrow_mut().flush_draw();
-            // debug!("Redraw time: {}ms", end_measure_time!(now));
-        }
-        return true;
     }
 }
 
@@ -170,6 +153,24 @@ impl CanvasContext {
         let last_key = self.last_key.clone();
         self.last_key = Default::default();
         last_key
+    }
+
+    fn generate_frame(&mut self) {
+        let dirty = self.root_node.elem().is_dirty(); // any child or itself need update position offset
+        if dirty || self.need_redraw {
+            self.need_redraw = false;
+            // let now = start_measure_time!();
+            self.clear();
+            let root_node_rc = self.root();
+            let size = self.canvas_config.canvas_size.get();
+            if dirty {
+                root_node_rc.elem().dfs_update_position_offset(size);
+            }
+            root_node_rc.elem().draw((0., 0., size.0, size.1), element::Transform::new());
+            let rm = self.canvas_config.resource_manager();
+            rm.borrow_mut().flush_draw();
+            // debug!("Redraw time: {}ms", end_measure_time!(now));
+        }
     }
 }
 

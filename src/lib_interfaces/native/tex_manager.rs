@@ -105,7 +105,7 @@ pub struct TexManager {
 impl TexManager {
     pub fn new(ctx: &mut Gl, tex_size: i32, tex_count: i32) -> Self {
         unsafe {
-            let img_shader_program = create_program(ctx, include_str!("glsl/img.v.glsl"), include_str!("glsl/img.f.glsl"));
+            let img_shader_program = create_program(ctx, include_str!("../glsl/img.v.glsl"), include_str!("../glsl/img.f.glsl"));
             ctx.UseProgram(img_shader_program);
 
             // create gl buffers

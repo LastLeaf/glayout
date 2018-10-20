@@ -1,58 +1,92 @@
-mod linear_timing;
+use std::time;
 
-use std::rc::Rc;
-use std::cell::RefCell;
+pub type TimingAnimationCallback = FnMut(time::Duration, time::Duration) -> bool + 'static;
+pub type FrameAnimationCallback = FnMut(i32, i32) -> bool + 'static;
 
-pub type LinearTiming<T> = linear_timing::LinearTiming<T>;
-
-pub trait Animation {
-    fn frame(&mut self, current_frame: i32, total_frames: i32, current_time: f64, total_time: f64);
-    fn end(&mut self, total_frames: i32, total_time: f64);
+pub trait Animation: Sized {
+    fn exec(self) {}
 }
 
-pub trait TimingAnimation {
-    fn progress(&mut self, current_value: f64, current_time: f64, total_time: f64);
+pub struct TimingAnimation {
+    total_time: time::Duration,
+    loop_animation: bool,
+    f: Box<TimingAnimationCallback>,
 }
 
-pub struct AnimationObject {
-    start_time: f64,
-    total_time: f64,
-    current_frame: i32,
+pub struct FrameAnimation {
     total_frames: i32,
-    animation: Box<Animation>
+    loop_animation: bool,
+    f: Box<FrameAnimationCallback>,
 }
 
-impl super::Frame for AnimationObject {
-    fn frame(&mut self, timestamp: f64) -> bool {
-        if self.start_time < 0. {
-            self.start_time = timestamp;
+impl TimingAnimation {
+    pub fn new(f: Box<TimingAnimationCallback>, total_time: time::Duration, loop_animation: bool) -> Self {
+        Self {
+            total_time,
+            loop_animation,
+            f,
         }
-        if self.total_time <= timestamp - self.start_time && self.current_frame >= self.total_frames {
-            self.animation.end(self.total_frames, self.total_time);
-            return false;
-        }
-        self.animation.frame(self.current_frame, self.total_frames, timestamp - self.start_time, self.total_time);
-        self.current_frame += 1;
-        return true;
     }
 }
 
-impl AnimationObject {
-    pub fn new(ani: Box<Animation>) -> Self {
-        AnimationObject {
-            start_time: -1.,
-            total_time: 0.,
-            current_frame: 0,
-            total_frames: 0,
-            animation: ani,
+impl Animation for TimingAnimation {
+    fn exec(mut self) {
+        let mut start_time = time::Instant::now();
+        frame!(move |t| {
+            let mut dur = t - start_time;
+            let mut cont = true;
+            if dur > self.total_time {
+                dur = match self.loop_animation {
+                    true => {
+                        while dur > self.total_time {
+                            dur -= self.total_time;
+                            start_time += self.total_time;
+                        }
+                        dur
+                    },
+                    false => {
+                        cont = false;
+                        self.total_time
+                    },
+                };
+            }
+            let f = &mut *self.f;
+            let ret = f(dur, self.total_time);
+            if !ret { return false };
+            return cont;
+        });
+    }
+}
+
+impl FrameAnimation {
+    pub fn new(f: Box<FrameAnimationCallback>, total_frames: i32, loop_animation: bool) -> Self {
+        Self {
+            total_frames,
+            loop_animation,
+            f,
         }
     }
-    pub fn exec(arc_ani: Rc<RefCell<AnimationObject>>, total_frames: i32, total_time: f64) {
-        {
-            let mut ani = arc_ani.borrow_mut();
-            ani.total_frames = total_frames;
-            ani.total_time = total_time;
-        }
-        super::bind(arc_ani, super::FramePriority::Normal);
+}
+
+impl Animation for FrameAnimation {
+    fn exec(mut self) {
+        let mut current_frame = -1;
+        frame!(move |_t| {
+            current_frame += 1;
+            let mut cont = true;
+            if current_frame == self.total_frames {
+                current_frame = match self.loop_animation {
+                    true => 0,
+                    false => {
+                        cont = false;
+                        current_frame
+                    },
+                };
+            }
+            let f = &mut *self.f;
+            let ret = f(current_frame, self.total_frames);
+            if !ret { return false };
+            return cont;
+        });
     }
 }

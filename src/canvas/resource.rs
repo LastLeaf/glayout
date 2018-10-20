@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, BinaryHeap};
+use std::collections::{BTreeMap, BinaryHeap};
 use super::super::utils::PretendSend;
 
 lazy_static! {
@@ -80,7 +80,7 @@ pub struct ResourceManager {
     tex_id_allocator: ResourceIdAllocator,
     pending_draws: i32,
     used_shader_tex: i32,
-    tex_shader_index_map: HashMap<i32, i32>,
+    tex_shader_index_map: BTreeMap<i32, i32>,
     current_draw_state: DrawState,
 }
 
@@ -92,7 +92,7 @@ impl ResourceManager {
             tex_id_allocator: ResourceIdAllocator::new(),
             pending_draws: 0,
             used_shader_tex: 0,
-            tex_shader_index_map: HashMap::new(),
+            tex_shader_index_map: BTreeMap::new(),
             current_draw_state: *DrawState::new().color((0., 0., 0., 1.)).alpha(1.),
         }
     }

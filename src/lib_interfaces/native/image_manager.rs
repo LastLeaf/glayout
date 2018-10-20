@@ -4,7 +4,7 @@ use std::os::raw::c_char;
 use std::ffi::CStr;
 use std::path::Path;
 use std::thread;
-use std::time::SystemTime;
+use std::time::Instant;
 use image;
 use super::layout_thread;
 use super::super::Callback;
@@ -22,7 +22,7 @@ pub fn image_load_url(id: i32, url: *mut c_char, cb_ptr: *mut Box<Callback>) {
         let rgba_image = image::open(url).unwrap().to_rgba();
         let image_info = (rgba_image.width() as i32, rgba_image.height() as i32, rgba_image.into_raw().into_boxed_slice());
         IMAGES.lock().unwrap().insert(id, image_info);
-        layout_thread::push_event(SystemTime::now(), layout_thread::EventDetail::ImageLoadEvent, move |_time, _detail| {
+        layout_thread::push_event(Instant::now(), layout_thread::EventDetail::ImageLoadEvent, move |_time, _detail| {
             super::super::callback(*cb_ptr, 0, 0, 0, 0);
         })
     });

@@ -1,19 +1,16 @@
-use std::rc::Rc;
-use std::cell::RefCell;
-use glayout::frame::animation::{AnimationObject, TimingAnimation};
-use glayout::frame::animation::{LinearTiming};
+use glayout::frame::animation::{Animation, TimingAnimation};
+use std::time;
 
-pub struct TestAnimation();
-impl TimingAnimation for TestAnimation {
-    fn progress(&mut self, _current_value: f64, _current_time: f64, _total_time: f64) {
-        debug!("Animation progress: {}", _current_value);
-    }
+fn ani_time_to_ms(dur: time::Duration) -> f64 {
+    dur.as_secs() as f64 * 1000. + dur.subsec_nanos() as f64 / 1_000_000.
 }
 
 pub fn init() {
-    register_test_case!(module_path!(), {
-        let ani_obj = Rc::new(RefCell::new(AnimationObject::new(Box::new(LinearTiming::new(TestAnimation(), 0., 100.)))));
-        AnimationObject::exec(ani_obj, 0, 3000.);
+    register_test_case!(module_path!(), _ctx, {
+        let ani_obj = TimingAnimation::new(Box::new(move |current_time, total_time| -> bool {
+            debug!("Animation progress: {:?}", ani_time_to_ms(current_time) / ani_time_to_ms(total_time));
+            true
+        }), time::Duration::new(3, 0), false);
         return 0;
     });
 }

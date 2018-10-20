@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock, Barrier};
 use std::cell::RefCell;
-use std::time::{SystemTime, Duration};
+use std::time::{Instant, Duration};
 use glutin;
 use glutin::dpi;
 use glutin::GlContext;
@@ -84,7 +84,7 @@ pub fn trigger_painting() {
 pub fn main_loop(f: fn() -> ()) {
     // listening to user events
     let mut main_loop = (*MAIN_LOOP).borrow_mut();
-    layout_thread::push_event(SystemTime::now(), layout_thread::EventDetail::TimeoutEvent,
+    layout_thread::push_event(Instant::now(), layout_thread::EventDetail::TimeoutEvent,
         move |_time, _detail| {
             f()
         });
@@ -113,7 +113,7 @@ pub fn main_loop(f: fn() -> ()) {
                         },
                         _ => {
                             layout_thread::push_event(
-                                SystemTime::now(),
+                                Instant::now(),
                                 layout_thread::EventDetail::WindowEvent(event, window.canvas_index),
                                 move |_time, detail| {
                                     match detail {
@@ -247,7 +247,7 @@ pub fn main_loop(f: fn() -> ()) {
 }
 pub fn timeout(ms: i32, cb_ptr: *mut Box<Callback>) {
     layout_thread::push_event_from_layout_thread(
-        SystemTime::now() + Duration::new((ms / 1000) as u64, (ms % 1000 * 1000000) as u32),
+        Instant::now() + Duration::new((ms / 1000) as u64, (ms % 1000 * 1000000) as u32),
         layout_thread::EventDetail::TimeoutEvent,
         move |_time, _detail| {
             super::callback(cb_ptr, 0, 0, 0, 0);

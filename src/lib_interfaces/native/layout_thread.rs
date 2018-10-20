@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex, Barrier};
 use std::time::Duration;
 use std::thread;
 use std::collections::binary_heap::BinaryHeap;
-use std::time::SystemTime;
+use std::time::{Instant, SystemTime};
 use glutin;
 use super::super::utils::PretendSend;
 
@@ -24,9 +24,9 @@ pub enum EventDetail {
 
 struct Event {
     event_id: usize,
-    time: SystemTime,
+    time: Instant,
     detail: EventDetail,
-    callback: PretendSend<Box<Fn(SystemTime, EventDetail)>>,
+    callback: PretendSend<Box<Fn(Instant, EventDetail)>>,
 }
 
 impl PartialOrd for Event {
@@ -84,9 +84,9 @@ impl LayoutThread {
                                 None
                             } else {
                                 let peek_time = q.peek().unwrap().time;
-                                let now = SystemTime::now();
+                                let now = Instant::now();
                                 if peek_time > now {
-                                    resume_time = Some(peek_time.duration_since(now).unwrap());
+                                    resume_time = Some(peek_time.duration_since(now));
                                     None
                                 } else {
                                     Some(q.pop().unwrap())
@@ -121,7 +121,7 @@ impl LayoutThread {
         }
     }
 
-    fn push_event<F: 'static>(&mut self, time: SystemTime, detail: EventDetail, callback: Box<F>, thread_id: thread::ThreadId) where F: Fn(SystemTime, EventDetail) {
+    fn push_event<F: 'static>(&mut self, time: Instant, detail: EventDetail, callback: Box<F>, thread_id: thread::ThreadId) where F: Fn(Instant, EventDetail) {
         let mut q = self.events_queue.lock().unwrap();
         if q.is_empty() {
             self.event_id_inc = 0;
@@ -142,7 +142,7 @@ pub fn init() {
     LAYOUT_THREAD.lock().unwrap().event_id_inc = 0;
 }
 
-pub fn push_event_from_layout_thread<F: 'static>(time: SystemTime, detail: EventDetail, callback: F) where F: Fn(SystemTime, EventDetail) {
+pub fn push_event_from_layout_thread<F: 'static>(time: Instant, detail: EventDetail, callback: F) where F: Fn(Instant, EventDetail) {
     let thread_id = thread::current().id();
     if thread_id != LAYOUT_THREAD.lock().unwrap().thread_handle.thread().id() {
         panic!("push_event_from_layout_thread can only be called in layout thread");
@@ -150,7 +150,7 @@ pub fn push_event_from_layout_thread<F: 'static>(time: SystemTime, detail: Event
     LAYOUT_THREAD.lock().unwrap().push_event(time, detail, Box::new(callback), thread_id);
 }
 
-pub fn push_event<F: 'static + Send>(time: SystemTime, detail: EventDetail, callback: F) where F: Fn(SystemTime, EventDetail) {
+pub fn push_event<F: 'static + Send>(time: Instant, detail: EventDetail, callback: F) where F: Fn(Instant, EventDetail) {
     let thread_id = LAYOUT_THREAD.lock().unwrap().thread_handle.thread().id();
     LAYOUT_THREAD.lock().unwrap().push_event(time, detail, Box::new(callback), thread_id);
 }
@@ -187,9 +187,9 @@ pub fn exec_in_ui_thread(f: Box<Fn(&glutin::EventsLoop) -> () + Send>) {
     barrier_self.wait();
 }
 
-fn schedule_animation_frame(layout_thread: &mut LayoutThread, time: SystemTime) {
-    layout_thread.push_event(time, EventDetail::AnimationFrameEvent, Box::new(move |time: SystemTime, _detail| {
-        let next_frame_time = SystemTime::now() + Duration::new(0, ANIMATION_FRAME_INTERVAL);
+fn schedule_animation_frame(layout_thread: &mut LayoutThread, time: Instant) {
+    layout_thread.push_event(time, EventDetail::AnimationFrameEvent, Box::new(move |_time: Instant, _detail| {
+        let next_frame_time = Instant::now() + Duration::new(0, ANIMATION_FRAME_INTERVAL);
         {
             let mut layout_thread = LAYOUT_THREAD.lock().unwrap();
             if !layout_thread.animation_frame_enabled {
@@ -197,7 +197,7 @@ fn schedule_animation_frame(layout_thread: &mut LayoutThread, time: SystemTime) 
                 return;
             }
         }
-        let dur = time.duration_since(SystemTime::UNIX_EPOCH).unwrap();
+        let dur = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
         let secs = dur.as_secs() as f64;
         let nanos = dur.subsec_nanos() as f64;
         super::super::animation_frame(secs * 1000. + nanos / 1000_000.);
@@ -217,7 +217,7 @@ pub fn set_animation_frame_enabled(enabled: bool) {
     layout_thread.animation_frame_enabled = enabled;
     if enabled && !layout_thread.animation_frame_scheduled {
         layout_thread.animation_frame_scheduled = true;
-        schedule_animation_frame(&mut layout_thread, SystemTime::now() + Duration::new(0, ANIMATION_FRAME_INTERVAL));
+        schedule_animation_frame(&mut layout_thread, Instant::now() + Duration::new(0, ANIMATION_FRAME_INTERVAL));
         layout_thread.thread_handle.thread().unpark();
     }
 }

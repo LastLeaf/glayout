@@ -321,7 +321,7 @@ macro_rules! __element_tree {
 
 #[macro_export]
 macro_rules! element {
-    ([$cfg:expr] $($c:tt)*) => {{
+    ($cfg:expr, $($c:tt)*) => {{
         __element_tree! ($cfg, $($c)*)
     }}
 }

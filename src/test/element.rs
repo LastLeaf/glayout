@@ -6,61 +6,54 @@ use utils::PretendSend;
 use std::time;
 
 pub fn init() {
-    register_test_case!(module_path!(), {
-        let mut canvas = Canvas::new(0);
-
-        canvas.ctx(|ctx| {
-            let pixel_ratio = ctx.device_pixel_ratio();
-            ctx.set_canvas_size(800, 600, pixel_ratio);
-            ctx.set_clear_color(0.5, 1., 0.5, 1.);
-        });
-
-        let rc_context = canvas.context();
+    register_test_case!(module_path!(), rc_context, {
         let mut context = rc_context.borrow_mut();
+        let pixel_ratio = context.device_pixel_ratio();
+        context.set_canvas_size(800, 600, pixel_ratio);
+        context.set_clear_color(0.5, 1., 0.5, 1.);
+
         let elem = {
             let cfg = context.canvas_config();
-            let elem = element! {
-                [&cfg] Empty {
-                    font_family: String::from("serif, 宋体");
-                    Empty {
-                        position: PositionType::Absolute;
-                        left: 500.;
-                        top: 100.;
-                        width: 100.;
-                        height: 100.;
-                        background_color: (1., 0.5, 0.5, 1.);
-                    };
+            let elem = element!(&cfg, Empty {
+                font_family: String::from("serif, 宋体");
+                Empty {
+                    position: PositionType::Absolute;
+                    left: 500.;
+                    top: 100.;
+                    width: 100.;
+                    height: 100.;
+                    background_color: (1., 0.5, 0.5, 1.);
+                };
+                Text {
+                    position: PositionType::Absolute;
+                    left: 10.;
+                    top: 10.;
+                    width: 50.;
+                    set_text("Absolute Positioning");
+                };
+                color: (0., 0., 1., 0.5);
+                Empty {
+                    display: DisplayType::Block;
                     Text {
-                        position: PositionType::Absolute;
-                        left: 10.;
-                        top: 10.;
-                        width: 50.;
-                        set_text("Absolute Positioning");
+                        font_size: 24.;
+                        set_text("LARGE TEXT");
                     };
-                    color: (0., 0., 1., 0.5);
+                    Empty;
+                    Image {
+                        width: 400.;
+                        height: 400.;
+                        opacity: 0.8;
+                        load("resources/test.png");
+                    };
                     Empty {
-                        display: DisplayType::Block;
                         Text {
-                            font_size: 24.;
-                            set_text("LARGE TEXT");
+                            font_size: 16.;
+                            set_text(ARTICLE);
                         };
-                        Empty;
-                        Image {
-                            width: 400.;
-                            height: 400.;
-                            opacity: 0.8;
-                            load("resources/test.png");
-                        };
-                        Empty {
-                            Text {
-                                font_size: 16.;
-                                set_text(ARTICLE);
-                            };
-                            top: 750.;
-                        };
+                        top: 750.;
                     };
-                }
-            };
+                };
+            });
             elem
         };
         let mut root_elem = context.root();

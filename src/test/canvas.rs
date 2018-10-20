@@ -1,28 +1,23 @@
-use std::rc::Rc;
-use std::cell::RefCell;
-use glayout::canvas::Canvas;
-use glayout::frame::animation::{TimingAnimation, AnimationObject, LinearTiming};
+use std::time;
+use glayout::frame::animation::{Animation, TimingAnimation};
+
+fn ani_time_to_ms(dur: time::Duration) -> f64 {
+    dur.as_secs() as f64 * 1000. + dur.subsec_nanos() as f64 / 1_000_000.
+}
 
 pub fn init() {
-    register_test_case!(module_path!(), {
-        let mut canvas = Canvas::new(0);
+    register_test_case!(module_path!(), rc_context, {
+        let mut context = rc_context.borrow_mut();
+        context.set_canvas_size(256, 256, 1.);
 
-        canvas.ctx(|ctx| {
-            ctx.set_canvas_size(256, 256, 1.);
-        });
-
-        struct BackgroundColorAni(Canvas);
-        impl TimingAnimation for BackgroundColorAni {
-            fn progress(&mut self, current_value: f64, _current_time: f64, _total_time: f64) {
-                self.0.ctx(|ctx| {
-                    ctx.set_clear_color(0., current_value as f32, current_value as f32, 1.);
-                    ctx.redraw();
-                })
-            }
-        }
-
-        let ani_obj = Rc::new(RefCell::new(AnimationObject::new(Box::new(LinearTiming::new(BackgroundColorAni(canvas.clone()), 0., 1.)))));
-        AnimationObject::exec(ani_obj, 0, 3000.);
+        let rc_context = rc_context.clone();
+        TimingAnimation::new(Box::new(move |cur, total| {
+            let ratio = ani_time_to_ms(cur) / ani_time_to_ms(total);
+            let mut context = rc_context.borrow_mut();
+            context.set_clear_color(0., ratio as f32, ratio as f32, 1.);
+            context.redraw();
+            true
+        }), time::Duration::new(3, 0), false).exec();
 
         return 0;
     });

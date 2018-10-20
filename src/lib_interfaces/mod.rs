@@ -1,6 +1,7 @@
 #![macro_use]
 #![allow(dead_code)]
 
+use std::time;
 use std::cell::Cell;
 use super::utils;
 
@@ -82,8 +83,8 @@ pub extern "C" fn callback(callback_ptr: *mut Box<Callback>, ret_0: i32, ret_1: 
 }
 
 #[no_mangle]
-pub extern "C" fn animation_frame(timestamp: f64) {
-    super::frame::generate(timestamp);
+pub extern "C" fn animation_frame(_timestamp: f64) {
+    super::frame::generate(time::Instant::now());
 }
 
 #[no_mangle]

@@ -1,7 +1,7 @@
 import { canvases } from './canvas_store'
 
-import imgVs from '../../../src/lib_interfaces/native/glsl/img.v.glsl'
-import imgFs from '../../../src/lib_interfaces/native/glsl/img.f.glsl'
+import imgVs from '../../../src/lib_interfaces/glsl/img.v.glsl'
+import imgFs from '../../../src/lib_interfaces/glsl/img.f.glsl'
 
 const GL_DRAW_RECT_MAX = 65536 / 8
 const TEXTURE_MAX = 16
