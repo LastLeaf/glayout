@@ -217,6 +217,8 @@ impl Element {
     pub fn draw(&self, viewport: (f64, f64, f64, f64), mut transform: Transform) {
         let style = self.style();
         if style.get_display() == style::DisplayType::None { return }
+        let position_offset = self.position_offset();
+        let allocated_position = position_offset.allocated_position();
 
         // check if drawing on separate tex is needed
         if style.get_opacity() < 1. && style.get_opacity() >= 0. {
@@ -225,21 +227,19 @@ impl Element {
             self.disable_draw_separate_tex()
         }
         let tex_id = self.draw_separate_tex.get();
-        let drawing_tex_position = if tex_id >= 0 {
-            let drawing_bounds = style.transform_ref().apply_to_bounds(&self.position_offset().drawing_bounds());
-            let drawing_tex_position = (drawing_bounds.0, drawing_bounds.2, (drawing_bounds.2 - drawing_bounds.0 + 1.).floor(), (drawing_bounds.3 - drawing_bounds.1 + 1.).floor());
-            // TODO use drawing_bounds is incorrect because child's transform is not considered
-            lib!(tex_bind_rendering_target(self.canvas_config.index, tex_id, drawing_tex_position.2 as i32, drawing_tex_position.3 as i32));
-            drawing_tex_position
+        let (drawing_tex_position, drawing_tex_offset) = if tex_id >= 0 {
+            let drawing_bounds = style.transform_ref().apply_to_bounds(&position_offset.drawing_bounds());
+            let drawing_tex_position = (0., 0., (drawing_bounds.2 - drawing_bounds.0 + 1.).floor(), (drawing_bounds.3 - drawing_bounds.1 + 1.).floor());
+            // FIXME use drawing_bounds is incorrect because child's transform is not considered
+            let rm = self.canvas_config.resource_manager();
+            let mut rm = rm.borrow_mut();
+            rm.bind_rendering_target(tex_id, drawing_tex_position.2 as i32, drawing_tex_position.3 as i32);
+            (drawing_tex_position, (drawing_bounds.0, drawing_bounds.1))
         } else {
-            (0., 0., 1., 1.)
+            (allocated_position, (0., 0.))
         };
 
-        let position_offset = self.position_offset();
-        let allocated_position = position_offset.allocated_position();
-        let drawing_x = allocated_position.0 - drawing_tex_position.0;
-        let drawing_y = allocated_position.1 - drawing_tex_position.1;
-        let child_transform = transform.mul_clone(Transform::new().offset(drawing_x, drawing_y)).mul_clone(&style.transform_ref());
+        let child_transform = transform.mul_clone(Transform::new().offset(drawing_tex_position.0, drawing_tex_position.1)).mul_clone(&style.transform_ref());
 
         // draw background color
         let bg_color = style.get_background_color();
@@ -266,12 +266,12 @@ impl Element {
 
         // recover tex
         if tex_id >= 0 {
-            lib!(tex_unbind_rendering_target(self.canvas_config.index));
+            let rm = self.canvas_config.resource_manager();
+            let mut rm = rm.borrow_mut();
+            rm.unbind_rendering_target();
 
             // set alpha
             let mut original_alpha = -1.;
-            let rm = self.canvas_config.resource_manager();
-            let mut rm = rm.borrow_mut();
             if style.get_opacity() < 1. && style.get_opacity() >= 0. {
                 let mut ds = rm.draw_state();
                 original_alpha = ds.get_alpha();
@@ -282,7 +282,7 @@ impl Element {
             rm.request_draw(
                 tex_id, false,
                 0., 0., 1., 1.,
-                drawing_tex_position
+                (allocated_position.0 + drawing_tex_offset.0, allocated_position.1 + drawing_tex_offset.1, drawing_tex_position.2, drawing_tex_position.3)
             );
 
             // recover alpha
@@ -296,7 +296,7 @@ impl Element {
         if self.draw_separate_tex.get() != -1 { return };
         let rm = self.canvas_config.resource_manager();
         let tex_id = rm.borrow_mut().alloc_tex_id();
-        lib!(tex_create_empty(self.canvas_config.index, tex_id, 64, 64));
+        lib!(tex_create_empty(self.canvas_config.index, tex_id, 0, 0));
         self.draw_separate_tex.set(tex_id);
     }
     #[inline]

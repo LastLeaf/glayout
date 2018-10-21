@@ -142,7 +142,7 @@ export const setTexDrawSize = function(ctx, texManager, w, h, pixelRatio) {
   texManager.height = h
   texManager.pixelRatio = pixelRatio
   ctx.viewport(0, 0, w * pixelRatio, h * pixelRatio)
-  ctx.uniform2f(texManager.uAreaSize, w, h)
+  ctx.uniform3f(texManager.uAreaSize, w, h, 1)
 }
 
 export const texGetSize = function(canvasIndex) {
@@ -185,38 +185,41 @@ export const texCopy = function(canvasIndex, destTexId, destLeft, destTop, srcLe
   ctx.bindTexture(ctx.TEXTURE_2D, null)
 }
 
-const texSetRenderingTarget = function(ctx, texManager, texMap, texId, width, height) {
-  if (texId < -1) {
+const texSetRenderingTarget = function(ctx, texManager, tex, width, height) {
+  if (!tex) {
     const {width, height, pixelRatio} = texManager
     ctx.bindFramebuffer(ctx.FRAMEBUFFER, null)
     ctx.useProgram(texManager.imgShaderProgram)
     ctx.viewport(0, 0, width * pixelRatio, height * pixelRatio)
-    ctx.uniform2f(texManager.uAreaSize, width, height)
+    ctx.uniform3f(texManager.uAreaSize, width, height, 1)
   } else {
     ctx.bindFramebuffer(ctx.FRAMEBUFFER, texManager.tempFramebuffer)
-    ctx.framebufferTexture2D(ctx.FRAMEBUFFER, ctx.COLOR_ATTACHMENT0, ctx.TEXTURE_2D, texId < 0 ? texManager.tempTex : texMap[texId], 0)
+    ctx.framebufferTexture2D(ctx.FRAMEBUFFER, ctx.COLOR_ATTACHMENT0, ctx.TEXTURE_2D, tex, 0)
     ctx.useProgram(texManager.imgShaderProgram)
     ctx.viewport(0, 0, width, height)
-    ctx.uniform2f(texManager.uAreaSize, width, height)
+    ctx.uniform3f(texManager.uAreaSize, width, height, -1)
     ctx.clearColor(0.0, 0.0, 0.0, 0.0)
-    // ctx.clear(ctx.COLOR_BUFFER_BIT|ctx.DEPTH_BUFFER_BIT)
   }
 }
 
 export const texBindRenderingTarget = function(canvasIndex, texId, width, height) {
   const {ctx, texManager, texMap} = canvases[canvasIndex]
-  texManager.texBindedRenderingTargetStack.push([texId, width, height])
-  texSetRenderingTarget(ctx, texManager, texMap, texId, width, height)
+  const tex = texId < 0 ? texManager.tempTex : texMap[texId]
+  ctx.bindTexture(ctx.TEXTURE_2D, tex)
+  ctx.texImage2D(ctx.TEXTURE_2D, 0, ctx.RGBA, width, height, 0, ctx.RGBA, ctx.UNSIGNED_BYTE, null)
+  ctx.bindTexture(ctx.TEXTURE_2D, null)
+  texManager.texBindedRenderingTargetStack.push([tex, width, height])
+  texSetRenderingTarget(ctx, texManager, tex, width, height)
 }
 
 export const texUnbindRenderingTarget = function(canvasIndex) {
-  const {ctx, texManager, texMap} = canvases[canvasIndex]
+  const {ctx, texManager} = canvases[canvasIndex]
   texManager.texBindedRenderingTargetStack.pop()
   if (texManager.texBindedRenderingTargetStack.length) {
-    const [texId, width, height] = texManager.texBindedRenderingTargetStack[texManager.texBindedRenderingTargetStack.length - 1]
-    texSetRenderingTarget(ctx, texManager, texMap, texId, width, height)
+    const [tex, width, height] = texManager.texBindedRenderingTargetStack[texManager.texBindedRenderingTargetStack.length - 1]
+    texSetRenderingTarget(ctx, texManager, tex, width, height)
   } else {
-    texSetRenderingTarget(ctx, texManager, texMap, -2, 0, 0)
+    texSetRenderingTarget(ctx, texManager, null, 0, 0)
   }
 }
 
@@ -227,7 +230,7 @@ export const texCreateEmpty = function(canvasIndex, texId, width, height) {
   ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_MIN_FILTER, ctx.LINEAR)
   ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_WRAP_S, ctx.CLAMP_TO_EDGE)
   ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_WRAP_T, ctx.CLAMP_TO_EDGE)
-  ctx.texImage2D(ctx.TEXTURE_2D, 0, ctx.RGBA, width, height, 0, ctx.RGBA, ctx.UNSIGNED_BYTE, null)
+  if (width > 0 && height > 0) ctx.texImage2D(ctx.TEXTURE_2D, 0, ctx.RGBA, width, height, 0, ctx.RGBA, ctx.UNSIGNED_BYTE, null)
   texBindRenderingTarget(canvasIndex, texId, width, height)
   texUnbindRenderingTarget(canvasIndex)
   ctx.bindTexture(ctx.TEXTURE_2D, null)

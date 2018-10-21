@@ -207,7 +207,7 @@ impl TexManager {
         self.pixel_ratio = pixel_ratio;
         unsafe {
             ctx.Viewport(0, 0, (w as f64 * pixel_ratio).round() as i32, (h as f64 * pixel_ratio).round() as i32);
-            ctx.Uniform2f(self.u_area_size, w as f32, h as f32);
+            ctx.Uniform3f(self.u_area_size, w as f32, h as f32, 1.);
         }
     }
 
@@ -258,29 +258,36 @@ pub fn tex_copy(canvas_index: i32, dest_tex_id: i32, dest_left: i32, dest_top: i
     });
 }
 
-fn tex_set_rendering_target(ctx: &mut Gl, tex_manager: &mut TexManager, tex_id: i32, width: i32, height: i32) {
+fn tex_set_rendering_target(ctx: &mut Gl, tex_manager: &mut TexManager, tex_id: i32, width: i32, height: i32, need_clear: bool) {
     if tex_id < -1 {
         unsafe {
             ctx.BindFramebuffer(gl::FRAMEBUFFER, 0);
             ctx.UseProgram(tex_manager.img_shader_program);
             ctx.Viewport(0, 0, (tex_manager.width as f64 * tex_manager.pixel_ratio) as i32, (tex_manager.height as f64 * tex_manager.pixel_ratio) as i32);
-            ctx.Uniform2f(tex_manager.u_area_size, tex_manager.width as f32, tex_manager.height as f32);
+            ctx.Uniform3f(tex_manager.u_area_size, tex_manager.width as f32, tex_manager.height as f32, 1.);
         }
     } else {
         unsafe {
+            let tex = if tex_id < 0 { tex_manager.temp_tex } else { tex_manager.tex_map[&tex_id] };
             ctx.BindFramebuffer(gl::FRAMEBUFFER, tex_manager.temp_framebuffer);
-            ctx.FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, if tex_id < 0 { tex_manager.temp_tex } else { tex_manager.tex_map[&tex_id] }, 0);
+            ctx.FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, tex, 0);
             ctx.UseProgram(tex_manager.img_shader_program);
             ctx.Viewport(0, 0, width, height);
-            ctx.Uniform2f(tex_manager.u_area_size, width as f32, height as f32);
+            ctx.Uniform3f(tex_manager.u_area_size, width as f32, height as f32, -1.);
             ctx.ClearColor(0., 0., 0., 0.);
-            // ctx.Clear(gl::COLOR_BUFFER_BIT);
+            if need_clear { ctx.Clear(gl::COLOR_BUFFER_BIT); }
         }
     }
 }
 fn tex_bind_rendering_target_self(ctx: &mut Gl, tex_manager: &mut TexManager, tex_id: i32, width: i32, height: i32) {
     tex_manager.binded_rendering_target_stack.push((tex_id, width, height));
-    tex_set_rendering_target(ctx, tex_manager, tex_id, width, height);
+    let tex = if tex_id < 0 { tex_manager.temp_tex } else { tex_manager.tex_map[&tex_id] };
+    unsafe {
+        ctx.BindTexture(gl::TEXTURE_2D, tex);
+        ctx.TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as i32, width, height, 0, gl::RGBA, gl::UNSIGNED_BYTE, ptr::null());
+        ctx.BindTexture(gl::TEXTURE_2D, 0);
+    }
+    tex_set_rendering_target(ctx, tex_manager, tex_id, width, height, true);
 }
 pub fn tex_bind_rendering_target(canvas_index: i32, tex_id: i32, width: i32, height: i32) {
     paint!(canvas_index, move |ctx, tex_manager| {
@@ -295,7 +302,7 @@ fn tex_unbind_rendering_target_self(ctx: &mut Gl, tex_manager: &mut TexManager) 
         Some(x) => *x
     };
     let (tex_id, width, height) = x;
-    tex_set_rendering_target(ctx, tex_manager, tex_id, width, height);
+    tex_set_rendering_target(ctx, tex_manager, tex_id, width, height, false);
 }
 pub fn tex_unbind_rendering_target(canvas_index: i32) {
     paint!(canvas_index, move |ctx, tex_manager| {
@@ -316,7 +323,9 @@ pub fn tex_create_empty(canvas_index: i32, tex_id: i32, width: i32, height: i32)
             ctx.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
             ctx.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32);
             ctx.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32);
-            ctx.TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as i32, width, height, 0, gl::RGBA, gl::UNSIGNED_BYTE, ptr::null());
+            if width > 0 && height > 0 {
+                ctx.TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as i32, width, height, 0, gl::RGBA, gl::UNSIGNED_BYTE, ptr::null());
+            }
             tex_bind_rendering_target_self(ctx, tex_manager, tex_id, width, height);
             tex_unbind_rendering_target_self(ctx, tex_manager);
             ctx.BindTexture(gl::TEXTURE_2D, 0);

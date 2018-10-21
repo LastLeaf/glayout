@@ -1,5 +1,5 @@
 use glayout::canvas::element::{Element, Empty, Image, Text};
-use glayout::canvas::element::style::PositionType;
+use glayout::canvas::element::style::{PositionType, DisplayType};
 
 pub fn init() {
     register_test_case!(module_path!(), rc_context, {
@@ -13,26 +13,45 @@ pub fn init() {
         let elem = {
             let cfg = context.canvas_config();
             let elem = element!(&cfg, Empty {
-                opacity: 0.7;
                 Empty;
                 Text {
                     set_text("The second image should cover the first image.");
                 };
-                Image {
+                Empty {
                     position: PositionType::Absolute;
-                    left: 100.;
-                    top: 100.;
-                    width: 400.;
-                    height: 400.;
-                    load("resources/test.png");
-                };
-                Image {
-                    position: PositionType::Absolute;
-                    left: 200.;
-                    top: 200.;
-                    width: 400.;
-                    height: 400.;
-                    load("resources/lastleaf.jpg");
+                    display: DisplayType::Block;
+                    opacity: 0.7;
+                    left: -10.;
+                    top: -10.;
+                    Image {
+                        position: PositionType::Absolute;
+                        left: 100.;
+                        top: 10.;
+                        width: 400.;
+                        height: 400.;
+                        load("resources/test.png");
+                    };
+                    Image {
+                        position: PositionType::Absolute;
+                        display: DisplayType::Block;
+                        left: 190.;
+                        top: 190.;
+                        width: 400.;
+                        height: 400.;
+                        load("resources/lastleaf.jpg");
+                    };
+                    Text {
+                        position: PositionType::Absolute;
+                        display: DisplayType::Block;
+                        background_color: (0., 0.5, 0., 0.2);
+                        opacity: 0.8;
+                        left: 140.;
+                        top: 180.;
+                        height: 100.;
+                        color: (1., 0., 0., 1.);
+                        font_size: 32.;
+                        set_text("center");
+                    };
                 };
             });
             elem

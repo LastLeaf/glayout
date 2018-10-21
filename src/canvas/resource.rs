@@ -186,4 +186,14 @@ impl ResourceManager {
         self.used_shader_tex = 0;
         self.tex_shader_index_map.clear();
     }
+    #[inline]
+    pub fn bind_rendering_target(&mut self, tex_id: i32, width: i32, height: i32) {
+        self.flush_draw();
+        lib!(tex_bind_rendering_target(self.canvas_index, tex_id, width, height));
+    }
+    #[inline]
+    pub fn unbind_rendering_target(&mut self) {
+        self.flush_draw();
+        lib!(tex_unbind_rendering_target(self.canvas_index));
+    }
 }
