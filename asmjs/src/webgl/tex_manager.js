@@ -132,6 +132,7 @@ export const createTexManager = function(ctx) {
     texIndexBuf,
     tempFramebuffer,
     tempTex,
+    texBindedRenderingTargetStack: [],
   }
   return texManager
 }
@@ -184,25 +185,39 @@ export const texCopy = function(canvasIndex, destTexId, destLeft, destTop, srcLe
   ctx.bindTexture(ctx.TEXTURE_2D, null)
 }
 
+const texSetRenderingTarget = function(ctx, texManager, texMap, texId, width, height) {
+  if (texId < -1) {
+    const {width, height, pixelRatio} = texManager
+    ctx.bindFramebuffer(ctx.FRAMEBUFFER, null)
+    ctx.useProgram(texManager.imgShaderProgram)
+    ctx.viewport(0, 0, width * pixelRatio, height * pixelRatio)
+    ctx.uniform2f(texManager.uAreaSize, width, height)
+  } else {
+    ctx.bindFramebuffer(ctx.FRAMEBUFFER, texManager.tempFramebuffer)
+    ctx.framebufferTexture2D(ctx.FRAMEBUFFER, ctx.COLOR_ATTACHMENT0, ctx.TEXTURE_2D, texId < 0 ? texManager.tempTex : texMap[texId], 0)
+    ctx.useProgram(texManager.imgShaderProgram)
+    ctx.viewport(0, 0, width, height)
+    ctx.uniform2f(texManager.uAreaSize, width, height)
+    ctx.clearColor(0.0, 0.0, 0.0, 0.0)
+    // ctx.clear(ctx.COLOR_BUFFER_BIT|ctx.DEPTH_BUFFER_BIT)
+  }
+}
+
 export const texBindRenderingTarget = function(canvasIndex, texId, width, height) {
   const {ctx, texManager, texMap} = canvases[canvasIndex]
-  ctx.bindFramebuffer(ctx.FRAMEBUFFER, texManager.tempFramebuffer)
-  ctx.framebufferTexture2D(ctx.FRAMEBUFFER, ctx.COLOR_ATTACHMENT0, ctx.TEXTURE_2D, texId < 0 ? texManager.tempTex : texMap[texId], 0)
-  ctx.useProgram(texManager.imgShaderProgram)
-  ctx.viewport(0, 0, width, height)
-  ctx.uniform2f(texManager.uAreaSize, width, height)
-  ctx.clearColor(0.0, 0.0, 0.0, 0.0)
-  ctx.clearDepth(0)
-  ctx.clear(ctx.COLOR_BUFFER_BIT|ctx.DEPTH_BUFFER_BIT)
+  texManager.texBindedRenderingTargetStack.push([texId, width, height])
+  texSetRenderingTarget(ctx, texManager, texMap, texId, width, height)
 }
 
 export const texUnbindRenderingTarget = function(canvasIndex) {
-  const {ctx, texManager} = canvases[canvasIndex]
-  const {width, height, pixelRatio} = texManager
-  ctx.bindFramebuffer(ctx.FRAMEBUFFER, null)
-  ctx.useProgram(texManager.imgShaderProgram)
-  ctx.viewport(0, 0, width * pixelRatio, height * pixelRatio)
-  ctx.uniform2f(texManager.uAreaSize, width, height)
+  const {ctx, texManager, texMap} = canvases[canvasIndex]
+  texManager.texBindedRenderingTargetStack.pop()
+  if (texManager.texBindedRenderingTargetStack.length) {
+    const [texId, width, height] = texManager.texBindedRenderingTargetStack[texManager.texBindedRenderingTargetStack.length - 1]
+    texSetRenderingTarget(ctx, texManager, texMap, texId, width, height)
+  } else {
+    texSetRenderingTarget(ctx, texManager, texMap, -2, 0, 0)
+  }
 }
 
 export const texCreateEmpty = function(canvasIndex, texId, width, height) {

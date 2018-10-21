@@ -126,7 +126,7 @@ gulp.task('build-debug', ['compile-asm-debug'], function(cb) {
 })
 
 gulp.task('watch', ['build-debug'], function() {
-  gulp.watch(['src/*.rs', 'src/**/*.rs', 'asmjs/*.js',  'asmjs/src/*.js', 'asmjs/src/**/*.js', 'asmjs/src/**/*.glsl'], ['build-debug'])
+  gulp.watch(['src/*.rs', 'src/**/*.rs', 'asmjs/*.js',  'asmjs/src/*.js', 'asmjs/src/**/*.js', 'src/**/*.glsl'], ['build-debug'])
     .on('change', function(event) {
       console.log('file: ' + event.path + ' was ' + event.type);
     })

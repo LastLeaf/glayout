@@ -29,14 +29,15 @@ uniform mediump float uAlpha;
 void main(void) {
   mediump vec4 color;
   highp int texIndex = int(vTexIndex);
-  bool useColor = true;
+  bool useColorRGB = true;
+  // texIndex = if USE_COLOR { -2 } else { ~USE_COLOR_RGB << 8 | tex_id }
   if (vTexIndex < -1.5) {
     // draw rect instead of texture
     gl_FragColor = uColor * uAlpha;
   } else {
-    if (texIndex >= 256) {
+    if (vTexIndex > 255.5) {
       texIndex -= 256;
-      useColor = false;
+      useColorRGB = false;
     }
     if (texIndex == 0) color = texture2D(uTex0, vTexPos);
     if (texIndex == 1) color = texture2D(uTex1, vTexPos);
@@ -54,7 +55,7 @@ void main(void) {
     if (texIndex == 13) color = texture2D(uTex13, vTexPos);
     if (texIndex == 14) color = texture2D(uTex14, vTexPos);
     if (texIndex == 15) color = texture2D(uTex15, vTexPos);
-    if (useColor) {
+    if (useColorRGB) {
       gl_FragColor = uColor * color.a * uAlpha;
     } else {
       gl_FragColor = color * uAlpha;

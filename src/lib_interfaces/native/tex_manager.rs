@@ -101,6 +101,7 @@ pub struct TexManager {
     temp_framebuffer: u32,
     temp_tex: u32,
     tex_map: HashMap<i32, u32>,
+    binded_rendering_target_stack: Vec<(i32, i32, i32)>,
 }
 impl TexManager {
     pub fn new(ctx: &mut Gl, tex_size: i32, tex_count: i32) -> Self {
@@ -193,6 +194,7 @@ impl TexManager {
                 temp_framebuffer,
                 temp_tex,
                 tex_map: HashMap::new(),
+                binded_rendering_target_stack: vec![],
             }
         }
     }
@@ -256,16 +258,29 @@ pub fn tex_copy(canvas_index: i32, dest_tex_id: i32, dest_left: i32, dest_top: i
     });
 }
 
-fn tex_bind_rendering_target_self(ctx: &mut Gl, tex_manager: &mut TexManager, tex_id: i32, width: i32, height: i32) {
-    unsafe {
-        ctx.BindFramebuffer(gl::FRAMEBUFFER, tex_manager.temp_framebuffer);
-        ctx.FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, if tex_id < 0 { tex_manager.temp_tex } else { tex_manager.tex_map[&tex_id] }, 0);
-        ctx.UseProgram(tex_manager.img_shader_program);
-        ctx.Viewport(0, 0, width, height);
-        ctx.Uniform2f(tex_manager.u_area_size, width as f32, height as f32);
-        ctx.ClearColor(0., 0., 0., 0.);
-        ctx.Clear(gl::COLOR_BUFFER_BIT);
+fn tex_set_rendering_target(ctx: &mut Gl, tex_manager: &mut TexManager, tex_id: i32, width: i32, height: i32) {
+    if tex_id < -1 {
+        unsafe {
+            ctx.BindFramebuffer(gl::FRAMEBUFFER, 0);
+            ctx.UseProgram(tex_manager.img_shader_program);
+            ctx.Viewport(0, 0, (tex_manager.width as f64 * tex_manager.pixel_ratio) as i32, (tex_manager.height as f64 * tex_manager.pixel_ratio) as i32);
+            ctx.Uniform2f(tex_manager.u_area_size, tex_manager.width as f32, tex_manager.height as f32);
+        }
+    } else {
+        unsafe {
+            ctx.BindFramebuffer(gl::FRAMEBUFFER, tex_manager.temp_framebuffer);
+            ctx.FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, if tex_id < 0 { tex_manager.temp_tex } else { tex_manager.tex_map[&tex_id] }, 0);
+            ctx.UseProgram(tex_manager.img_shader_program);
+            ctx.Viewport(0, 0, width, height);
+            ctx.Uniform2f(tex_manager.u_area_size, width as f32, height as f32);
+            ctx.ClearColor(0., 0., 0., 0.);
+            // ctx.Clear(gl::COLOR_BUFFER_BIT);
+        }
     }
+}
+fn tex_bind_rendering_target_self(ctx: &mut Gl, tex_manager: &mut TexManager, tex_id: i32, width: i32, height: i32) {
+    tex_manager.binded_rendering_target_stack.push((tex_id, width, height));
+    tex_set_rendering_target(ctx, tex_manager, tex_id, width, height);
 }
 pub fn tex_bind_rendering_target(canvas_index: i32, tex_id: i32, width: i32, height: i32) {
     paint!(canvas_index, move |ctx, tex_manager| {
@@ -274,12 +289,13 @@ pub fn tex_bind_rendering_target(canvas_index: i32, tex_id: i32, width: i32, hei
     });
 }
 fn tex_unbind_rendering_target_self(ctx: &mut Gl, tex_manager: &mut TexManager) {
-    unsafe {
-        ctx.BindFramebuffer(gl::FRAMEBUFFER, 0);
-        ctx.UseProgram(tex_manager.img_shader_program);
-        ctx.Viewport(0, 0, (tex_manager.width as f64 * tex_manager.pixel_ratio) as i32, (tex_manager.height as f64 * tex_manager.pixel_ratio) as i32);
-        ctx.Uniform2f(tex_manager.u_area_size, tex_manager.width as f32, tex_manager.height as f32);
-    }
+    tex_manager.binded_rendering_target_stack.pop();
+    let x = match tex_manager.binded_rendering_target_stack.last().clone() {
+        None => (-2, 0, 0),
+        Some(x) => *x
+    };
+    let (tex_id, width, height) = x;
+    tex_set_rendering_target(ctx, tex_manager, tex_id, width, height);
 }
 pub fn tex_unbind_rendering_target(canvas_index: i32) {
     paint!(canvas_index, move |ctx, tex_manager| {

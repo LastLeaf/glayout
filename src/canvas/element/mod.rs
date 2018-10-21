@@ -56,6 +56,7 @@ pub struct Element {
     dirty: Cell<bool>,
     style: RefCell<ElementStyle>,
     position_offset: RefCell<PositionOffset>,
+    draw_separate_tex: Cell<i32>,
     content: RefCell<Box<ElementContent>>,
 }
 
@@ -74,6 +75,7 @@ impl Element {
             dirty: Cell::new(true),
             style: RefCell::new(ElementStyle::new()),
             position_offset: RefCell::new(PositionOffset::new()),
+            draw_separate_tex: Cell::new(-1),
             content: RefCell::new(content),
         }
     }
@@ -216,20 +218,28 @@ impl Element {
         let style = self.style();
         if style.get_display() == style::DisplayType::None { return }
 
-        // set alpha
-        // TODO gives a correct alpha impl
-        let mut original_alpha = -1.;
+        // check if drawing on separate tex is needed
         if style.get_opacity() < 1. && style.get_opacity() >= 0. {
-            let rm = self.canvas_config.resource_manager();
-            let mut rm = rm.borrow_mut();
-            let mut ds = rm.draw_state();
-            original_alpha = ds.get_alpha();
-            rm.set_draw_state(ds.mul_alpha(style.get_opacity()));
+            self.enable_draw_separate_tex()
+        } else {
+            self.disable_draw_separate_tex()
         }
+        let tex_id = self.draw_separate_tex.get();
+        let drawing_tex_position = if tex_id >= 0 {
+            let drawing_bounds = style.transform_ref().apply_to_bounds(&self.position_offset().drawing_bounds());
+            let drawing_tex_position = (drawing_bounds.0, drawing_bounds.2, (drawing_bounds.2 - drawing_bounds.0 + 1.).floor(), (drawing_bounds.3 - drawing_bounds.1 + 1.).floor());
+            // TODO use drawing_bounds is incorrect because child's transform is not considered
+            lib!(tex_bind_rendering_target(self.canvas_config.index, tex_id, drawing_tex_position.2 as i32, drawing_tex_position.3 as i32));
+            drawing_tex_position
+        } else {
+            (0., 0., 1., 1.)
+        };
 
         let position_offset = self.position_offset();
         let allocated_position = position_offset.allocated_position();
-        let child_transform = transform.mul_clone(Transform::new().offset(allocated_position.0, allocated_position.1)).mul_clone(&style.transform_ref());
+        let drawing_x = allocated_position.0 - drawing_tex_position.0;
+        let drawing_y = allocated_position.1 - drawing_tex_position.1;
+        let child_transform = transform.mul_clone(Transform::new().offset(drawing_x, drawing_y)).mul_clone(&style.transform_ref());
 
         // draw background color
         let bg_color = style.get_background_color();
@@ -254,14 +264,52 @@ impl Element {
             }
         }
 
-        // recover alpha
-        if original_alpha >= 0. {
+        // recover tex
+        if tex_id >= 0 {
+            lib!(tex_unbind_rendering_target(self.canvas_config.index));
+
+            // set alpha
+            let mut original_alpha = -1.;
             let rm = self.canvas_config.resource_manager();
             let mut rm = rm.borrow_mut();
-            rm.set_draw_state(DrawState::new().alpha(original_alpha));
+            if style.get_opacity() < 1. && style.get_opacity() >= 0. {
+                let mut ds = rm.draw_state();
+                original_alpha = ds.get_alpha();
+                rm.set_draw_state(ds.mul_alpha(style.get_opacity()));
+            }
+
+            rm.set_draw_state(DrawState::new().color(bg_color));
+            rm.request_draw(
+                tex_id, false,
+                0., 0., 1., 1.,
+                drawing_tex_position
+            );
+
+            // recover alpha
+            if original_alpha >= 0. {
+                rm.set_draw_state(DrawState::new().alpha(original_alpha));
+            }
         }
     }
+    #[inline]
+    pub fn enable_draw_separate_tex(&self) {
+        if self.draw_separate_tex.get() != -1 { return };
+        let rm = self.canvas_config.resource_manager();
+        let tex_id = rm.borrow_mut().alloc_tex_id();
+        lib!(tex_create_empty(self.canvas_config.index, tex_id, 64, 64));
+        self.draw_separate_tex.set(tex_id);
+    }
+    #[inline]
+    pub fn disable_draw_separate_tex(&self) {
+        if self.draw_separate_tex.get() == -1 { return };
+        let tex_id = self.draw_separate_tex.replace(-1);
+        let rm = self.canvas_config.resource_manager();
+        lib!(tex_delete(self.canvas_config.index, tex_id));
+        rm.borrow_mut().free_tex_id(tex_id);
+    }
 
+    // find the node under point
+    // TODO check the transform correctness
     fn get_node_under_point(&self, x: f64, y: f64, mut transform: Transform) -> Option<TreeNodeRc<Element>> {
         if self.style().get_display() == style::DisplayType::None { return None }
         let position_offset = self.position_offset();
