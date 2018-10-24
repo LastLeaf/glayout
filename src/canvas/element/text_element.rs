@@ -2,7 +2,7 @@ use std::rc::Rc;
 use super::super::CanvasConfig;
 use super::super::resource::DrawState;
 use super::super::character::{Character, FontStyle};
-use super::{Element, ElementStyle, InlinePositionStatus, Transform};
+use super::{Element, ElementStyle, InlinePositionStatus, Transform, style};
 use super::super::super::tree::{TreeNodeWeak};
 
 const DEFAULT_DPR: f64 = 2.;
@@ -18,7 +18,7 @@ pub struct Text {
     need_update: bool,
     font_family_id: i32,
     tex_font_size: i32,
-    size_ratio: f64,
+    size_ratio: f32,
     line_first_char_index: usize,
     line_current_char_index: usize,
     drawing_bounds: (f64, f64, f64, f64),
@@ -65,8 +65,8 @@ impl Text {
             return;
         }
     }
-    fn measure_tex_font_size(&mut self, font_size: f64) -> i32 {
-        let min_font_size = (font_size * self.device_pixel_ratio).ceil();
+    fn measure_tex_font_size(&mut self, font_size: f32) -> i32 {
+        let min_font_size = (font_size * self.device_pixel_ratio as f32).ceil();
         min_font_size as i32
     }
     fn update(&mut self, style: &ElementStyle) {
@@ -74,7 +74,7 @@ impl Text {
         // FIXME consider batching multiple text element update together
         let font_size = style.get_font_size();
         self.tex_font_size = self.measure_tex_font_size(font_size);
-        self.size_ratio = font_size / (self.tex_font_size as f64);
+        self.size_ratio = font_size / self.tex_font_size as f32;
         // debug!("Attempted to regenerate Text: \"{}\" font {:?} size {:?}", self.text, style.get_font_family(), self.tex_font_size);
         let cm = self.canvas_config.character_manager();
         let mut manager = cm.borrow_mut();
@@ -102,9 +102,9 @@ impl super::ElementContent for Text {
             self.update(style);
         }
         let prev_inline_height = inline_position_status.height();
-        let line_height = style.get_font_size(); // FIXME use line_height
+        let line_height = if style.get_line_height() == style::DEFAULT_F32 { style.get_font_size() * 1.5 } else { style.get_line_height() };
         let baseline_top = line_height / 2.;
-        inline_position_status.append_node(self.tree_node.as_mut().unwrap().upgrade().unwrap(), style.get_font_size(), baseline_top);
+        inline_position_status.append_node(self.tree_node.as_mut().unwrap().upgrade().unwrap(), line_height as f64, baseline_top as f64);
         self.line_first_char_index = 0;
         for i in 0..self.characters.len() {
             let v = &mut self.characters[i];
@@ -117,14 +117,14 @@ impl super::ElementContent for Text {
                 self.line_current_char_index = i;
             } else {
                 let char_pos = character.position();
-                let width = char_pos.4 * self.size_ratio;
+                let width = char_pos.4 * self.size_ratio as f64;
                 let (left, line_baseline_top) = inline_position_status.add_width(width, true);
                 if left == 0. {
                     self.line_first_char_index = i;
                 }
                 self.line_current_char_index = i;
                 v.1 = left as f32;
-                v.2 = (line_baseline_top - baseline_top) as f32;
+                v.2 = line_baseline_top as f32 - baseline_top;
             }
         };
         self.drawing_bounds = (0., prev_inline_height, suggested_size.0, inline_position_status.height());
@@ -144,8 +144,8 @@ impl super::ElementContent for Text {
                 /* empty */
             } else {
                 let char_pos = character.position();
-                let width = char_pos.4 * self.size_ratio;
-                let height = char_pos.5 * self.size_ratio;
+                let width = char_pos.4 * self.size_ratio as f64;
+                let height = char_pos.5 * self.size_ratio as f64;
                 let rm = self.canvas_config.resource_manager();
                 let mut rm = rm.borrow_mut();
                 rm.set_draw_state(DrawState::new().color(style.get_color()));
@@ -168,8 +168,8 @@ impl super::ElementContent for Text {
                 /* empty */
             } else {
                 let char_pos = character.position();
-                let width = char_pos.4 * self.size_ratio;
-                let height = char_pos.5 * self.size_ratio;
+                let width = char_pos.4 * self.size_ratio as f64;
+                let height = char_pos.5 * self.size_ratio as f64;
                 let pos = transform.apply_to_position(&(*left as f64, *top as f64, width, height));
                 // debug!("testing {:?} in text pos {:?}", (x, y), pos);
                 if x < pos.0 || x >= pos.0 + pos.2 || y < pos.1 || y >= pos.1 + pos.3 {

@@ -1,8 +1,9 @@
-use std::f64;
+use std::{f32, f64};
 use super::{Element, Transform};
 use super::super::super::tree::{TreeNodeRc, TreeNodeWeak};
 
 pub const DEFAULT_F64: f64 = f64::INFINITY;
+pub const DEFAULT_F32: f32 = f32::INFINITY;
 
 pub struct ElementStyle {
     tree_node: Option<TreeNodeWeak<Element>>,
@@ -15,8 +16,10 @@ pub struct ElementStyle {
     height: f64,
     font_family: String,
     inherit_font_family: bool,
-    font_size: f64,
+    font_size: f32,
     inherit_font_size: bool,
+    line_height: f32,
+    inherit_line_height: bool,
     color: (f32, f32, f32, f32),
     inherit_color: bool,
     background_color: (f32, f32, f32, f32),
@@ -39,6 +42,8 @@ impl ElementStyle {
             inherit_font_family: true,
             font_size: 16.,
             inherit_font_size: true,
+            line_height: DEFAULT_F32,
+            inherit_line_height: true,
             color: (0., 0., 0., 1.),
             inherit_color: true,
             background_color: (-1., -1., -1., -1.),
@@ -127,7 +132,8 @@ impl ElementStyle {
     getter_setter_dirty!(width, get_width, width, f64);
     getter_setter_dirty!(height, get_height, height, f64);
     getter_setter_inherit_dirty!(font_family, get_font_family, font_family, inherit_font_family, get_inherit_font_family, inherit_font_family, String);
-    getter_setter_inherit_dirty!(font_size, get_font_size, font_size, inherit_font_size, get_inherit_font_size, inherit_font_size, f64);
+    getter_setter_inherit_dirty!(font_size, get_font_size, font_size, inherit_font_size, get_inherit_font_size, inherit_font_size, f32);
+    getter_setter_inherit_dirty!(line_height, get_line_height, line_height, inherit_line_height, get_inherit_line_height, inherit_line_height, f32);
     // FIXME changing color does not need mark dirty
     getter_setter_inherit_dirty!(color, get_color, color, inherit_color, get_inherit_color, inherit_color, (f32, f32, f32, f32));
     getter_setter!(background_color, get_background_color, background_color, (f32, f32, f32, f32));
