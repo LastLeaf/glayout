@@ -373,21 +373,26 @@ impl TreeElem for Element {
 macro_rules! __element_children {
     ($cfg:expr, $v:ident, $t:ident, ) => {};
     ($cfg:expr, $v:ident, $t:ident, @ $k:expr => $a:expr; $($r:tt)*) => {
+        // event listeners
         $v.elem().add_event_listener(String::from($k), Rc::new(RefCell::new($a)));
         __element_children! ($cfg, $v, $t, $($r)*);
     };
     ($cfg:expr, $v:ident, $t:ident, $k:ident : $a:expr; $($r:tt)*) => {
-        $v.elem().style_mut().$k($a);
+        // inline styles
+        $v.elem().style_mut().$k($a.into());
         __element_children! ($cfg, $v, $t, $($r)*);
     };
     ($cfg:expr, $v:ident, $t:ident, $k:ident ( $($a:expr),* ); $($r:tt)*) => {
+        // element content methods
         $v.elem().content_mut().downcast_mut::<$t>().unwrap().$k($($a),*);
         __element_children! ($cfg, $v, $t, $($r)*);
     };
     ($cfg:expr, $v:ident, $t:ident, $e:ident; $($r:tt)*) => {
+        // child nodes (short form)
         __element_children! ($cfg, $v, $t, $e {}; $($r)*);
     };
     ($cfg:expr, $v:ident, $t:ident, $e:ident { $($c:tt)* }; $($r:tt)*) => {
+        // child nodes
         let mut temp_element_child = __element_tree! ( $cfg, $e { $($c)* });
         $v.append(temp_element_child);
         __element_children! ($cfg, $v, $t, $($r)*);
@@ -414,5 +419,26 @@ macro_rules! __element_tree {
 macro_rules! element {
     ($cfg:expr, $($c:tt)*) => {{
         __element_tree! ($cfg, $($c)*)
+    }}
+}
+
+#[macro_export]
+macro_rules! __element_class_rule {
+    ($c:expr, ) => {};
+    ($c:expr, $k:ident : $a:expr; $($r:tt)*) => {
+        $c.add_rule(StyleName::$k, Box::new($a));
+        __element_class_rule! ($c, $($r)*);
+    };
+}
+
+#[macro_export]
+macro_rules! element_class {
+    ($($r:tt)*) => {{
+        let mut c = ::std::rc::Rc::new(ElementClass::new());
+        {
+            let c = ::std::rc::Rc::get_mut(&mut c).unwrap();
+            __element_class_rule! (c, $($r)*);
+        };
+        c
     }}
 }

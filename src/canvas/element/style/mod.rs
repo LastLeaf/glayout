@@ -1,15 +1,18 @@
+use std::rc::Rc;
 use std::{f32, f64};
 use super::{Element, Transform};
 use super::super::super::tree::{TreeNodeRc, TreeNodeWeak};
 
 mod class;
-pub use self::class;
+pub use self::class::{StyleName, ElementClass};
 
 pub const DEFAULT_F64: f64 = f64::INFINITY;
 pub const DEFAULT_F32: f32 = f32::INFINITY;
 
 pub struct ElementStyle {
     tree_node: Option<TreeNodeWeak<Element>>,
+    inline_class: ElementClass,
+    classes: Vec<Rc<ElementClass>>,
     id: String,
     display: DisplayType,
     position: PositionType,
@@ -30,10 +33,12 @@ pub struct ElementStyle {
     transform: Transform,
 }
 
-impl ElementStyle {
-    pub fn new() -> Self {
+impl Default for ElementStyle {
+    fn default() -> Self {
         ElementStyle {
             tree_node: None,
+            inline_class: ElementClass::new(),
+            classes: vec![],
             id: String::new(),
             display: DisplayType::Inline,
             position: PositionType::Static,
@@ -56,6 +61,16 @@ impl ElementStyle {
     }
 }
 
+impl ElementStyle {
+    pub fn new() -> Self {
+        Self { ..Default::default() }
+    }
+    pub fn apply_class(&mut self, c: &ElementClass) {
+        c.apply_to_style(self);
+        self.tree_node().elem().mark_dirty();
+    }
+}
+
 macro_rules! getter_setter {
     ($name:ident, $getter:ident, $setter:ident, $type:ty) => {
         #[inline]
@@ -64,6 +79,7 @@ macro_rules! getter_setter {
         }
         #[inline]
         pub fn $setter(&mut self, val: $type) {
+            self.inline_class.replace_rule(StyleName::$name, Box::new(val.clone()));
             self.$name = val;
         }
     }
@@ -78,6 +94,7 @@ macro_rules! getter_setter_dirty {
         pub fn $setter(&mut self, val: $type) {
             if self.$name == val { return }
             self.tree_node().elem().mark_dirty();
+            self.inline_class.replace_rule(StyleName::$name, Box::new(val.clone()));
             self.$name = val;
         }
     }
@@ -97,6 +114,7 @@ macro_rules! getter_setter_inherit_dirty {
             if self.$name == val { return }
             let tree_node = self.tree_node();
             tree_node.elem().mark_dirty();
+            self.inline_class.replace_rule(StyleName::$name, Box::new(val.clone()));
             self.$name = val.clone();
             for child in tree_node.iter_children() {
                 let mut style = child.elem().style_mut();
@@ -111,6 +129,7 @@ macro_rules! getter_setter_inherit_dirty {
         }
     }
 }
+
 macro_rules! update_inherit {
     ($self:ident, $parent_node:ident, $name:ident, $inherit_name:ident, $dfs_setter:ident, $default:expr) => {
         if $self.$inherit_name {
@@ -147,6 +166,20 @@ impl ElementStyle {
         update_inherit!(self, parent_node, font_family, inherit_font_family, inherit_font_family, String::from("sans-serif"));
         update_inherit!(self, parent_node, font_size, inherit_font_size, inherit_font_size, 16.);
         update_inherit!(self, parent_node, color, inherit_color, inherit_color, (0., 0., 0., 1.));
+    }
+
+    pub fn get_classes(&self) -> Vec<Rc<ElementClass>> {
+        self.classes.clone()
+    }
+    pub fn classes(&mut self, c: Vec<Rc<ElementClass>>) {
+        self.classes = c;
+        self.reload_classes();
+    }
+    fn reload_classes(&mut self) {
+        let cs = self.classes.clone();
+        for c in cs {
+            c.apply_to_style(self);
+        }
     }
 }
 

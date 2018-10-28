@@ -1,7 +1,8 @@
+use std::rc::Rc;
 use glayout;
 use glayout::canvas::Canvas;
 use glayout::canvas::element::{Element, Empty, Image, Text};
-use glayout::canvas::element::style::{DisplayType, PositionType};
+use glayout::canvas::element::style::{StyleName, ElementClass, DisplayType, PositionType};
 use utils::PretendSend;
 use std::time;
 
@@ -12,12 +13,16 @@ pub fn init() {
         context.set_canvas_size(800, 600, pixel_ratio);
         context.set_clear_color(0.5, 1., 0.5, 1.);
 
+        let base_class = element_class! {
+            position: PositionType::Absolute;
+        };
+
         let elem = {
             let cfg = context.canvas_config();
             let elem = element!(&cfg, Empty {
-                font_family: String::from("serif, 宋体");
+                font_family: "serif, 宋体";
                 Empty {
-                    position: PositionType::Absolute;
+                    classes: vec![base_class.clone()];
                     left: 500.;
                     top: 100.;
                     width: 100.;
@@ -25,7 +30,7 @@ pub fn init() {
                     background_color: (1., 0.5, 0.5, 1.);
                 };
                 Text {
-                    position: PositionType::Absolute;
+                    classes: vec![base_class.clone()];
                     left: 10.;
                     top: 10.;
                     width: 50.;
