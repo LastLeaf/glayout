@@ -2,6 +2,9 @@ use std::{f32, f64};
 use super::{Element, Transform};
 use super::super::super::tree::{TreeNodeRc, TreeNodeWeak};
 
+mod class;
+pub use self::class;
+
 pub const DEFAULT_F64: f64 = f64::INFINITY;
 pub const DEFAULT_F32: f32 = f32::INFINITY;
 
