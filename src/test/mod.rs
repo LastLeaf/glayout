@@ -4,9 +4,9 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use super::utils::PretendSend;
 use std::collections::BTreeMap;
-use glayout::canvas::{Canvas, CanvasContext};
-use glayout::canvas::element::{Element, Empty, Image, Text, Event};
-use glayout::canvas::element::style::{DisplayType, PositionType};
+use glayout::canvas::{Canvas, CanvasContext, TouchEventDetail};
+use glayout::canvas::element::{Element, Empty, Text, Event};
+use glayout::canvas::element::style::{DisplayType};
 
 pub type TestCaseFn = Fn(Rc<RefCell<CanvasContext>>) -> i32;
 
@@ -94,6 +94,8 @@ fn show_list(rc_context: Rc<RefCell<CanvasContext>>) {
                 id: k.clone();
                 set_text(k.as_str());
                 @ "touchend" => move |event: &Event| {
+                    let detail = event.detail.downcast_ref::<TouchEventDetail>().unwrap();
+                    debug!("Touched at {:?}", (detail.client_x, detail.client_y));
                     let name = event.current_target.elem().style().get_id();
                     root_ev.remove(0);
                     run_test_case!(name);

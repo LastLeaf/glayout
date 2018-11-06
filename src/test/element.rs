@@ -1,6 +1,4 @@
-use std::rc::Rc;
 use glayout;
-use glayout::canvas::Canvas;
 use glayout::canvas::element::{Element, Empty, Image, Text};
 use glayout::canvas::element::style::{StyleName, ElementClass, DisplayType, PositionType};
 use utils::PretendSend;

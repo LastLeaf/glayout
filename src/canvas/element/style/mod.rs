@@ -3,6 +3,8 @@ use std::{f32, f64};
 use super::{Element, Transform};
 use super::super::super::tree::{TreeNodeRc, TreeNodeWeak};
 
+mod types;
+pub use self::types::{DisplayType, PositionType};
 mod class;
 pub use self::class::{StyleName, ElementClass};
 
@@ -204,22 +206,4 @@ impl ElementStyle {
     pub fn transform_mut(&mut self) -> &mut Transform {
         &mut self.transform
     }
-}
-
-#[derive(Clone, Copy, PartialEq)]
-pub enum DisplayType {
-    None,
-    Block,
-    Inline,
-    InlineBlock,
-    Flex,
-}
-
-#[derive(Clone, Copy, PartialEq)]
-pub enum PositionType {
-    Static,
-    Relative,
-    Absolute,
-    Fixed,
-    Sticky,
 }

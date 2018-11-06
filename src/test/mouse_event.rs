@@ -1,5 +1,3 @@
-use glayout::frame;
-
 pub fn init() {
     register_test_case!(module_path!(), rc_ctx, {
         let mut ctx = rc_ctx.borrow_mut();

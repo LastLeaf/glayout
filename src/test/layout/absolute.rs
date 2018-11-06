@@ -1,6 +1,4 @@
 use std::time;
-use glayout::frame;
-use glayout::canvas::{CanvasContext};
 use glayout::canvas::element::{Element, Empty, Image, Text};
 use glayout::canvas::element::style::{DisplayType, PositionType};
 

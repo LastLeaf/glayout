@@ -180,8 +180,8 @@ const TOUCHEND: i32 = 3;
 const TOUCHCANCEL: i32 = 4;
 const FREEMOVE: i32 = 5;
 pub struct TouchEventDetail {
-    clientX: f64,
-    clientY: f64,
+    pub client_x: f64,
+    pub client_y: f64,
 }
 lib_define_callback! (TouchEventCallback (Rc<RefCell<CanvasContext>>) {
     fn callback(&mut self, touch_type: i32, x: i32, y: i32, _: i32) -> bool {
@@ -221,8 +221,8 @@ lib_define_callback! (TouchEventCallback (Rc<RefCell<CanvasContext>>) {
                 _ => "",
             });
             node.unwrap().elem().dispatch_event(event_name, Box::new(TouchEventDetail {
-                clientX: x as f64,
-                clientY: y as f64,
+                client_x: x as f64,
+                client_y: y as f64,
             }), true);
         }
         true
