@@ -46,6 +46,10 @@ impl ElementClass {
         }
         self.add_rule(name, value)
     }
+    pub fn from_style_text(&mut self, text: &str) {
+        self.rules.truncate(0);
+        super::StyleSheet::parse_inline_style(self, text);
+    }
     pub fn apply_to_style(&self, style: &mut super::ElementStyle) {
         for (name, value) in self.rules.iter() {
             self.apply_rule(style, name, value);

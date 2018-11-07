@@ -7,6 +7,8 @@ mod types;
 pub use self::types::{DisplayType, PositionType};
 mod class;
 pub use self::class::{StyleName, ElementClass};
+mod style_sheet;
+pub use self::style_sheet::{StyleSheetGroup, StyleSheet};
 
 pub const DEFAULT_F64: f64 = f64::INFINITY;
 pub const DEFAULT_F32: f32 = f32::INFINITY;

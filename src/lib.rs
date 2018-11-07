@@ -2,6 +2,7 @@
 extern crate lazy_static;
 #[macro_use]
 extern crate downcast_rs;
+extern crate cssparser;
 #[cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))]
 extern crate glutin;
 #[cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))]
