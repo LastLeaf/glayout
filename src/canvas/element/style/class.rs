@@ -3,6 +3,7 @@ use std::any::Any;
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq)]
 pub enum StyleName {
+    glayout_unrecognized = 0x00,
     id = 0x01,
     display = 0x02,
 
@@ -65,6 +66,7 @@ impl ElementClass {
             }
         }
         match name {
+            StyleName::glayout_unrecognized => { },
             StyleName::id => style_name!(id, String),
             StyleName::display => style_name!(display, super::DisplayType),
             StyleName::position => style_name!(position, super::PositionType),
