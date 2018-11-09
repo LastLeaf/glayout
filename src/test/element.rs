@@ -17,10 +17,13 @@ pub fn init() {
 
         let elem = {
             let cfg = context.canvas_config();
+            cfg.append_style_sheet("
+                .a { position: absolute }
+            ");
             let elem = element!(&cfg, Empty {
                 font_family: "serif, 宋体";
                 Empty {
-                    classes: vec![base_class.clone()];
+                    class: "a";
                     left: 500.;
                     top: 100.;
                     width: 100.;
@@ -28,7 +31,7 @@ pub fn init() {
                     background_color: (1., 0.5, 0.5, 1.);
                 };
                 Text {
-                    classes: vec![base_class.clone()];
+                    class: "a";
                     left: 10.;
                     top: 10.;
                     width: 50.;

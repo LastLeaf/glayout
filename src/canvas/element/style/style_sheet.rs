@@ -1,8 +1,8 @@
 use std::rc::Rc;
 use std::any::Any;
-use cssparser::{Delimiter, Token, ParserInput, Parser, ParseError};
+use cssparser::{Delimiter, Token, ParserInput, Parser, ParseError, Color};
 use std::collections::HashMap;
-use super::{ElementClass, StyleName, DisplayType, PositionType};
+pub(self) use super::{ElementClass, StyleName, DisplayType, PositionType};
 
 #[derive(Clone)]
 struct SelectorFragment {
@@ -49,7 +49,7 @@ impl StyleSheet {
     pub fn parse_inline_style(c: &mut ElementClass, text: &str) {
         let mut input = ParserInput::new(text);
         let mut parser = Parser::new(&mut input);
-        Self::parse_declarations(&mut parser, c);
+        Self::parse_declarations(&mut parser, c).unwrap();
     }
     pub fn new_from_css(text: &str) -> Self {
         let class_name_map = HashMap::new();
@@ -90,7 +90,7 @@ impl StyleSheet {
         if parser.expect_curly_bracket_block().is_ok() {
             parser.parse_nested_block(|parser| {
                 Self::parse_declarations(parser, Rc::get_mut(&mut class).unwrap())
-            });
+            }).unwrap();
         }
         match selector_res {
             Ok(selector) => Ok((selector, class)),
@@ -127,7 +127,7 @@ impl StyleSheet {
                 // do nothing
             }
             // parse class
-            loop {
+            while !parser.is_exhausted() {
                 if parser.try(|parser| {
                     match parser.expect_delim('.') {
                         Ok(_) => {
@@ -157,105 +157,243 @@ impl StyleSheet {
                 selector.fragments.push(frag);
             }
             Ok(())
-        });
+        }).unwrap();
         Ok(selector)
     }
     fn parse_declarations<'a>(parser: &mut Parser<'a, '_>, class: &mut ElementClass) -> Result<(), ParseError<'a, ()>> {
-        loop {
-            let r = parser.expect_ident();
-            match r {
-                Ok(key) => {
-                    match parser.expect_delim(':') {
-                        Ok(_) => {
-                            parser.parse_until_after::<_, _, ()>(Delimiter::Semicolon, |parser| {
-                                // do different parsing for different keys
-                                let (style_name, value_res) = match key.as_ref() {
-                                    "display" => {
-                                        const mapping: [(&'static str, DisplayType); 5] = [
-                                            ("none", DisplayType::None),
-                                            ("block", DisplayType::Block),
-                                            ("inline", DisplayType::Inline),
-                                            ("inline-block", DisplayType::InlineBlock),
-                                            ("flex", DisplayType::Flex),
-                                        ];
-                                        (StyleName::display, Self::parse_enum(parser, &mapping))
-                                    },
-                                    "position" => {
-                                        const mapping: [(&'static str, PositionType); 5] = [
-                                            ("static", PositionType::Static),
-                                            ("relative", PositionType::Relative),
-                                            ("absolute", PositionType::Absolute),
-                                            ("fixed", PositionType::Fixed),
-                                            ("sticky", PositionType::Sticky),
-                                        ];
-                                        (StyleName::position, Self::parse_enum(parser, &mapping))
-                                    },
-                                    // "left" => style_name!(left, f64),
-                                    // "top" => style_name!(top, f64),
-                                    // "width" => style_name!(width, f64),
-                                    // "height" => style_name!(height, f64),
-                                    // "font-family" => style_name!(font_family, String),
-                                    // "font-size" => style_name!(font_size, f32),
-                                    // "line-height" => style_name!(line_height, f32),
-                                    // "color" => style_name!(color, (f32, f32, f32, f32)),
-                                    // "background-color" => style_name!(color, (f32, f32, f32, f32)),
-                                    // "opacity" => style_name!(opacity, f32),
-                                    // "transform" => style_name!(transform, super::Transform),
-                                    _ => {
-                                        (StyleName::glayout_unrecognized, Err(parser.new_custom_error(())))
-                                    }
-                                };
-                                match value_res {
-                                    Ok(v) => {
-                                        class.add_rule(style_name, v);
-                                    },
-                                    Err(e) => {
-                                        warn!("CSS ParseError {:?}", e);
-                                    }
-                                };
-                                if !parser.is_exhausted() {
-                                    let token = parser.next().unwrap().clone();
-                                    warn!("CSS ParseError {:?}", parser.new_unexpected_token_error::<()>(token));
-                                }
-                                Ok(())
-                            });
-                        },
-                        Err(e) => {
-                            warn!("CSS ParseError {:?}", e);
-                            loop {
-                                match parser.next() {
-                                    Ok(token) => {
-                                        if *token == Token::Semicolon {
-                                            break
-                                        }
-                                    },
-                                    Err(_) => {
-                                        break
-                                    }
-                                };
+        while !parser.is_exhausted() {
+            let key = {
+                let r = parser.expect_ident();
+                if r.is_err() {
+                    warn!("CSS ParseError {:?}", r.unwrap_err());
+                    continue;
+                }
+                String::from(r.unwrap().as_ref())
+            };
+            while !parser.is_exhausted() {
+                let r = parser.expect_colon();
+                if r.is_err() {
+                    warn!("CSS ParseError {:?}", r.unwrap_err());
+                } else {
+                    break;
+                }
+            };
+            parser.parse_until_after::<_, _, ()>(Delimiter::Semicolon, |parser| {
+                macro_rules! add_rule {
+                    ($style_name: expr, $value_res: expr) => {
+                        match $value_res {
+                            Ok(v) => {
+                                class.add_rule($style_name, v);
+                            },
+                            Err(e) => {
+                                warn!("CSS ParseError {:?}", e);
                             }
-                        }
+                        };
                     }
-                },
-                Err(_) => break
-            }
+                }
+                // do different parsing for different keys
+                match key.as_ref() {
+                    "display" => {
+                        const MAPPING: [(&'static str, DisplayType); 5] = [
+                            ("none", DisplayType::None),
+                            ("block", DisplayType::Block),
+                            ("inline", DisplayType::Inline),
+                            ("inline-block", DisplayType::InlineBlock),
+                            ("flex", DisplayType::Flex),
+                        ];
+                        add_rule!(StyleName::display, Self::parse_enum(parser, &MAPPING));
+                    },
+                    "position" => {
+                        const MAPPING: [(&'static str, PositionType); 5] = [
+                            ("static", PositionType::Static),
+                            ("relative", PositionType::Relative),
+                            ("absolute", PositionType::Absolute),
+                            ("fixed", PositionType::Fixed),
+                            ("sticky", PositionType::Sticky),
+                        ];
+                        add_rule!(StyleName::position, Self::parse_enum(parser, &MAPPING));
+                    },
+                    "left" => {
+                        add_rule!(StyleName::left, Self::parse_length::<f64>(parser));
+                    },
+                    "top" => {
+                        add_rule!(StyleName::top, Self::parse_length::<f64>(parser));
+                    },
+                    "width" => {
+                        add_rule!(StyleName::width, Self::parse_length::<f64>(parser));
+                    },
+                    "height" => {
+                        add_rule!(StyleName::height, Self::parse_length::<f64>(parser));
+                    },
+                    "font-family" => {
+                        add_rule!(StyleName::font_family, Self::parse_font_family(parser));
+                    },
+                    "font-size" => {
+                        add_rule!(StyleName::font_size, Self::parse_length::<f32>(parser));
+                    },
+                    "line-height" => {
+                        add_rule!(StyleName::line_height, Self::parse_length::<f32>(parser));
+                    },
+                    "color" => {
+                        add_rule!(StyleName::color, Self::parse_color(parser));
+                    },
+                    "background-color" => {
+                        add_rule!(StyleName::background_color, Self::parse_color(parser));
+                    },
+                    "opacity" => {
+                        add_rule!(StyleName::opacity, Self::parse_number::<f32>(parser));
+                    },
+                    "transform" => {
+                        unimplemented!();
+                    },
+                    _ => {
+                        add_rule!(StyleName::glayout_unrecognized, Err(parser.new_custom_error::<_, ()>(())));
+                    }
+                };
+                if !parser.is_exhausted() {
+                    let token = parser.next().unwrap().clone();
+                    warn!("CSS ParseError {:?}", parser.new_unexpected_token_error::<()>(token));
+                }
+                Ok(())
+            }).unwrap();
         }
         Ok(())
     }
     #[inline]
-    fn parse_enum<'a, T: Send + Sync + Sized>(parser: &mut Parser<'a, '_>, mapping: &'static [(&'static str, T)]) -> Result<Box<Any + Send>, ParseError<'a, ()>> {
+    fn parse_number<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> Result<Box<Any + Send>, ParseError<'a, ()>> {
+        {
+            let r = parser.next();
+            if r.is_ok() {
+                let token = r.unwrap();
+                match token {
+                    Token::Number {value, has_sign: _, int_value: _} => {
+                        let num: f32 = *value;
+                        let num_t: T = num.into();
+                        return Ok(Box::new(num_t.clone()));
+                    },
+                    _ => { }
+                }
+            }
+        }
+        Err(parser.new_custom_error(()))
+    }
+    #[inline]
+    fn parse_length<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> Result<Box<Any + Send>, ParseError<'a, ()>> {
+        {
+            let r = parser.next();
+            if r.is_ok() {
+                let token = r.unwrap();
+                match token {
+                    Token::Number {value, has_sign: _, int_value: _} => {
+                        let num: f32 = *value;
+                        let num_t: T = num.into();
+                        return Ok(Box::new(num_t.clone()));
+                    },
+                    Token::Dimension {value, unit, has_sign: _, int_value: _} => {
+                        let num: f32 = *value;
+                        let num_t: T = num.into();
+                        if unit.as_ref() == "px" {
+                            return Ok(Box::new(num_t.clone()));
+                        }
+                    },
+                    _ => { }
+                }
+            }
+        }
+        Err(parser.new_custom_error(()))
+    }
+    #[inline]
+    fn parse_color<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<Any + Send>, ParseError<'a, ()>> {
+        match Color::parse(parser) {
+            Ok(c) => {
+                match c {
+                    Color::RGBA(c) => {
+                        Ok(Box::new((c.red_f32(), c.green_f32(), c.blue_f32(), c.alpha_f32())))
+                    },
+                    _ => Err(parser.new_custom_error(()))
+                }
+            },
+            Err(_) => Err(parser.new_custom_error(()))
+        }
+    }
+    #[inline]
+    fn _parse_string_or_ident<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<Any + Send>, ParseError<'a, ()>> {
+        {
+            let r = parser.next();
+            if r.is_ok() {
+                let token = r.unwrap();
+                match token {
+                    Token::QuotedString(s) => {
+                        return Ok(Box::new(String::from(s.as_ref())));
+                    },
+                    Token::Ident(s) => {
+                        return Ok(Box::new(String::from(s.as_ref())));
+                    },
+                    _ => { }
+                }
+            }
+        }
+        Err(parser.new_custom_error(()))
+    }
+    #[inline]
+    fn parse_enum<'a, T: Clone + Send + Sync + Sized>(parser: &mut Parser<'a, '_>, mapping: &'static [(&'static str, T)]) -> Result<Box<Any + Send>, ParseError<'a, ()>> {
         {
             let r = parser.expect_ident();
             if r.is_ok() {
                 let value = r.unwrap();
                 for (s, t) in mapping {
                     if value == s {
-                        return Ok(Box::new(t.clone()));
+                        let t: T = (*t).clone();
+                        return Ok(Box::new(t));
                     }
                 }
             }
         }
         Err(parser.new_custom_error(()))
+    }
+    #[inline]
+    fn parse_font_family<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<Any + Send>, ParseError<'a, ()>> {
+        {
+            let mut ret = vec![];
+            let r = parser.parse_comma_separated(|parser| {
+                {
+                    let mut f = || {
+                        {
+                            let token = {
+                                let r = parser.next();
+                                if r.is_err() {
+                                    return Err(());
+                                }
+                                r.unwrap()
+                            };
+                            match token {
+                                Token::QuotedString(s) => {
+                                    ret.push(String::new() + "\"" + s + "\"");
+                                },
+                                Token::Ident(s) => {
+                                    ret.push(String::new() + "\"" + s + "\"");
+                                },
+                                _ => {
+                                    return Err(());
+                                }
+                            }
+                        }
+                        if !parser.is_exhausted() {
+                            return Err(());
+                        }
+                        Ok(())
+                    };
+                    f()
+                }.map_err(|_| {
+                    parser.new_custom_error(())
+                })
+            });
+            if r.is_ok() {
+                Ok(Box::new(ret.join(",")))
+            } else {
+                Err(r.unwrap_err())
+            }
+        }
     }
 
     pub fn query_declarations<'a>(&'a self, name: &String) -> Vec<Rc<ElementClass>> {
@@ -280,7 +418,7 @@ impl StyleSheetGroup {
             sheets: vec![]
         }
     }
-    pub fn append_style_sheet(&mut self, sheet: StyleSheet) {
+    pub fn append(&mut self, sheet: StyleSheet) {
         self.sheets.push(sheet);
     }
     pub fn query_declarations<'a>(&'a self, name: &String) -> Vec<Rc<ElementClass>> {
@@ -289,5 +427,79 @@ impl StyleSheetGroup {
             ret.append(&mut sheet.query_declarations(name))
         }
         ret
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::any::Any;
+    use super::{StyleSheet, StyleSheetGroup, StyleName};
+
+    #[test]
+    fn parse_css_text() {
+        let ss = StyleSheet::new_from_css("
+            .a {
+                display: block;
+                position: absolute;
+                left: 1px;
+                top: 2.3px;
+                width: 4px;
+                height: 5px;
+                font-family: \"宋体\", sans;
+                font-size: 6px;
+                line-height: 7px;
+                color: red;
+                background-color: #00ff00;
+                opacity: 0.8;
+            }
+        ");
+        let classes = ss.query_declarations(&String::from("a"));
+        let rules: Vec<&(StyleName, Box<Any + Send>)> = classes[0].iter_rules().collect();
+        assert_eq!(rules[0].0, StyleName::display);
+        assert_eq!(rules[0].1.downcast_ref::<super::DisplayType>().unwrap().clone(), super::DisplayType::Block);
+        assert_eq!(rules[1].0, StyleName::position);
+        assert_eq!(rules[1].1.downcast_ref::<super::PositionType>().unwrap().clone(), super::PositionType::Absolute);
+        assert_eq!(rules[2].0, StyleName::left);
+        assert_eq!(*rules[2].1.downcast_ref::<f64>().unwrap(), 1. as f32 as f64);
+        assert_eq!(rules[3].0, StyleName::top);
+        assert_eq!(*rules[3].1.downcast_ref::<f64>().unwrap(), 2.3 as f32 as f64);
+        assert_eq!(rules[4].0, StyleName::width);
+        assert_eq!(*rules[4].1.downcast_ref::<f64>().unwrap(), 4. as f32 as f64);
+        assert_eq!(rules[5].0, StyleName::height);
+        assert_eq!(*rules[5].1.downcast_ref::<f64>().unwrap(), 5. as f32 as f64);
+        assert_eq!(rules[6].0, StyleName::font_family);
+        assert_eq!(rules[6].1.downcast_ref::<String>().unwrap().clone(), "\"宋体\",\"sans\"");
+        assert_eq!(rules[7].0, StyleName::font_size);
+        assert_eq!(*rules[7].1.downcast_ref::<f32>().unwrap(), 6.);
+        assert_eq!(rules[8].0, StyleName::line_height);
+        assert_eq!(*rules[8].1.downcast_ref::<f32>().unwrap(), 7.);
+        assert_eq!(rules[9].0, StyleName::color);
+        assert_eq!(rules[9].1.downcast_ref::<(f32, f32, f32, f32)>().unwrap().clone(), (1., 0., 0., 1.));
+        assert_eq!(rules[10].0, StyleName::background_color);
+        assert_eq!(rules[10].1.downcast_ref::<(f32, f32, f32, f32)>().unwrap().clone(), (0., 1., 0., 1.));
+        assert_eq!(rules[11].0, StyleName::opacity);
+        assert_eq!(rules[11].1.downcast_ref::<f32>().unwrap().clone(), 0.8);
+    }
+    #[test]
+    fn query_declarations() {
+        let mut ssg = StyleSheetGroup::new();
+        let ss = StyleSheet::new_from_css("
+            .a {
+                position: absolute;
+                display: block;
+            }
+            .b { display: none }
+            .a { display: none }
+        ");
+        ssg.append(ss);
+        let ss = StyleSheet::new_from_css("
+            .a { left: 0 }
+        ");
+        ssg.append(ss);
+        let classes = ssg.query_declarations(&String::from("a"));
+        assert_eq!(classes.len(), 3);
+        assert_eq!(classes[0].iter_rules().next().unwrap().0, StyleName::position);
+        assert_eq!(classes[1].iter_rules().next().unwrap().0, StyleName::display);
+        assert_eq!(classes[2].iter_rules().next().unwrap().0, StyleName::left);
     }
 }

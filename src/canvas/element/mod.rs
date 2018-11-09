@@ -117,6 +117,11 @@ impl Element {
     }
 
     #[inline]
+    pub fn class(&self, class_names: String) {
+        let classes = self.canvas_config.query_classes(class_names);
+        self.style_mut().classes(classes);
+    }
+    #[inline]
     pub fn style(&self) -> Ref<ElementStyle> {
         self.style.borrow()
     }

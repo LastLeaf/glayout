@@ -1,7 +1,8 @@
 use std::any::Any;
+use std::slice::Iter;
 
 #[allow(non_camel_case_types)]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum StyleName {
     glayout_unrecognized = 0x00,
     id = 0x01,
@@ -24,6 +25,7 @@ pub enum StyleName {
     transform = 0x40,
 }
 
+#[derive(Default)]
 pub struct ElementClass {
     rules: Vec<(StyleName, Box<Any + Send>)>,
 }
@@ -46,6 +48,9 @@ impl ElementClass {
             None => { }
         }
         self.add_rule(name, value)
+    }
+    pub fn iter_rules(&self) -> Iter<(StyleName, Box<Any + Send>)> {
+        self.rules.iter()
     }
     pub fn from_style_text(&mut self, text: &str) {
         self.rules.truncate(0);

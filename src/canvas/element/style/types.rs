@@ -1,4 +1,4 @@
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DisplayType {
     None,
     Block,
@@ -7,7 +7,7 @@ pub enum DisplayType {
     Flex,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PositionType {
     Static,
     Relative,

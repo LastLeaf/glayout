@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::rc::Rc;
 use std::{f32, f64};
 use super::{Element, Transform};
@@ -15,7 +16,7 @@ pub const DEFAULT_F32: f32 = f32::INFINITY;
 
 pub struct ElementStyle {
     tree_node: Option<TreeNodeWeak<Element>>,
-    inline_class: ElementClass,
+    inline_class: Cell<ElementClass>,
     classes: Vec<Rc<ElementClass>>,
     id: String,
     display: DisplayType,
@@ -41,7 +42,7 @@ impl Default for ElementStyle {
     fn default() -> Self {
         ElementStyle {
             tree_node: None,
-            inline_class: ElementClass::new(),
+            inline_class: Cell::new(ElementClass::new()),
             classes: vec![],
             id: String::new(),
             display: DisplayType::Inline,
@@ -69,10 +70,6 @@ impl ElementStyle {
     pub fn new() -> Self {
         Self { ..Default::default() }
     }
-    pub fn apply_class(&mut self, c: &ElementClass) {
-        c.apply_to_style(self);
-        self.tree_node().elem().mark_dirty();
-    }
 }
 
 macro_rules! getter_setter {
@@ -82,8 +79,12 @@ macro_rules! getter_setter {
             self.$name.clone()
         }
         #[inline]
-        pub fn $setter(&mut self, val: $type) {
-            self.inline_class.replace_rule(StyleName::$name, Box::new(val.clone()));
+        pub fn $name(&mut self, val: $type) {
+            self.inline_class.get_mut().replace_rule(StyleName::$name, Box::new(val.clone()));
+            self.$setter(val);
+        }
+        #[inline]
+        pub(self) fn $setter(&mut self, val: $type) {
             self.$name = val;
         }
     }
@@ -95,10 +96,14 @@ macro_rules! getter_setter_dirty {
             self.$name.clone()
         }
         #[inline]
-        pub fn $setter(&mut self, val: $type) {
+        pub fn $name(&mut self, val: $type) {
             if self.$name == val { return }
+            self.inline_class.get_mut().replace_rule(StyleName::$name, Box::new(val.clone()));
+            self.$setter(val);
+        }
+        #[inline]
+        pub(self) fn $setter(&mut self, val: $type) {
             self.tree_node().elem().mark_dirty();
-            self.inline_class.replace_rule(StyleName::$name, Box::new(val.clone()));
             self.$name = val;
         }
     }
@@ -110,7 +115,12 @@ macro_rules! getter_setter_inherit_dirty {
             self.$name.clone()
         }
         #[inline]
-        pub fn $setter(&mut self, val: $type) {
+        pub fn $name(&mut self, val: $type) {
+            self.inline_class.get_mut().replace_rule(StyleName::$name, Box::new(val.clone()));
+            self.$setter(val);
+        }
+        #[inline]
+        pub(self) fn $setter(&mut self, val: $type) {
             self.$inherit_name = false;
             self.$dfs_setter(val);
         }
@@ -118,7 +128,6 @@ macro_rules! getter_setter_inherit_dirty {
             if self.$name == val { return }
             let tree_node = self.tree_node();
             tree_node.elem().mark_dirty();
-            self.inline_class.replace_rule(StyleName::$name, Box::new(val.clone()));
             self.$name = val.clone();
             for child in tree_node.iter_children() {
                 let mut style = child.elem().style_mut();
@@ -150,21 +159,21 @@ macro_rules! update_inherit {
 }
 
 impl ElementStyle {
-    getter_setter!(id, get_id, id, String);
-    getter_setter_dirty!(display, get_display, display, DisplayType);
-    getter_setter_dirty!(position, get_position, position, PositionType);
-    getter_setter_dirty!(left, get_left, left, f64);
-    getter_setter_dirty!(top, get_top, top, f64);
-    getter_setter_dirty!(width, get_width, width, f64);
-    getter_setter_dirty!(height, get_height, height, f64);
-    getter_setter_inherit_dirty!(font_family, get_font_family, font_family, inherit_font_family, get_inherit_font_family, inherit_font_family, String);
-    getter_setter_inherit_dirty!(font_size, get_font_size, font_size, inherit_font_size, get_inherit_font_size, inherit_font_size, f32);
-    getter_setter_inherit_dirty!(line_height, get_line_height, line_height, inherit_line_height, get_inherit_line_height, inherit_line_height, f32);
+    getter_setter!(id, get_id, set_id, String);
+    getter_setter_dirty!(display, get_display, set_display, DisplayType);
+    getter_setter_dirty!(position, get_position, set_position, PositionType);
+    getter_setter_dirty!(left, get_left, set_left, f64);
+    getter_setter_dirty!(top, get_top, set_top, f64);
+    getter_setter_dirty!(width, get_width, set_width, f64);
+    getter_setter_dirty!(height, get_height, set_height, f64);
+    getter_setter_inherit_dirty!(font_family, get_font_family, set_font_family, inherit_font_family, get_inherit_font_family, inherit_font_family, String);
+    getter_setter_inherit_dirty!(font_size, get_font_size, set_font_size, inherit_font_size, get_inherit_font_size, inherit_font_size, f32);
+    getter_setter_inherit_dirty!(line_height, get_line_height, set_line_height, inherit_line_height, get_inherit_line_height, inherit_line_height, f32);
     // FIXME changing color does not need mark dirty
-    getter_setter_inherit_dirty!(color, get_color, color, inherit_color, get_inherit_color, inherit_color, (f32, f32, f32, f32));
-    getter_setter!(background_color, get_background_color, background_color, (f32, f32, f32, f32));
-    getter_setter!(opacity, get_opacity, opacity, f32);
-    getter_setter!(transform, get_transform, transform, Transform);
+    getter_setter_inherit_dirty!(color, get_color, set_color, inherit_color, get_inherit_color, inherit_color, (f32, f32, f32, f32));
+    getter_setter!(background_color, get_background_color, set_background_color, (f32, f32, f32, f32));
+    getter_setter!(opacity, get_opacity, set_opacity, f32);
+    getter_setter!(transform, get_transform, set_transform, Transform);
 
     fn update_inherit(&mut self, parent_node: Option<TreeNodeRc<Element>>) {
         update_inherit!(self, parent_node, font_family, inherit_font_family, inherit_font_family, String::from("sans-serif"));
@@ -180,10 +189,16 @@ impl ElementStyle {
         self.reload_classes();
     }
     fn reload_classes(&mut self) {
-        let cs = self.classes.clone();
-        for c in cs {
-            c.apply_to_style(self);
+        // FIXME if there is a class removed, here is no reset
+        {
+            let cs = self.classes.clone();
+            for c in cs {
+                c.apply_to_style(self);
+            }
         }
+        let c = self.inline_class.take();
+        c.apply_to_style(self);
+        self.inline_class.set(c);
     }
 }
 

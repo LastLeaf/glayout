@@ -2,6 +2,7 @@ use std::rc::Rc;
 use std::cell::{Cell, RefCell};
 use super::character::CharacterManager;
 use super::resource::ResourceManager;
+use super::element::style::{StyleSheetGroup, StyleSheet, ElementClass};
 
 pub struct CanvasConfig {
     pub index: i32,
@@ -13,6 +14,7 @@ pub struct CanvasConfig {
     clear_color: Cell<(f32, f32, f32, f32)>,
     resource_manager: Rc<RefCell<ResourceManager>>,
     character_manager: Rc<RefCell<CharacterManager>>,
+    style_sheet_group: RefCell<StyleSheetGroup>,
 }
 
 impl CanvasConfig {
@@ -28,6 +30,7 @@ impl CanvasConfig {
             clear_color: Cell::new((1., 1., 1., 0.)),
             resource_manager: resource_manager.clone(),
             character_manager: Rc::new(RefCell::new(CharacterManager::new(index, resource_manager))),
+            style_sheet_group: RefCell::new(StyleSheetGroup::new()),
         }
     }
 
@@ -47,5 +50,15 @@ impl CanvasConfig {
     #[inline]
     pub fn resource_manager(&self) -> Rc<RefCell<ResourceManager>> {
         self.resource_manager.clone()
+    }
+
+    #[inline]
+    pub fn append_style_sheet(&self, css_text: &str) {
+        let ss = StyleSheet::new_from_css(css_text);
+        self.style_sheet_group.borrow_mut().append(ss);
+    }
+    #[inline]
+    pub fn query_classes(&self, names: String) -> Vec<Rc<ElementClass>> {
+
     }
 }
