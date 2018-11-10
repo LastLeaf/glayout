@@ -1,6 +1,6 @@
 use glayout;
 use glayout::canvas::element::{Element, Empty, Image, Text};
-use glayout::canvas::element::style::{StyleName, ElementClass, DisplayType, PositionType};
+use glayout::canvas::element::style::{DisplayType};
 use utils::PretendSend;
 use std::time;
 
@@ -11,19 +11,15 @@ pub fn init() {
         context.set_canvas_size(800, 600, pixel_ratio);
         context.set_clear_color(0.5, 1., 0.5, 1.);
 
-        let base_class = element_class! {
-            position: PositionType::Absolute;
-        };
-
         let elem = {
             let cfg = context.canvas_config();
             cfg.append_style_sheet("
-                .a { position: absolute }
+                .abs { position: absolute }
             ");
             let elem = element!(&cfg, Empty {
                 font_family: "serif, 宋体";
                 Empty {
-                    class: "a";
+                    class: "abs";
                     left: 500.;
                     top: 100.;
                     width: 100.;
@@ -31,7 +27,7 @@ pub fn init() {
                     background_color: (1., 0.5, 0.5, 1.);
                 };
                 Text {
-                    class: "a";
+                    class: "abs";
                     left: 10.;
                     top: 10.;
                     width: 50.;

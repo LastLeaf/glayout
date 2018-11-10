@@ -396,7 +396,7 @@ impl StyleSheet {
         }
     }
 
-    pub fn query_declarations<'a>(&'a self, name: &String) -> Vec<Rc<ElementClass>> {
+    pub fn query_declarations<'a>(&'a self, name: &str) -> Vec<Rc<ElementClass>> {
         match self.class_name_map.get(name) {
             None => vec![],
             Some(x) => {
@@ -421,7 +421,7 @@ impl StyleSheetGroup {
     pub fn append(&mut self, sheet: StyleSheet) {
         self.sheets.push(sheet);
     }
-    pub fn query_declarations<'a>(&'a self, name: &String) -> Vec<Rc<ElementClass>> {
+    pub fn query_declarations<'a>(&'a self, name: &str) -> Vec<Rc<ElementClass>> {
         let mut ret = vec![];
         for sheet in self.sheets.iter() {
             ret.append(&mut sheet.query_declarations(name))
@@ -453,7 +453,7 @@ mod test {
                 opacity: 0.8;
             }
         ");
-        let classes = ss.query_declarations(&String::from("a"));
+        let classes = ss.query_declarations("a");
         let rules: Vec<&(StyleName, Box<Any + Send>)> = classes[0].iter_rules().collect();
         assert_eq!(rules[0].0, StyleName::display);
         assert_eq!(rules[0].1.downcast_ref::<super::DisplayType>().unwrap().clone(), super::DisplayType::Block);
@@ -496,7 +496,7 @@ mod test {
             .a { left: 0 }
         ");
         ssg.append(ss);
-        let classes = ssg.query_declarations(&String::from("a"));
+        let classes = ssg.query_declarations("a");
         assert_eq!(classes.len(), 3);
         assert_eq!(classes[0].iter_rules().next().unwrap().0, StyleName::position);
         assert_eq!(classes[1].iter_rules().next().unwrap().0, StyleName::display);

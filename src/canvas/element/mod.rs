@@ -382,6 +382,11 @@ macro_rules! __element_children {
         $v.elem().add_event_listener(String::from($k), Rc::new(RefCell::new($a)));
         __element_children! ($cfg, $v, $t, $($r)*);
     };
+    ($cfg:expr, $v:ident, $t:ident, class: $a:expr; $($r:tt)*) => {
+        // inline styles
+        $v.elem().class($a.into());
+        __element_children! ($cfg, $v, $t, $($r)*);
+    };
     ($cfg:expr, $v:ident, $t:ident, $k:ident : $a:expr; $($r:tt)*) => {
         // inline styles
         $v.elem().style_mut().$k($a.into());
