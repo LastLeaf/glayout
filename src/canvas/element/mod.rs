@@ -130,12 +130,8 @@ impl Element {
         self.style.borrow_mut()
     }
     #[inline]
-    pub fn position_offset(&self) -> Ref<PositionOffset> {
+    pub(crate) fn position_offset(&self) -> Ref<PositionOffset> {
         self.position_offset.borrow()
-    }
-    #[inline]
-    pub fn position_offset_mut(&self) -> RefMut<PositionOffset> {
-        self.position_offset.borrow_mut()
     }
 
     #[inline]
@@ -148,7 +144,7 @@ impl Element {
     }
 
     #[inline]
-    pub fn mark_dirty(&self) {
+    pub(crate) fn mark_dirty(&self) {
         if self.dirty.replace(true) { return; }
         let tn = self.tree_node.replace(None);
         match tn.as_ref().unwrap().upgrade().unwrap().parent() {
@@ -160,11 +156,11 @@ impl Element {
         self.tree_node.replace(tn);
     }
     #[inline]
-    pub fn clear_dirty(&self) -> bool {
+    pub(crate) fn clear_dirty(&self) -> bool {
         self.dirty.replace(false)
     }
     #[inline]
-    pub fn is_dirty(&self) -> bool {
+    pub(crate) fn is_dirty(&self) -> bool {
         self.dirty.get()
     }
     fn spread_dirty(&self) {
@@ -199,27 +195,27 @@ impl Element {
         });
     }
     #[inline]
-    pub fn requested_size(&self) -> (f64, f64) {
+    pub(crate) fn requested_size(&self) -> (f64, f64) {
         self.position_offset.borrow().requested_size()
     }
     #[inline]
-    pub fn suggest_size(&self, suggested_size: (f64, f64), inline_position_status: &mut InlinePositionStatus) -> (f64, f64) {
+    pub(crate) fn suggest_size(&self, suggested_size: (f64, f64), inline_position_status: &mut InlinePositionStatus) -> (f64, f64) {
         let is_dirty = self.is_dirty();
         self.position_offset.borrow_mut().suggest_size(is_dirty, suggested_size, inline_position_status, self)
     }
     #[inline]
-    pub fn allocate_position(&self, pos: (f64, f64, f64, f64)) -> (f64, f64, f64, f64) {
+    pub(crate) fn allocate_position(&self, pos: (f64, f64, f64, f64)) -> (f64, f64, f64, f64) {
         let is_dirty = self.clear_dirty();
         self.position_offset.borrow_mut().allocate_position(is_dirty, pos, self)
     }
     #[inline]
-    pub fn dfs_update_position_offset(&self, suggested_size: (f64, f64)) {
+    pub(crate) fn dfs_update_position_offset(&self, suggested_size: (f64, f64)) {
         self.spread_dirty();
         let requested_size = self.suggest_size(suggested_size, &mut InlinePositionStatus::new(suggested_size.0));
         self.allocate_position((0., 0., suggested_size.0, requested_size.1));
     }
 
-    pub fn draw(&self, viewport: (f64, f64, f64, f64), mut transform: Transform) {
+    pub(crate) fn draw(&self, viewport: (f64, f64, f64, f64), mut transform: Transform) {
         let style = self.style();
         if style.get_display() == style::DisplayType::None { return }
         let position_offset = self.position_offset();
@@ -297,7 +293,7 @@ impl Element {
         }
     }
     #[inline]
-    pub fn enable_draw_separate_tex(&self) {
+    pub(crate) fn enable_draw_separate_tex(&self) {
         if self.draw_separate_tex.get() != -1 { return };
         let rm = self.canvas_config.resource_manager();
         let tex_id = rm.borrow_mut().alloc_tex_id();
@@ -305,7 +301,7 @@ impl Element {
         self.draw_separate_tex.set(tex_id);
     }
     #[inline]
-    pub fn disable_draw_separate_tex(&self) {
+    pub(crate) fn disable_draw_separate_tex(&self) {
         if self.draw_separate_tex.get() == -1 { return };
         let tex_id = self.draw_separate_tex.replace(-1);
         let rm = self.canvas_config.resource_manager();

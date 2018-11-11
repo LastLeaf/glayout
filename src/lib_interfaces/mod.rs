@@ -8,12 +8,12 @@ use super::utils;
 #[cfg(any(target_arch = "asmjs", target_arch = "wasm32"))]
 mod asmjs;
 #[cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))]
-mod native;
+mod asmjs;
 
 #[cfg(any(target_arch = "asmjs", target_arch = "wasm32"))]
 pub use self::asmjs::*;
 #[cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))]
-pub use self::native::*;
+pub use self::asmjs::*;
 
 lazy_static! {
     static ref SWAP_BUFFER_SIZE: utils::PretendSend<Cell<usize>> = utils::PretendSend::new(Cell::new(4096));
@@ -33,7 +33,7 @@ macro_rules! lib {
 #[macro_export]
 macro_rules! lib {
     ($x:ident($($y:expr),*)) => {
-        $crate::lib_interfaces::$x($($y),*)
+        unsafe { $crate::lib_interfaces::$x($($y),*) }
     }
 }
 
