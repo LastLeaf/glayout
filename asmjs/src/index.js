@@ -1,7 +1,8 @@
 import { createBackgroundCanvas } from './webgl/canvas_store'
+import * as externInterfaces from './extern_interfaces'
 
 export * from './webgl/index'
-export * as extern from './extern_interfaces'
+export const extern = externInterfaces
 
 let animationFrameEnabled = false
 let animationFrameScheduled = false

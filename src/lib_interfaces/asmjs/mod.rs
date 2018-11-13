@@ -4,7 +4,7 @@ use std::os::raw::c_char;
 use std::time;
 use super::Callback;
 
-mod extern_js;
+pub mod extern_js;
 
 extern {
     fn emscripten_exit_with_live_runtime();

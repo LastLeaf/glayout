@@ -28,6 +28,9 @@ module.exports = [{
       }
     }]
   },
+  optimization:{
+    minimize: false
+  },
   plugins: [],
   cache: {}
 }, {
@@ -54,7 +57,7 @@ module.exports = [{
       }
     }]
   },
-  plugins: [
-    new UglifyJSPlugin()
-  ]
+  optimization:{
+    minimize: true
+  },
 }]
