@@ -1,6 +1,7 @@
 import { createBackgroundCanvas } from './webgl/canvas_store'
 
 export * from './webgl/index'
+export * as extern from './extern_interfaces'
 
 let animationFrameEnabled = false
 let animationFrameScheduled = false

@@ -4,6 +4,7 @@ var execFile = require('child_process').execFile
 var gulp = require('gulp')
 var concat = require('gulp-concat')
 var sourcemaps = require('gulp-sourcemaps')
+var footer = require('gulp-footer')
 var webpack = require('webpack')
 
 var libCompilerConfig = require('./asmjs/webpack.config')
@@ -104,6 +105,7 @@ gulp.task('compile-asm-release', ['generate-lib-interfaces-release'], function(c
 gulp.task('build-release', ['compile-asm-release'], function(cb) {
   return gulp.src(['./asmjs/bin/glayout-lib.min.js', './target/asmjs-unknown-emscripten/release/glayout-main.js'])
     .pipe(concat('glayout.min.js'))
+    .pipe(footer(';window.glayout=__glayoutLib__.extern;'))
     .pipe(gulp.dest('./bin/'))
 })
 
@@ -112,6 +114,7 @@ gulp.task('build-debug-with-sourcemap', ['compile-asm-debug'], function(cb) {
     .pipe(sourcemaps.init({loadMaps: true}))
     .pipe(concat('glayout.js'))
     .pipe(convertSourceMapPath())
+    .pipe(footer(';window.glayout=__glayoutLib__.extern;'))
     .pipe(sourcemaps.write('.', {includeContent: true}))
     .pipe(gulp.dest('./bin/'))
 })
@@ -121,6 +124,7 @@ gulp.task('build-debug', ['compile-asm-debug'], function(cb) {
     .pipe(sourcemaps.init({loadMaps: true}))
     .pipe(concat('glayout.js'))
     .pipe(convertSourceMapPath())
+    .pipe(footer(';window.glayout=__glayoutLib__.extern;'))
     .pipe(sourcemaps.write('.', {includeContent: false, sourceRoot: '..'}))
     .pipe(gulp.dest('./bin/'))
 })

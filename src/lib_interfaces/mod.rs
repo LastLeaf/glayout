@@ -8,16 +8,16 @@ use super::utils;
 #[cfg(any(target_arch = "asmjs", target_arch = "wasm32"))]
 mod asmjs;
 #[cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))]
-mod asmjs;
+mod native;
 
 #[cfg(any(target_arch = "asmjs", target_arch = "wasm32"))]
 pub use self::asmjs::*;
 #[cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))]
-pub use self::asmjs::*;
+pub use self::native::*;
 
 lazy_static! {
-    static ref SWAP_BUFFER_SIZE: utils::PretendSend<Cell<usize>> = utils::PretendSend::new(Cell::new(4096));
-    static ref SWAP_BUFFER: utils::PretendSend<Cell<*mut [u8]>> = utils::PretendSend::new(Cell::new(Box::into_raw(Box::new([0 as u8; 4096]))));
+    static ref SWAP_BUFFER_SIZE: utils::PretendSend<Cell<usize>> = utils::PretendSend::new(Cell::new(65536));
+    static ref SWAP_BUFFER: utils::PretendSend<Cell<*mut [u8]>> = utils::PretendSend::new(Cell::new(Box::into_raw(Box::new([0 as u8; 65536]))));
 }
 
 #[cfg(any(target_arch = "asmjs", target_arch = "wasm32"))]
@@ -33,7 +33,7 @@ macro_rules! lib {
 #[macro_export]
 macro_rules! lib {
     ($x:ident($($y:expr),*)) => {
-        unsafe { $crate::lib_interfaces::$x($($y),*) }
+        $crate::lib_interfaces::$x($($y),*)
     }
 }
 

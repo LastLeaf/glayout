@@ -117,7 +117,7 @@ impl Element {
     }
 
     #[inline]
-    pub fn class(&self, class_names: String) {
+    pub fn class(&self, class_names: &str) {
         let classes = self.canvas_config.query_classes(class_names);
         self.style_mut().classes(classes);
     }
@@ -128,6 +128,10 @@ impl Element {
     #[inline]
     pub fn style_mut(&self) -> RefMut<ElementStyle> {
         self.style.borrow_mut()
+    }
+    #[inline]
+    pub fn style_inline_text(&self, text: &str) {
+        self.style.borrow_mut().inline_text(text)
     }
     #[inline]
     pub(crate) fn position_offset(&self) -> Ref<PositionOffset> {

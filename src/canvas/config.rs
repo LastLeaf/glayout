@@ -58,9 +58,9 @@ impl CanvasConfig {
         self.style_sheet_group.borrow_mut().append(ss);
     }
     #[inline]
-    pub fn query_classes(&self, names: String) -> Vec<Rc<ElementClass>> {
+    pub fn query_classes(&self, class_names: &str) -> Vec<Rc<ElementClass>> {
         let mut ret = vec![];
-        for s in names.as_str().split_whitespace() {
+        for s in class_names.split_whitespace() {
             let mut v = self.style_sheet_group.borrow().query_declarations(s);
             ret.append(&mut v);
         }

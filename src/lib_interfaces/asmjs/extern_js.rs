@@ -1,7 +1,9 @@
+use std::ffi::CStr;
+use std::os::raw::c_char;
 use std::rc::Rc;
 use std::cell::RefCell;
-use super::super::super::tree::{TreeNodeRc, TreeElem};
-use super::super::super::canvas::{Canvas, CanvasContext, CanvasConfig};
+use super::super::super::tree::{TreeNodeRc};
+use super::super::super::canvas::{Canvas, CanvasContext};
 use super::super::super::canvas::element::{Element, Empty, Text, Image};
 
 // canvas
@@ -75,16 +77,71 @@ pub extern "C" fn element_new(context: *const RefCell<CanvasContext>, elem_type:
     };
     Box::into_raw(elem)
 }
-pub extern "C" fn element_parent() {}
-pub extern "C" fn element_child() {}
-pub extern "C" fn element_append() {}
-pub extern "C" fn element_insert() {}
-pub extern "C" fn element_remove() {}
-pub extern "C" fn element_add_event_listener() {}
-pub extern "C" fn element_remove_event_listener() {}
-pub extern "C" fn element_dispatch_event() {}
-pub extern "C" fn element_class() {}
-pub extern "C" fn element_style() {}
+pub extern "C" fn element_parent(node_pointer: *mut TreeNodeRc<Element>) -> *mut TreeNodeRc<Element> {
+    let node = node_from_pointer(node_pointer);
+    let parent = node.parent();
+    match parent {
+        Some(p) => Box::into_raw(Box::new(p)),
+        None => 0 as *mut TreeNodeRc<Element>
+    }
+}
+pub extern "C" fn element_child(node_pointer: *mut TreeNodeRc<Element>, index: i32) -> *mut TreeNodeRc<Element> {
+    let node = node_from_pointer(node_pointer);
+    let index = index as usize;
+    if index >= node.len() {
+        0 as *mut TreeNodeRc<Element>
+    } else {
+        Box::into_raw(Box::new(node.child(index)))
+    }
+}
+pub extern "C" fn element_append(node_pointer: *mut TreeNodeRc<Element>, child_node_pointer: *mut TreeNodeRc<Element>) {
+    let mut node = node_from_pointer(node_pointer);
+    let child = node_from_pointer(child_node_pointer);
+    node.append(child);
+}
+pub extern "C" fn element_insert(node_pointer: *mut TreeNodeRc<Element>, child_node_pointer: *mut TreeNodeRc<Element>, pos: i32) {
+    let mut node = node_from_pointer(node_pointer);
+    let child = node_from_pointer(child_node_pointer);
+    let pos = pos as usize;
+    node.insert(child, pos);
+}
+pub extern "C" fn element_remove(node_pointer: *mut TreeNodeRc<Element>, pos: i32) {
+    let mut node = node_from_pointer(node_pointer);
+    node.remove(pos as usize);
+}
+pub extern "C" fn element_node_under_point(node_pointer: *mut TreeNodeRc<Element>, x: f64, y: f64) -> *mut TreeNodeRc<Element> {
+    let node = node_from_pointer(node_pointer);
+    let ret = node.elem().node_under_point((x, y));
+    match ret {
+        Some(ret) => Box::into_raw(Box::new(ret)),
+        None => 0 as *mut TreeNodeRc<Element>
+    }
+}
 
-pub extern "C" fn text_element_set_text() {}
-pub extern "C" fn image_element_load() {}
+#[inline]
+fn str_from_c_char_ptr<'a>(ptr: *mut c_char) -> &'a str {
+    let c_str: &CStr = unsafe { CStr::from_ptr(ptr) };
+    c_str.to_str().unwrap()
+}
+#[inline]
+fn string_from_c_char_ptr(ptr: *mut c_char) -> String {
+    let c_str: &CStr = unsafe { CStr::from_ptr(ptr) };
+    c_str.to_str().unwrap().to_owned()
+}
+pub extern "C" fn element_class(node_pointer: *mut TreeNodeRc<Element>, class_names: *mut c_char) {
+    let node = node_from_pointer(node_pointer);
+    node.elem().class(str_from_c_char_ptr(class_names));
+}
+pub extern "C" fn element_style(node_pointer: *mut TreeNodeRc<Element>, style_text: *mut c_char) {
+    let node = node_from_pointer(node_pointer);
+    node.elem().style_inline_text(str_from_c_char_ptr(style_text));
+}
+pub extern "C" fn text_element_set_text(node_pointer: *mut TreeNodeRc<Element>, text: *mut c_char) {
+    let node = node_from_pointer(node_pointer);
+    node.elem().content_mut().downcast_mut::<Text>().unwrap().set_text(string_from_c_char_ptr(text));
+}
+pub extern "C" fn image_element_load(node_pointer: *mut TreeNodeRc<Element>, url: *mut c_char) {
+    let node = node_from_pointer(node_pointer);
+    // FIXME image loader reuse
+    node.elem().content_mut().downcast_mut::<Image>().unwrap().load(string_from_c_char_ptr(url));
+}

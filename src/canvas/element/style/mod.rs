@@ -200,6 +200,11 @@ impl ElementStyle {
         c.apply_to_style(self);
         self.inline_class.set(c);
     }
+    pub(super) fn inline_text(&mut self, text: &str) {
+        let mut c = ElementClass::new();
+        StyleSheet::parse_inline_style(&mut c, text);
+        self.inline_class.set(c);
+    }
 }
 
 impl ElementStyle {
