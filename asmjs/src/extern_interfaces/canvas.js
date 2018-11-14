@@ -1,4 +1,5 @@
 import {Element} from './element'
+import {STR_BUF_LEN} from './index'
 
 export class Canvas {
   constructor(index) {
@@ -21,6 +22,11 @@ export class CanvasContext {
   }
   setClearColor(r, g, b, a) {
     __glayoutAsm__._canvas_context_set_clear_color(this._ptr, r, g, b, a)
+  }
+  appendStyleSheet(styleText) {
+    const bufAddr = __glayoutAsm__._get_swap_buffer(STR_BUF_LEN)
+    __glayoutAsm__.stringToUTF8(styleText, bufAddr, STR_BUF_LEN)
+    __glayoutAsm__._canvas_context_append_style_sheet(this._ptr, bufAddr)
   }
   getRootNode() {
     return Element._from_ptr(__glayoutAsm__._canvas_context_root(this._ptr))

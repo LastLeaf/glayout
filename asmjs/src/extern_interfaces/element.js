@@ -1,6 +1,4 @@
-import {ELEMENT_TYPE_MAP} from './index'
-
-const STR_BUF_LEN = 1024 * 1024
+import {ELEMENT_TYPE_MAP, STR_BUF_LEN} from './index'
 
 export class Element {
   static _create(context, name) {
@@ -10,6 +8,7 @@ export class Element {
     return ret
   }
   static _from_ptr(ptr) {
+    if (ptr === 0) return null
     let ret = new Element()
     ret._ptr = ptr
     return ret
@@ -25,13 +24,13 @@ export class Element {
     return Element._from_ptr(__glayoutAsm__._element_child(this._ptr, index))
   }
   appendChild(child) {
-    Element._from_ptr(__glayoutAsm__._element_child(this._ptr, child._ptr))
+    Element._from_ptr(__glayoutAsm__._element_append(this._ptr, child._ptr))
   }
   insertChild(child, index) {
-    Element._from_ptr(__glayoutAsm__._element_child(this._ptr, child._ptr, index))
+    Element._from_ptr(__glayoutAsm__._element_insert(this._ptr, child._ptr, index))
   }
   removeChild(index) {
-    Element._from_ptr(__glayoutAsm__._element_child(this._ptr, index))
+    Element._from_ptr(__glayoutAsm__._element_remove(this._ptr, index))
   }
   node_under_point(x, y) {
     return Element._from_ptr(__glayoutAsm__._element_node_under_point(this._ptr, x, y))

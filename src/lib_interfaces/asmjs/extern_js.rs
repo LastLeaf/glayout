@@ -43,6 +43,12 @@ pub extern "C" fn canvas_context_set_clear_color(context: *const RefCell<CanvasC
     ctx.borrow_mut().set_clear_color(r, g, b, a);
 }
 #[no_mangle]
+pub extern "C" fn canvas_context_append_style_sheet(context: *const RefCell<CanvasContext>, style_text: *mut c_char) {
+    let ctx = canvas_context_from_pointer(context);
+    let mut ctx = ctx.borrow_mut();
+    ctx.canvas_config().append_style_sheet(str_from_c_char_ptr(style_text));
+}
+#[no_mangle]
 pub extern "C" fn canvas_context_root(context: *const RefCell<CanvasContext>) -> *mut TreeNodeRc<Element> {
     let ctx = canvas_context_from_pointer(context);
     let mut ctx = ctx.borrow_mut();

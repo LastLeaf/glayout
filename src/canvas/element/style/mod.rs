@@ -204,6 +204,7 @@ impl ElementStyle {
         let mut c = ElementClass::new();
         StyleSheet::parse_inline_style(&mut c, text);
         self.inline_class.set(c);
+        self.reload_classes();
     }
 }
 
