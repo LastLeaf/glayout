@@ -30,7 +30,10 @@ export class Element {
     Element._from_ptr(__glayoutAsm__._element_insert(this._ptr, child._ptr, index))
   }
   removeChild(index) {
-    Element._from_ptr(__glayoutAsm__._element_remove(this._ptr, index))
+    __glayoutAsm__._element_remove(this._ptr, index)
+  }
+  replaceChild(child, index) {
+    __glayoutAsm__._element_replace(this._ptr, child._ptr, index)
   }
   node_under_point(x, y) {
     return Element._from_ptr(__glayoutAsm__._element_node_under_point(this._ptr, x, y))

@@ -129,6 +129,13 @@ pub extern "C" fn element_remove(node_pointer: *mut TreeNodeRc<Element>, pos: i3
     node.remove(pos as usize);
 }
 #[no_mangle]
+pub extern "C" fn element_replace(node_pointer: *mut TreeNodeRc<Element>, child_node_pointer: *mut TreeNodeRc<Element>, pos: i32) {
+    let mut node = node_from_pointer(node_pointer);
+    let child = node_from_pointer(child_node_pointer);
+    let pos = pos as usize;
+    node.replace(child, pos);
+}
+#[no_mangle]
 pub extern "C" fn element_node_under_point(node_pointer: *mut TreeNodeRc<Element>, x: f64, y: f64) -> *mut TreeNodeRc<Element> {
     let node = node_from_pointer(node_pointer);
     let ret = node.elem().node_under_point((x, y));

@@ -179,6 +179,15 @@ impl<T: TreeElem> TreeNodeRc<T> {
         child.elem().parent_node_changed(None);
         child
     }
+    pub fn replace(&mut self, new_child: TreeNodeRc<T>, position: usize) -> TreeNodeRc<T> {
+        let mut children = self.rc.children.borrow_mut();
+        let child = children[position].clone();
+        children[position] = new_child.clone();
+        child.rc.parent.set(None);
+        child.elem().parent_node_changed(None);
+        new_child.elem().parent_node_changed(Some(self.clone()));
+        child
+    }
 
     // iterator generators
     pub fn iter_children(&self) -> TreeNodeIter<T> {
