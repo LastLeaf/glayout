@@ -114,9 +114,21 @@ impl<T: TreeElem> TreeNodeRc<T> {
             weak: Rc::downgrade(&self.rc)
         }
     }
-    pub fn release_memory(&mut self) {
+    pub fn shrink_memory(&mut self) {
         let mut children = self.rc.children.borrow_mut();
         children.shrink_to_fit()
+    }
+    pub fn into_ptr(n: Self) -> *const TreeNode<T> {
+        Rc::into_raw(n.rc)
+    }
+    pub unsafe fn from_ptr(ptr: *const TreeNode<T>, need_clone: bool) -> Self {
+        let rc = Rc::from_raw(ptr);
+        if need_clone {
+            Rc::into_raw(rc.clone());
+        }
+        Self {
+            rc
+        }
     }
 
     // content operators

@@ -2,7 +2,7 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::rc::Rc;
 use std::cell::RefCell;
-use super::super::super::tree::{TreeNodeRc};
+use super::super::super::tree::{TreeNodeRc, TreeNode};
 use super::super::super::canvas::{Canvas, CanvasContext};
 use super::super::super::canvas::element::{Element, Empty, Text, Image};
 
@@ -49,21 +49,19 @@ pub extern "C" fn canvas_context_append_style_sheet(context: *const RefCell<Canv
     ctx.canvas_config().append_style_sheet(str_from_c_char_ptr(style_text));
 }
 #[no_mangle]
-pub extern "C" fn canvas_context_root(context: *const RefCell<CanvasContext>) -> *mut TreeNodeRc<Element> {
+pub extern "C" fn canvas_context_root(context: *const RefCell<CanvasContext>) -> *const TreeNode<Element> {
     let ctx = canvas_context_from_pointer(context);
     let mut ctx = ctx.borrow_mut();
-    Box::into_raw(Box::new(ctx.root().clone()))
+    TreeNodeRc::into_ptr(ctx.root().clone())
 }
 #[no_mangle]
-pub extern "C" fn release_node(node_pointer: *mut TreeNodeRc<Element>) {
-    unsafe { Box::from_raw(node_pointer) };
+pub extern "C" fn release_node(node_pointer: *const TreeNode<Element>) {
+    unsafe { TreeNodeRc::from_ptr(node_pointer, false) };
 }
 
 #[inline]
-fn node_from_pointer(node_pointer: *mut TreeNodeRc<Element>) -> TreeNodeRc<Element> {
-    let node = unsafe { Box::from_raw(node_pointer) };
-    let ret = (*node).clone();
-    Box::into_raw(node);
+fn node_from_pointer(node_pointer: *const TreeNode<Element>) -> TreeNodeRc<Element> {
+    let ret = unsafe { TreeNodeRc::from_ptr(node_pointer, true) };
     ret
 }
 pub enum ElementType {
@@ -72,7 +70,7 @@ pub enum ElementType {
     Image = 2,
 }
 #[no_mangle]
-pub extern "C" fn element_new(context: *const RefCell<CanvasContext>, elem_type: ElementType) -> *mut TreeNodeRc<Element> {
+pub extern "C" fn element_new(context: *const RefCell<CanvasContext>, elem_type: ElementType) -> *const TreeNode<Element> {
     let ctx = canvas_context_from_pointer(context);
     let mut ctx = ctx.borrow_mut();
     let cfg = ctx.canvas_config();
@@ -80,7 +78,7 @@ pub extern "C" fn element_new(context: *const RefCell<CanvasContext>, elem_type:
         ($t: tt) => {
             {
                 let mut temp_content = Box::new($t::new(&cfg));
-                Box::new(TreeNodeRc::new(Element::new(&cfg, temp_content)))
+                TreeNodeRc::new(Element::new(&cfg, temp_content))
             }
         }
     }
@@ -89,59 +87,59 @@ pub extern "C" fn element_new(context: *const RefCell<CanvasContext>, elem_type:
         ElementType::Text => create_element!(Text),
         ElementType::Image => create_element!(Image),
     };
-    Box::into_raw(elem)
+    TreeNodeRc::into_ptr(elem)
 }
 #[no_mangle]
-pub extern "C" fn element_parent(node_pointer: *mut TreeNodeRc<Element>) -> *mut TreeNodeRc<Element> {
+pub extern "C" fn element_parent(node_pointer: *const TreeNode<Element>) -> *const TreeNode<Element> {
     let node = node_from_pointer(node_pointer);
     let parent = node.parent();
     match parent {
-        Some(p) => Box::into_raw(Box::new(p)),
-        None => 0 as *mut TreeNodeRc<Element>
+        Some(p) => TreeNodeRc::into_ptr(p),
+        None => 0 as *const TreeNode<Element>
     }
 }
 #[no_mangle]
-pub extern "C" fn element_child(node_pointer: *mut TreeNodeRc<Element>, index: i32) -> *mut TreeNodeRc<Element> {
+pub extern "C" fn element_child(node_pointer: *const TreeNode<Element>, index: i32) -> *const TreeNode<Element> {
     let node = node_from_pointer(node_pointer);
     let index = index as usize;
     if index >= node.len() {
-        0 as *mut TreeNodeRc<Element>
+        0 as *const TreeNode<Element>
     } else {
-        Box::into_raw(Box::new(node.child(index)))
+        TreeNodeRc::into_ptr(node.child(index))
     }
 }
 #[no_mangle]
-pub extern "C" fn element_append(node_pointer: *mut TreeNodeRc<Element>, child_node_pointer: *mut TreeNodeRc<Element>) {
+pub extern "C" fn element_append(node_pointer: *const TreeNode<Element>, child_node_pointer: *const TreeNode<Element>) {
     let mut node = node_from_pointer(node_pointer);
     let child = node_from_pointer(child_node_pointer);
     node.append(child);
 }
 #[no_mangle]
-pub extern "C" fn element_insert(node_pointer: *mut TreeNodeRc<Element>, child_node_pointer: *mut TreeNodeRc<Element>, pos: i32) {
+pub extern "C" fn element_insert(node_pointer: *const TreeNode<Element>, child_node_pointer: *const TreeNode<Element>, pos: i32) {
     let mut node = node_from_pointer(node_pointer);
     let child = node_from_pointer(child_node_pointer);
     let pos = pos as usize;
     node.insert(child, pos);
 }
 #[no_mangle]
-pub extern "C" fn element_remove(node_pointer: *mut TreeNodeRc<Element>, pos: i32) {
+pub extern "C" fn element_remove(node_pointer: *const TreeNode<Element>, pos: i32) {
     let mut node = node_from_pointer(node_pointer);
     node.remove(pos as usize);
 }
 #[no_mangle]
-pub extern "C" fn element_replace(node_pointer: *mut TreeNodeRc<Element>, child_node_pointer: *mut TreeNodeRc<Element>, pos: i32) {
+pub extern "C" fn element_replace(node_pointer: *const TreeNode<Element>, child_node_pointer: *const TreeNode<Element>, pos: i32) {
     let mut node = node_from_pointer(node_pointer);
     let child = node_from_pointer(child_node_pointer);
     let pos = pos as usize;
     node.replace(child, pos);
 }
 #[no_mangle]
-pub extern "C" fn element_node_under_point(node_pointer: *mut TreeNodeRc<Element>, x: f64, y: f64) -> *mut TreeNodeRc<Element> {
+pub extern "C" fn element_node_under_point(node_pointer: *const TreeNode<Element>, x: f64, y: f64) -> *const TreeNode<Element> {
     let node = node_from_pointer(node_pointer);
     let ret = node.elem().node_under_point((x, y));
     match ret {
-        Some(ret) => Box::into_raw(Box::new(ret)),
-        None => 0 as *mut TreeNodeRc<Element>
+        Some(ret) => TreeNodeRc::into_ptr(ret),
+        None => 0 as *const TreeNode<Element>
     }
 }
 
@@ -156,22 +154,22 @@ fn string_from_c_char_ptr(ptr: *mut c_char) -> String {
     c_str.to_str().unwrap().to_owned()
 }
 #[no_mangle]
-pub extern "C" fn element_class(node_pointer: *mut TreeNodeRc<Element>, class_names: *mut c_char) {
+pub extern "C" fn element_class(node_pointer: *const TreeNode<Element>, class_names: *mut c_char) {
     let node = node_from_pointer(node_pointer);
     node.elem().class(str_from_c_char_ptr(class_names));
 }
 #[no_mangle]
-pub extern "C" fn element_style(node_pointer: *mut TreeNodeRc<Element>, style_text: *mut c_char) {
+pub extern "C" fn element_style(node_pointer: *const TreeNode<Element>, style_text: *mut c_char) {
     let node = node_from_pointer(node_pointer);
     node.elem().style_inline_text(str_from_c_char_ptr(style_text));
 }
 #[no_mangle]
-pub extern "C" fn text_element_set_text(node_pointer: *mut TreeNodeRc<Element>, text: *mut c_char) {
+pub extern "C" fn text_element_set_text(node_pointer: *const TreeNode<Element>, text: *mut c_char) {
     let node = node_from_pointer(node_pointer);
     node.elem().content_mut().downcast_mut::<Text>().unwrap().set_text(string_from_c_char_ptr(text));
 }
 #[no_mangle]
-pub extern "C" fn image_element_load(node_pointer: *mut TreeNodeRc<Element>, url: *mut c_char) {
+pub extern "C" fn image_element_load(node_pointer: *const TreeNode<Element>, url: *mut c_char) {
     let node = node_from_pointer(node_pointer);
     // FIXME image loader reuse
     node.elem().content_mut().downcast_mut::<Image>().unwrap().load(string_from_c_char_ptr(url));

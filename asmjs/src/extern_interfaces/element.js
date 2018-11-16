@@ -1,5 +1,7 @@
 import {ELEMENT_TYPE_MAP, STR_BUF_LEN} from './index'
 
+// TODO impl gc strategy
+
 export class Element {
   static _create(context, name) {
     let [ElemConstructor, typeId] = ELEMENT_TYPE_MAP[name]
@@ -15,6 +17,9 @@ export class Element {
   }
   release() {
     __glayoutAsm__._release_node(this._ptr)
+  }
+  equal(other) {
+    return this._ptr === other._ptr
   }
 
   getParentNode() {
