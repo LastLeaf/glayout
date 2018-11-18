@@ -21,8 +21,7 @@ pub use self::transform::Transform;
 mod empty_element;
 pub use self::empty_element::Empty;
 mod image_element;
-pub use self::image_element::Image;
-pub use self::image_element::ImageLoader;
+pub use self::image_element::{Image, ImageLoader, ImageLoaderStatus};
 mod text_element;
 pub use self::text_element::Text;
 

@@ -12,13 +12,14 @@ pub type CanvasConfig = config::CanvasConfig;
 pub type Element = element::Element;
 pub type Empty = element::Empty;
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, PartialEq)]
 pub struct KeyDescriptor {
-    key_code: i32,
-    shift: bool,
-    ctrl: bool,
-    alt: bool,
-    logo: bool,
+    pub key_code: i32,
+    pub shift: bool,
+    pub ctrl: bool,
+    pub alt: bool,
+    pub logo: bool,
+    pub is_down: bool,
 }
 
 pub struct CanvasContext {
@@ -241,6 +242,7 @@ lib_define_callback! (KeyboardEventCallback (Rc<RefCell<CanvasContext>>) {
         let mut ctx = self.0.borrow_mut();
         let kd = KeyDescriptor {
             key_code,
+            is_down: if event_type == KEY_UP { false } else { true },
             shift: if special_keys & SHIFT_KEY > 0 { true } else { false },
             ctrl: if special_keys & CTRL_KEY > 0 { true } else { false },
             alt: if special_keys & ALT_KEY > 0 { true } else { false },
@@ -248,10 +250,10 @@ lib_define_callback! (KeyboardEventCallback (Rc<RefCell<CanvasContext>>) {
         };
         match event_type {
             KEY_DOWN => {
-                // TODO
+                ctx.last_key = kd;
             },
             KEY_PRESS => {
-                // TODO
+                ctx.last_key = kd;
             },
             KEY_UP => {
                 ctx.last_key = kd;
