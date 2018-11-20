@@ -40,7 +40,16 @@ export class Element {
   replaceChild(child, index) {
     __glayoutAsm__._element_replace(this._ptr, child._ptr, index)
   }
-  node_under_point(x, y) {
+  spliceChild(pos, length, otherChildrenParent) {
+    __glayoutAsm__._element_splice(this._ptr, pos, length, otherChildrenParent)
+  }
+  findChildPosition(child) {
+    return __glayoutAsm__._element_find_child_position(this._ptr, child._ptr)
+  }
+  length() {
+    return __glayoutAsm__._element_length(this._ptr)
+  }
+  nodeUnderPoint(x, y) {
     return Element._from_ptr(__glayoutAsm__._element_node_under_point(this._ptr, x, y))
   }
 

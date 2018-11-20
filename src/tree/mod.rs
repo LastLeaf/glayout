@@ -173,13 +173,13 @@ impl<T: TreeElem> TreeNodeRc<T> {
         children[index].clone()
     }
     pub fn append(&mut self, child: TreeNodeRc<T>) {
-        child.rc.parent.set(Some(self.downgrade()));
+        child.replace_from_old_parent(Some(self.downgrade()));
         let mut children = self.rc.children.borrow_mut();
         children.push(child.clone());
         child.elem().parent_node_changed(Some(self.clone()));
     }
     pub fn insert(&mut self, child: TreeNodeRc<T>, position: usize) {
-        child.rc.parent.set(Some(self.downgrade()));
+        child.replace_from_old_parent(Some(self.downgrade()));
         let mut children = self.rc.children.borrow_mut();
         children.insert(position, child.clone());
         child.elem().parent_node_changed(Some(self.clone()));
@@ -197,8 +197,42 @@ impl<T: TreeElem> TreeNodeRc<T> {
         children[position] = new_child.clone();
         child.rc.parent.set(None);
         child.elem().parent_node_changed(None);
+        new_child.replace_from_old_parent(Some(self.downgrade()));
         new_child.elem().parent_node_changed(Some(self.clone()));
         child
+    }
+    fn replace_from_old_parent(&self, new_parent: Option<TreeNodeWeak<T>>) {
+        let prev_parent = self.rc.parent.replace(new_parent);
+        match prev_parent {
+            Some(x) => {
+                let mut parent = x.upgrade().unwrap();
+                let i = self.find_child_position(&self).unwrap();
+                parent.remove(i);
+            },
+            None => {}
+        }
+    }
+    pub fn find_child_position(&self, child: &TreeNodeRc<T>) -> Option<usize> {
+        for i in 0..self.len() {
+            let c = self.child(i);
+            if TreeNodeRc::ptr_eq(child, &c) {
+                return Some(i);
+            }
+        }
+        None
+    }
+    // TODO remove from old pos
+    pub fn splice(&mut self, position: usize, removes: usize, mut other_children_parent: Option<TreeNodeRc<T>>) {
+        let mut children = self.rc.children.borrow_mut();
+        let inserts = match other_children_parent {
+            None => { vec![] },
+            Some(ref mut x) => {
+                let mut children = vec![];
+                children.append(&mut x.rc.children.borrow_mut());
+                children
+            }
+        };
+        children.splice(position..removes, inserts);
     }
 
     // iterator generators

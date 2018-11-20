@@ -134,6 +134,31 @@ pub extern "C" fn element_replace(node_pointer: *const TreeNode<Element>, child_
     node.replace(child, pos);
 }
 #[no_mangle]
+pub extern "C" fn element_splice(node_pointer: *const TreeNode<Element>, pos: i32, length: i32, other_node_pointer: *const TreeNode<Element>) {
+    let mut node = node_from_pointer(node_pointer);
+    let pos = if pos < 0 { node.len() } else { pos as usize };
+    if other_node_pointer == 0 as *const TreeNode<Element> {
+        node.splice(pos, length as usize, None);
+    } else {
+        let child = node_from_pointer(other_node_pointer);
+        node.splice(pos, length as usize, Some(child));
+    }
+}
+#[no_mangle]
+pub extern "C" fn element_find_child_position(node_pointer: *const TreeNode<Element>, child_node_pointer: *const TreeNode<Element>) -> i32 {
+    let node = node_from_pointer(node_pointer);
+    let child = node_from_pointer(child_node_pointer);
+    match node.find_child_position(&child) {
+        Some(x) => x as i32,
+        None => -1
+    }
+}
+#[no_mangle]
+pub extern "C" fn element_length(node_pointer: *const TreeNode<Element>) -> i32 {
+    let node = node_from_pointer(node_pointer);
+    node.len() as i32
+}
+#[no_mangle]
 pub extern "C" fn element_node_under_point(node_pointer: *const TreeNode<Element>, x: f64, y: f64) -> *const TreeNode<Element> {
     let node = node_from_pointer(node_pointer);
     let ret = node.elem().node_under_point((x, y));
