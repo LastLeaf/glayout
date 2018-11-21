@@ -92,6 +92,23 @@ impl super::ElementContent for Text {
     fn is_terminated(&self) -> bool {
         true
     }
+    fn clone(&self) -> Box<super::ElementContent> {
+        let cfg = &self.canvas_config;
+        Box::new(Self {
+            tree_node: None,
+            canvas_config: cfg.clone(),
+            device_pixel_ratio: if cfg.device_pixel_ratio == 1. { DEFAULT_DPR } else { cfg.device_pixel_ratio },
+            text: self.text.clone(),
+            characters: self.characters.clone(),
+            need_update: false,
+            tex_font_size: self.tex_font_size,
+            font_family_id: self.font_family_id,
+            size_ratio: self.size_ratio,
+            line_first_char_index: 0,
+            line_current_char_index: 0,
+            drawing_bounds: (0., 0., 0., 0.),
+        })
+    }
     #[inline]
     fn associate_tree_node(&mut self, tree_node: TreeNodeWeak<Element>) {
         self.tree_node = Some(tree_node);

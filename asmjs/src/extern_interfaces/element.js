@@ -6,6 +6,7 @@ export class Element {
   static _create(context, name) {
     let [ElemConstructor, typeId] = ELEMENT_TYPE_MAP[name]
     let ret = new ElemConstructor()
+    ret._name = name
     ret._ptr = __glayoutAsm__._element_new(context, typeId)
     return ret
   }
@@ -17,6 +18,20 @@ export class Element {
   }
   release() {
     __glayoutAsm__._release_node(this._ptr)
+  }
+  cloneNode() {
+    let [ElemConstructor, typeId] = ELEMENT_TYPE_MAP[this._name]
+    let ret = new ElemConstructor()
+    ret._name = this._name
+    ret._ptr = __glayoutAsm__._element_clone_node(this._ptr)
+    return ret
+  }
+  downcast(name) {
+    let [ElemConstructor, typeId] = ELEMENT_TYPE_MAP[name]
+    let ret = new ElemConstructor()
+    ret._name = name
+    ret._ptr = this._ptr
+    return ret
   }
   equal(other) {
     return this._ptr === other._ptr

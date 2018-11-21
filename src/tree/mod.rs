@@ -3,7 +3,7 @@ use std::cell::{Cell, RefCell};
 
 // tree node
 
-pub trait TreeElem {
+pub trait TreeElem: Clone {
     #[inline]
     fn associate_node(&self, _node: TreeNodeWeak<Self>) where Self: Sized { }
     #[inline]
@@ -22,6 +22,16 @@ impl<T: TreeElem> TreeNode<T> {
             children: RefCell::new(vec!()),
             parent: Cell::new(None),
             elem,
+        }
+    }
+}
+
+impl<T: TreeElem> Clone for TreeNode<T> {
+    fn clone(&self) -> Self {
+        TreeNode {
+            children: RefCell::new(vec!()),
+            parent: Cell::new(None),
+            elem: self.elem.clone()
         }
     }
 }
@@ -100,6 +110,14 @@ impl<T: TreeElem> TreeNodeRc<T> {
     pub fn new(elem: T) -> Self {
         let ret = Self {
             rc: Rc::new(TreeNode::new(elem))
+        };
+        let ret_clone = ret.downgrade();
+        ret.rc.elem.associate_node(ret_clone);
+        ret
+    }
+    pub fn clone_node(&self) -> Self {
+        let ret = Self {
+            rc: Rc::new((*self.rc).clone())
         };
         let ret_clone = ret.downgrade();
         ret.rc.elem.associate_node(ret_clone);
@@ -206,7 +224,7 @@ impl<T: TreeElem> TreeNodeRc<T> {
         match prev_parent {
             Some(x) => {
                 let mut parent = x.upgrade().unwrap();
-                let i = self.find_child_position(&self).unwrap();
+                let i = parent.find_child_position(&self).unwrap();
                 parent.remove(i);
             },
             None => {}
@@ -221,7 +239,6 @@ impl<T: TreeElem> TreeNodeRc<T> {
         }
         None
     }
-    // TODO remove from old pos
     pub fn splice(&mut self, position: usize, removes: usize, mut other_children_parent: Option<TreeNodeRc<T>>) {
         let mut children = self.rc.children.borrow_mut();
         let inserts = match other_children_parent {
@@ -232,7 +249,7 @@ impl<T: TreeElem> TreeNodeRc<T> {
                 children
             }
         };
-        children.splice(position..removes, inserts);
+        children.splice(position..(position + removes), inserts);
     }
 
     // iterator generators

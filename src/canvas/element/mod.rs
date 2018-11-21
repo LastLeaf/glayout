@@ -31,6 +31,7 @@ pub use self::event::{Event, EventReceiver, EventCallback};
 pub trait ElementContent: Downcast {
     fn name(&self) -> &'static str;
     fn is_terminated(&self) -> bool;
+    fn clone(&self) -> Box<ElementContent>;
     #[inline]
     fn associate_tree_node(&mut self, _node: TreeNodeWeak<Element>) { }
     fn draw(&mut self, style: &ElementStyle, transform: &Transform);
@@ -62,6 +63,21 @@ pub struct Element {
 impl Debug for Element {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "<{} id={:?}>", self.name(), self.style().get_id())
+    }
+}
+
+impl Clone for Element {
+    fn clone(&self) -> Self {
+        Element {
+            canvas_config: self.canvas_config.clone(),
+            tree_node: Cell::new(None),
+            event_receiver: RefCell::new(EventReceiver::new()),
+            dirty: Cell::new(true),
+            style: RefCell::new(ElementStyle::new()),
+            position_offset: RefCell::new(PositionOffset::new()),
+            draw_separate_tex: Cell::new(-1),
+            content: RefCell::new(self.content.borrow().clone()),
+        }
     }
 }
 
@@ -356,6 +372,8 @@ impl fmt::Display for Element {
         write!(f, "{name}", name = self.name())
     }
 }
+
+
 
 impl TreeElem for Element {
     #[inline]

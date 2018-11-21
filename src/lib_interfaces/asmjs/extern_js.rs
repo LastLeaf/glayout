@@ -90,6 +90,11 @@ pub extern "C" fn element_new(context: *const RefCell<CanvasContext>, elem_type:
     TreeNodeRc::into_ptr(elem)
 }
 #[no_mangle]
+pub extern "C" fn element_clone_node(node_pointer: *const TreeNode<Element>) -> *const TreeNode<Element> {
+    let node = node_from_pointer(node_pointer);
+    TreeNodeRc::into_ptr(node.clone_node())
+}
+#[no_mangle]
 pub extern "C" fn element_parent(node_pointer: *const TreeNode<Element>) -> *const TreeNode<Element> {
     let node = node_from_pointer(node_pointer);
     let parent = node.parent();

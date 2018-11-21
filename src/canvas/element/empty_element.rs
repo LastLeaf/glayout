@@ -20,6 +20,9 @@ impl super::ElementContent for Empty {
     fn is_terminated(&self) -> bool {
         false
     }
+    fn clone(&self) -> Box<super::ElementContent> {
+        Box::new(Empty {})
+    }
     #[inline]
     fn draw(&mut self, _style: &ElementStyle, _transform: &Transform) {
         // do nothing

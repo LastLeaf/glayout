@@ -100,6 +100,24 @@ impl super::ElementContent for Image {
     fn is_terminated(&self) -> bool {
         true
     }
+    fn clone(&self) -> Box<super::ElementContent> {
+        let cfg = &self.canvas_config;
+        let mut ret = Box::new(Image {
+            tree_node: None,
+            canvas_config: cfg.clone(),
+            tex_id: self.tex_id,
+            loader: None,
+            inline_pos: (0., 0., 0., 0.),
+            natural_size: self.natural_size,
+        });
+        match self.loader.clone() {
+            None => {},
+            Some(loader) => {
+                ret.set_loader(loader.clone());
+            }
+        }
+        ret
+    }
     #[inline]
     fn associate_tree_node(&mut self, tree_node: TreeNodeWeak<Element>) {
         self.tree_node = Some(tree_node);
