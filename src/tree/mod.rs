@@ -192,15 +192,15 @@ impl<T: TreeElem> TreeNodeRc<T> {
     }
     pub fn append(&mut self, child: TreeNodeRc<T>) {
         child.replace_from_old_parent(Some(self.downgrade()));
+        child.elem().parent_node_changed(Some(self.clone()));
         let mut children = self.rc.children.borrow_mut();
         children.push(child.clone());
-        child.elem().parent_node_changed(Some(self.clone()));
     }
     pub fn insert(&mut self, child: TreeNodeRc<T>, position: usize) {
         child.replace_from_old_parent(Some(self.downgrade()));
+        child.elem().parent_node_changed(Some(self.clone()));
         let mut children = self.rc.children.borrow_mut();
         children.insert(position, child.clone());
-        child.elem().parent_node_changed(Some(self.clone()));
     }
     pub fn remove(&mut self, position: usize) -> TreeNodeRc<T> {
         let mut children = self.rc.children.borrow_mut();
@@ -246,6 +246,10 @@ impl<T: TreeElem> TreeNodeRc<T> {
             Some(ref mut x) => {
                 let mut children = vec![];
                 children.append(&mut x.rc.children.borrow_mut());
+                for child in children.iter() {
+                    child.replace_from_old_parent(Some(self.downgrade()));
+                    child.elem().parent_node_changed(Some(self.clone()));
+                }
                 children
             }
         };

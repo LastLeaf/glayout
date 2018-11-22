@@ -56,7 +56,7 @@ export class Element {
     __glayoutAsm__._element_replace(this._ptr, child._ptr, index)
   }
   spliceChild(pos, length, otherChildrenParent) {
-    __glayoutAsm__._element_splice(this._ptr, pos, length, otherChildrenParent)
+    __glayoutAsm__._element_splice(this._ptr, pos, length, otherChildrenParent._ptr)
   }
   findChildPosition(child) {
     return __glayoutAsm__._element_find_child_position(this._ptr, child._ptr)
