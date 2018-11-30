@@ -119,7 +119,7 @@ export const timeout = function(ms, cbPtr) {
 let inTouchingProgress = false
 export const bindTouchEvents = function(canvasIndex, cbPtr) {
   const {canvas} = canvases[canvasIndex]
-  if (IS_TOUCH_DEVICE) {
+  if (IS_TOUCH_DEVICE && false) {
     canvas.addEventListener('touchstart', function(e) {
       if (inTouchingProgress) return
       inTouchingProgress = true
