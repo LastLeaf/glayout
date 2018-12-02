@@ -253,7 +253,7 @@ lib_define_callback! (KeyboardEventCallback (Rc<RefCell<CanvasContext>>) {
                 ctx.last_key = kd;
             },
             KEY_PRESS => {
-                ctx.last_key = kd;
+                // ctx.last_key = kd;
             },
             KEY_UP => {
                 ctx.last_key = kd;
