@@ -124,8 +124,29 @@ impl super::ElementContent for Image {
     }
     fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator, style: &ElementStyle) -> Size {
         let prev_inline_height = inline_allocator.get_current_height();
-        let width = if style.get_width() == DEFAULT_F64 { self.natural_size.0 as f64 } else { style.get_width() };
-        let height = if style.get_height() == DEFAULT_F64 { self.natural_size.1 as f64 } else { style.get_height() };
+        let spec_width = style.get_width() != DEFAULT_F64;
+        let spec_height = style.get_height() != DEFAULT_F64;
+        let width;
+        let height;
+        if spec_width {
+            if spec_height {
+                width = style.get_width();
+                height = style.get_height();
+            } else {
+                width = style.get_width();
+                if self.natural_size.0 == 0 { height = 0.; }
+                else { height = width / self.natural_size.0 as f64 * self.natural_size.1 as f64; }
+            }
+        } else {
+            if spec_height {
+                height = style.get_height();
+                if self.natural_size.1 == 0 { width = 0.; }
+                else { width = height / self.natural_size.1 as f64 * self.natural_size.0 as f64; }
+            } else {
+                width = self.natural_size.0 as f64;
+                height = self.natural_size.1 as f64;
+            }
+        }
         let baseline_top = height / 2.; // FIXME vertical-align middle
         inline_allocator.start_node(self.tree_node.as_mut().unwrap().upgrade().unwrap(), height, baseline_top);
         let (left, line_baseline_top) = inline_allocator.add_width(width, true).into();
@@ -135,6 +156,10 @@ impl super::ElementContent for Image {
     #[inline]
     fn adjust_baseline_offset(&mut self, add_offset: f64) {
         self.inline_pos.move_size(Size::new(0., add_offset));
+    }
+    #[inline]
+    fn adjust_text_align_offset(&mut self, add_offset: f64) {
+        self.inline_pos.move_size(Size::new(add_offset, 0.));
     }
     fn draw(&mut self, _style: &ElementStyle, transform: &Transform) {
         if self.tex_id == -1 {

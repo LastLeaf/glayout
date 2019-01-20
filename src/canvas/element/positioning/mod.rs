@@ -55,7 +55,6 @@ impl PositionOffset {
         let mut request_height = 0.;
         let suggested_width = if style.get_width() == DEFAULT_F64 { suggested_size.width() } else { style.get_width() };
         let suggested_height = if style.get_height() == DEFAULT_F64 { suggested_size.height() } else { style.get_height() };
-        let reset_relative = style.get_position() != PositionType::Static;
 
         // suggest size for children
         match style.get_position() {

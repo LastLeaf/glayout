@@ -153,6 +153,11 @@ impl super::ElementContent for Text {
         }
         self.drawing_bounds.extend_bottom(add_offset);
     }
+    fn adjust_text_align_offset(&mut self, add_offset: f64) {
+        for i in self.line_first_char_index..(self.line_current_char_index + 1) {
+            self.characters[i].1 += add_offset as f32;
+        }
+    }
     fn draw(&mut self, style: &ElementStyle, transform: &Transform) {
         // debug!("Attempted to draw Text at {:?}", transform.apply_to_position(&(0., 0., 0., 0.)));
         // FIXME whole element edge cutting

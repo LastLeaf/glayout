@@ -58,6 +58,7 @@ impl InlineAllocator {
         self.width = width;
         self.text_align = text_align;
         if self.current_line_nodes.len() > 0 {
+            self.apply_text_align();
             self.current_line_nodes.truncate(0);
             self.height = 0.;
             self.current_node_height = 0.;
@@ -107,7 +108,7 @@ impl InlineAllocator {
         self.used_width += width;
         ret
     }
-    pub fn line_wrap(&mut self) {
+    fn apply_text_align(&mut self) {
         match self.text_align {
             TextAlignType::Left => { },
             TextAlignType::Center => {
@@ -118,7 +119,10 @@ impl InlineAllocator {
                 let d = self.width - self.used_width;
                 self.adjust_text_align_offset(d);
             },
-        }
+        };
+    }
+    pub fn line_wrap(&mut self) {
+        self.apply_text_align();
         let last_node = self.current_line_nodes.pop().unwrap();
         self.current_line_nodes.truncate(0);
         self.current_line_nodes.push(last_node);
@@ -137,10 +141,9 @@ impl InlineAllocator {
     }
     #[inline]
     fn adjust_text_align_offset(&mut self, add_offset: f64) {
-        // TODO
-        // for node in self.current_line_nodes.iter_mut() {
-        //     node.elem().content_mut().adjust_text_align_offset(add_offset);
-        // }
+        for node in self.current_line_nodes.iter_mut() {
+            node.elem().content_mut().adjust_text_align_offset(add_offset);
+        }
     }
 
 }

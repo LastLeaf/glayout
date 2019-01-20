@@ -42,6 +42,10 @@ pub trait ElementContent: Downcast {
     fn adjust_baseline_offset(&mut self, _add_offset: f64) {
         /* empty */
     }
+    #[inline]
+    fn adjust_text_align_offset(&mut self, _add_offset: f64) {
+        /* empty */
+    }
     fn drawing_bounds(&self) -> Bounds;
     fn is_under_point(&self, point: Point, transform: Transform) -> bool;
 }
