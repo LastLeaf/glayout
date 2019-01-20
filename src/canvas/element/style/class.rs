@@ -16,6 +16,7 @@ pub enum StyleName {
     font_family = 0x20,
     font_size = 0x21,
     line_height = 0x22,
+    text_align = 0x23,
 
     color = 0x30,
     background_color = 0x31,
@@ -80,6 +81,7 @@ impl ElementClass {
             StyleName::font_family => style_name!(font_family, String),
             StyleName::font_size => style_name!(font_size, f32),
             StyleName::line_height => style_name!(line_height, f32),
+            StyleName::text_align => style_name!(text_align, super::TextAlignType),
             StyleName::color => style_name!(color, (f32, f32, f32, f32)),
             StyleName::background_color => style_name!(background_color, (f32, f32, f32, f32)),
             StyleName::opacity => style_name!(opacity, f32),

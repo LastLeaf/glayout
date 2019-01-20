@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::any::Any;
 use cssparser::{Delimiter, Token, ParserInput, Parser, ParseError, Color};
 use std::collections::HashMap;
-pub(self) use super::{ElementClass, StyleName, DisplayType, PositionType};
+pub(self) use super::{ElementClass, StyleName, DisplayType, PositionType, TextAlignType};
 
 mod selector;
 use self::selector::{Selector, SelectorFragment, SelectorQuery};
@@ -229,6 +229,14 @@ impl StyleSheet {
                     },
                     "line-height" => {
                         add_rule!(StyleName::line_height, Self::parse_length::<f32>(parser));
+                    },
+                    "text-align" => {
+                        const MAPPING: [(&'static str, TextAlignType); 3] = [
+                            ("left", TextAlignType::Left),
+                            ("center", TextAlignType::Center),
+                            ("right", TextAlignType::Right),
+                        ];
+                        add_rule!(StyleName::text_align, Self::parse_enum(parser, &MAPPING));
                     },
                     "color" => {
                         add_rule!(StyleName::color, Self::parse_color(parser));

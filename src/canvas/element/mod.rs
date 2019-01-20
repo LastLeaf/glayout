@@ -8,13 +8,12 @@ use std::fmt;
 use downcast_rs::Downcast;
 use super::CanvasConfig;
 use super::resource::DrawState;
-use super::super::tree::{TreeElem, TreeNodeRc, TreeNodeWeak, TreeNodeSearchType};
+use super::super::tree::{TreeElem, TreeNodeRc, TreeNodeWeak};
 
 pub mod style;
 pub use self::style::ElementStyle;
-mod position_offset;
-pub use self::position_offset::PositionOffset;
-pub use self::position_offset::InlinePositionStatus;
+mod positioning;
+pub use self::positioning::{PositionOffset, Position, Size, Point, Bounds, InlineAllocator};
 mod transform;
 pub use self::transform::Transform;
 
@@ -36,15 +35,15 @@ pub trait ElementContent: Downcast {
     fn associate_tree_node(&mut self, _node: TreeNodeWeak<Element>) { }
     fn draw(&mut self, style: &ElementStyle, transform: &Transform);
     #[inline]
-    fn suggest_size(&mut self, _suggested_size: (f64, f64), _inline_position_status: &mut InlinePositionStatus, _style: &ElementStyle) -> (f64, f64) {
-        (0., 0.)
+    fn suggest_size(&mut self, _suggested_size: Size, _inline_allocator: &mut InlineAllocator, _style: &ElementStyle) -> Size {
+        Size::new(0., 0.)
     }
     #[inline]
     fn adjust_baseline_offset(&mut self, _add_offset: f64) {
         /* empty */
     }
-    fn drawing_bounds(&self) -> (f64, f64, f64, f64);
-    fn is_under_point(&self, x: f64, y: f64, transform: Transform) -> bool;
+    fn drawing_bounds(&self) -> Bounds;
+    fn is_under_point(&self, point: Point, transform: Transform) -> bool;
 }
 
 impl_downcast!(ElementContent);
@@ -189,59 +188,27 @@ impl Element {
     pub(crate) fn is_dirty(&self) -> bool {
         self.dirty.get()
     }
-    fn spread_dirty(&self) {
-        // for dirty inline nodes, spread dirty to all inline nodes beside it
-        let mut pending_inline_nodes: Vec<TreeNodeRc<Self>> = vec![];
-        let mut inline_dirty = false;
-        self.tree_node().dfs(TreeNodeSearchType::ChildrenLast, &mut |n| {
-            let display = n.elem().style().get_display();
-            match display {
-                style::DisplayType::Inline | style::DisplayType::InlineBlock => {
-                    if n.elem().dirty.get() {
-                        if !inline_dirty {
-                            inline_dirty = true;
-                            for n in pending_inline_nodes.iter() {
-                                n.elem().dirty.set(true);
-                            }
-                            pending_inline_nodes.truncate(0);
-                        }
-                    } else {
-                        if inline_dirty {
-                            n.elem().dirty.set(true);
-                        } else {
-                            pending_inline_nodes.push(n.clone());
-                        }
-                    }
-                },
-                _ => {
-                    pending_inline_nodes.truncate(0);
-                }
-            }
-            true
-        });
-    }
     #[inline]
-    pub(crate) fn requested_size(&self) -> (f64, f64) {
+    pub(crate) fn requested_size(&self) -> Size {
         self.position_offset.borrow().requested_size()
     }
     #[inline]
-    pub(crate) fn suggest_size(&self, suggested_size: (f64, f64), inline_position_status: &mut InlinePositionStatus) -> (f64, f64) {
+    pub(crate) fn suggest_size(&self, suggested_size: Size, inline_allocator: &mut InlineAllocator) -> Size {
         let is_dirty = self.is_dirty();
-        self.position_offset.borrow_mut().suggest_size(is_dirty, suggested_size, inline_position_status, self)
+        self.position_offset.borrow_mut().suggest_size(is_dirty, suggested_size, inline_allocator, self)
     }
     #[inline]
-    pub(crate) fn allocate_position(&self, pos: (f64, f64, f64, f64)) -> (f64, f64, f64, f64) {
+    pub(crate) fn allocate_position(&self, pos: Position) -> Bounds {
         let is_dirty = self.clear_dirty();
         self.position_offset.borrow_mut().allocate_position(is_dirty, pos, self)
     }
     #[inline]
-    pub(crate) fn dfs_update_position_offset(&self, suggested_size: (f64, f64)) {
-        self.spread_dirty();
-        let requested_size = self.suggest_size(suggested_size, &mut InlinePositionStatus::new(suggested_size.0));
-        self.allocate_position((0., 0., suggested_size.0, requested_size.1));
+    pub(crate) fn dfs_update_position_offset(&self, suggested_size: Size) {
+        let requested_size = self.suggest_size(suggested_size, &mut InlineAllocator::new(suggested_size.width(), style::TextAlignType::Left));
+        self.allocate_position(Position::new(0., 0., suggested_size.width(), requested_size.height()));
     }
 
-    pub(crate) fn draw(&self, viewport: (f64, f64, f64, f64), mut transform: Transform) {
+    pub(crate) fn draw(&self, viewport: Position, mut transform: Transform) {
         let style = self.style();
         if style.get_display() == style::DisplayType::None { return }
         let position_offset = self.position_offset();
@@ -256,17 +223,17 @@ impl Element {
         let tex_id = self.draw_separate_tex.get();
         let (drawing_tex_position, drawing_tex_offset) = if tex_id >= 0 {
             let drawing_bounds = style.transform_ref().apply_to_bounds(&position_offset.drawing_bounds());
-            let drawing_tex_position = (0., 0., (drawing_bounds.2 - drawing_bounds.0 + 1.).floor(), (drawing_bounds.3 - drawing_bounds.1 + 1.).floor());
+            let drawing_tex_position = Position::new(0., 0., (drawing_bounds.width() + 1.).floor(), (drawing_bounds.height() + 1.).floor());
             // FIXME use drawing_bounds is incorrect because child's transform is not considered
             let rm = self.canvas_config.resource_manager();
             let mut rm = rm.borrow_mut();
-            rm.bind_rendering_target(tex_id, drawing_tex_position.2 as i32, drawing_tex_position.3 as i32);
-            (drawing_tex_position, (drawing_bounds.0, drawing_bounds.1))
+            rm.bind_rendering_target(tex_id, drawing_tex_position.width() as i32, drawing_tex_position.height() as i32);
+            (drawing_tex_position, Size::new(drawing_bounds.left(), drawing_bounds.top()))
         } else {
-            (allocated_position, (0., 0.))
+            (allocated_position, Size::new(0., 0.))
         };
 
-        let child_transform = transform.mul_clone(Transform::new().offset(drawing_tex_position.0, drawing_tex_position.1)).mul_clone(&style.transform_ref());
+        let child_transform = transform.mul_clone(Transform::new().offset(drawing_tex_position.left_top() - Point::new(0., 0.))).mul_clone(&style.transform_ref());
 
         // draw background color
         let bg_color = style.get_background_color();
@@ -278,7 +245,7 @@ impl Element {
             rm.request_draw(
                 -2, true,
                 0., 0., 1., 1.,
-                child_transform.apply_to_position(&(0., 0., allocated_position.2, allocated_position.3))
+                child_transform.apply_to_position(&Position::new(0., 0., allocated_position.width(), allocated_position.height())).into()
             );
         }
 
@@ -309,7 +276,7 @@ impl Element {
             rm.request_draw(
                 tex_id, false,
                 0., 0., 1., 1.,
-                (allocated_position.0 + drawing_tex_offset.0, allocated_position.1 + drawing_tex_offset.1, drawing_tex_position.2, drawing_tex_position.3)
+                (allocated_position.left() + drawing_tex_offset.width(), allocated_position.top() + drawing_tex_offset.height(), drawing_tex_position.width(), drawing_tex_position.height())
             );
 
             // recover alpha
@@ -337,40 +304,40 @@ impl Element {
 
     // find the node under point
     // TODO check the transform correctness
-    fn get_node_under_point(&self, x: f64, y: f64, mut transform: Transform) -> Option<TreeNodeRc<Element>> {
+    fn get_node_under_point(&self, point: Point, mut transform: Transform) -> Option<TreeNodeRc<Element>> {
         if self.style().get_display() == style::DisplayType::None { return None }
         let position_offset = self.position_offset();
         let allocated_position = position_offset.allocated_position();
-        let child_transform = transform.mul_clone(Transform::new().offset(allocated_position.0, allocated_position.1)).mul_clone(&self.style().transform_ref());
+        let child_transform = transform.mul_clone(Transform::new().offset(allocated_position.left_top() - Point::new(0., 0.))).mul_clone(&self.style().transform_ref());
         let drawing_bounds = child_transform.apply_to_bounds(&position_offset.drawing_bounds());
         // debug!("testing {:?} in bounds {:?}", (x, y), drawing_bounds);
-        if x < drawing_bounds.0 || x >= drawing_bounds.2 || y < drawing_bounds.1 || y >= drawing_bounds.3 {
+        if !point.in_bounds(&drawing_bounds) {
             return None;
         }
         let content = self.content.borrow_mut();
         if content.is_terminated() {
             // debug!("testing {:?} in terminated {:?}", (x, y), content.name());
-            if content.is_under_point(x, y, child_transform) {
+            if content.is_under_point(point, child_transform) {
                 return Some(self.tree_node());
             }
         } else {
             for child in self.tree_node().iter_children().rev() {
-                let child_match = child.elem().get_node_under_point(x, y, child_transform);
+                let child_match = child.elem().get_node_under_point(point, child_transform);
                 if child_match.is_some() {
                     return child_match;
                 }
             }
         }
         let allocated_position = position_offset.allocated_position();
-        let allocated_position = child_transform.apply_to_position(&(0., 0., allocated_position.2, allocated_position.3));
+        let allocated_position = child_transform.apply_to_position(&Position::new(0., 0., allocated_position.width(), allocated_position.height()));
         // debug!("testing {:?} in allocated_position {:?}", (x, y), allocated_position);
-        if x < allocated_position.0 || x >= allocated_position.0 + allocated_position.2 || y < allocated_position.1 || y >= allocated_position.1 + allocated_position.3 {
+        if point.in_position(&allocated_position) {
             return None;
         }
         Some(self.tree_node())
     }
-    pub fn node_under_point(&self, (x, y): (f64, f64)) -> Option<TreeNodeRc<Element>> {
-        self.get_node_under_point(x, y, Transform::new())
+    pub fn node_under_point(&self, point: Point) -> Option<TreeNodeRc<Element>> {
+        self.get_node_under_point(point, Transform::new())
     }
 }
 

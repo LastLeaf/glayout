@@ -1,5 +1,5 @@
 use std::time;
-use glayout::canvas::element::{Element, Empty, Image, Text};
+use glayout::canvas::element::{Element, Empty, Image, Text, Size};
 use glayout::canvas::element::style::{DisplayType, PositionType};
 
 pub fn init() {
@@ -77,7 +77,7 @@ pub fn init() {
             let f = context.node_by_id("f").unwrap();
             let time = time.duration_since(init_time);
             let ts = time.as_secs() as f64 * 1000. + time.subsec_nanos() as f64 / 1_000_000.;
-            f.elem().style_mut().transform_mut().reset().offset(ts / 1000. % 4. * 400., 0.);
+            f.elem().style_mut().transform_mut().reset().offset(Size::new(ts / 1000. % 4. * 400., 0.));
             context.redraw();
 
             return true;

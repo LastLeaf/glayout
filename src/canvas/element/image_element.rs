@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use super::super::CanvasConfig;
 use super::super::resource::ResourceManager;
-use super::{Element, ElementStyle, InlinePositionStatus, Transform};
+use super::{Element, ElementStyle, InlineAllocator, Transform, Position, Bounds, Size, Point};
 use super::style::{DEFAULT_F64};
 use super::super::super::tree::{TreeNodeWeak};
 
@@ -16,7 +16,7 @@ pub struct Image {
     canvas_config: Rc<CanvasConfig>,
     tex_id: i32,
     loader: Option<Rc<RefCell<ImageLoader>>>,
-    inline_pos: (f64, f64, f64, f64),
+    inline_pos: Position,
     natural_size: (i32, i32),
 }
 
@@ -27,7 +27,7 @@ impl Image {
             canvas_config: cfg.clone(),
             tex_id: -1,
             loader: None,
-            inline_pos: (0., 0., 0., 0.),
+            inline_pos: Position::new(0., 0., 0., 0.),
             natural_size: (0, 0),
         }
     }
@@ -107,7 +107,7 @@ impl super::ElementContent for Image {
             canvas_config: cfg.clone(),
             tex_id: self.tex_id,
             loader: None,
-            inline_pos: (0., 0., 0., 0.),
+            inline_pos: Position::new(0., 0., 0., 0.),
             natural_size: self.natural_size,
         });
         match self.loader.clone() {
@@ -122,19 +122,19 @@ impl super::ElementContent for Image {
     fn associate_tree_node(&mut self, tree_node: TreeNodeWeak<Element>) {
         self.tree_node = Some(tree_node);
     }
-    fn suggest_size(&mut self, suggested_size: (f64, f64), inline_position_status: &mut InlinePositionStatus, style: &ElementStyle) -> (f64, f64) {
-        let prev_inline_height = inline_position_status.height();
+    fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator, style: &ElementStyle) -> Size {
+        let prev_inline_height = inline_allocator.get_current_height();
         let width = if style.get_width() == DEFAULT_F64 { self.natural_size.0 as f64 } else { style.get_width() };
         let height = if style.get_height() == DEFAULT_F64 { self.natural_size.1 as f64 } else { style.get_height() };
         let baseline_top = height / 2.; // FIXME vertical-align middle
-        inline_position_status.append_node(self.tree_node.as_mut().unwrap().upgrade().unwrap(), height, baseline_top);
-        let (left, line_baseline_top) = inline_position_status.add_width(width, true);
-        self.inline_pos = (left, line_baseline_top - baseline_top, width, height);
-        (suggested_size.0, height - prev_inline_height)
+        inline_allocator.start_node(self.tree_node.as_mut().unwrap().upgrade().unwrap(), height, baseline_top);
+        let (left, line_baseline_top) = inline_allocator.add_width(width, true).into();
+        self.inline_pos = Position::new(left, line_baseline_top - baseline_top, width, height);
+        Size::new(suggested_size.width(), height - prev_inline_height)
     }
     #[inline]
     fn adjust_baseline_offset(&mut self, add_offset: f64) {
-        self.inline_pos.1 += add_offset;
+        self.inline_pos.move_size(Size::new(0., add_offset));
     }
     fn draw(&mut self, _style: &ElementStyle, transform: &Transform) {
         if self.tex_id == -1 {
@@ -145,24 +145,21 @@ impl super::ElementContent for Image {
         rm.borrow_mut().request_draw(
             self.tex_id, false,
             0., 0., 1., 1.,
-            transform.apply_to_position(&self.inline_pos)
+            transform.apply_to_position(&self.inline_pos).into()
         );
     }
     #[inline]
-    fn drawing_bounds(&self) -> (f64, f64, f64, f64) {
-        self.inline_pos
+    fn drawing_bounds(&self) -> Bounds {
+        self.inline_pos.into()
         // TODO fix inline bounding bug
     }
-    fn is_under_point(&self, x: f64, y: f64, transform: Transform) -> bool {
+    fn is_under_point(&self, point: Point, transform: Transform) -> bool {
         if self.tex_id == -1 {
             return false;
         }
         let pos = transform.apply_to_position(&self.inline_pos);
         // debug!("testing {:?} in image pos {:?}", (x, y), pos);
-        if x < pos.0 || x >= pos.0 + pos.2 || y < pos.1 || y >= pos.1 + pos.3 {
-            return false;
-        }
-        true
+        point.in_position(&pos)
     }
 }
 

@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use super::super::super::tree::{TreeNodeRc, TreeNode};
 use super::super::super::canvas::{Canvas, CanvasContext};
-use super::super::super::canvas::element::{Element, Empty, Text, Image};
+use super::super::super::canvas::element::{Element, Empty, Text, Image, Point};
 
 // canvas
 #[no_mangle]
@@ -166,7 +166,7 @@ pub extern "C" fn element_length(node_pointer: *const TreeNode<Element>) -> i32 
 #[no_mangle]
 pub extern "C" fn element_node_under_point(node_pointer: *const TreeNode<Element>, x: f64, y: f64) -> *const TreeNode<Element> {
     let node = node_from_pointer(node_pointer);
-    let ret = node.elem().node_under_point((x, y));
+    let ret = node.elem().node_under_point(Point::new(x, y));
     match ret {
         Some(ret) => TreeNodeRc::into_ptr(ret),
         None => 0 as *const TreeNode<Element>

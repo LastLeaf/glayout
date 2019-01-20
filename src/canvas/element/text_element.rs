@@ -2,7 +2,7 @@ use std::rc::Rc;
 use super::super::CanvasConfig;
 use super::super::resource::DrawState;
 use super::super::character::{Character, FontStyle};
-use super::{Element, ElementStyle, InlinePositionStatus, Transform, style};
+use super::{Element, ElementStyle, InlineAllocator, Transform, style, Position, Size, Point, Bounds};
 use super::super::super::tree::{TreeNodeWeak};
 
 const DEFAULT_DPR: f64 = 2.;
@@ -21,7 +21,7 @@ pub struct Text {
     size_ratio: f32,
     line_first_char_index: usize,
     line_current_char_index: usize,
-    drawing_bounds: (f64, f64, f64, f64),
+    drawing_bounds: Bounds,
 }
 
 impl Text {
@@ -38,7 +38,7 @@ impl Text {
             size_ratio: 1.,
             line_first_char_index: 0,
             line_current_char_index: 0,
-            drawing_bounds: (0., 0., 0., 0.),
+            drawing_bounds: Bounds::new(0., 0., 0., 0.),
         }
     }
     pub fn set_text<T>(&mut self, s: T) where String: From<T> {
@@ -106,36 +106,36 @@ impl super::ElementContent for Text {
             size_ratio: self.size_ratio,
             line_first_char_index: 0,
             line_current_char_index: 0,
-            drawing_bounds: (0., 0., 0., 0.),
+            drawing_bounds: Bounds::new(0., 0., 0., 0.),
         })
     }
     #[inline]
     fn associate_tree_node(&mut self, tree_node: TreeNodeWeak<Element>) {
         self.tree_node = Some(tree_node);
     }
-    fn suggest_size(&mut self, suggested_size: (f64, f64), inline_position_status: &mut InlinePositionStatus, style: &ElementStyle) -> (f64, f64) {
+    fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator, style: &ElementStyle) -> Size {
         self.check_font_changed(style);
         if self.need_update {
             self.update(style);
         }
-        let prev_inline_height = inline_position_status.height();
+        let prev_inline_height = inline_allocator.get_current_height();
         let line_height = if style.get_line_height() == style::DEFAULT_F32 { style.get_font_size() * 1.5 } else { style.get_line_height() };
         let baseline_top = line_height / 2.;
-        inline_position_status.append_node(self.tree_node.as_mut().unwrap().upgrade().unwrap(), line_height as f64, baseline_top as f64);
+        inline_allocator.start_node(self.tree_node.as_mut().unwrap().upgrade().unwrap(), line_height as f64, baseline_top as f64);
         self.line_first_char_index = 0;
         for i in 0..self.characters.len() {
             let v = &mut self.characters[i];
             let character = &v.0;
             if character.tex_id() == -1 {
                 if character.unicode_char() == '\n' {
-                    inline_position_status.line_wrap();
+                    inline_allocator.line_wrap();
                     self.line_first_char_index = i;
                 }
                 self.line_current_char_index = i;
             } else {
                 let char_pos = character.position();
                 let width = char_pos.4 * self.size_ratio as f64;
-                let (left, line_baseline_top) = inline_position_status.add_width(width, true);
+                let (left, line_baseline_top) = inline_allocator.add_width(width, true).into();
                 if left == 0. {
                     self.line_first_char_index = i;
                 }
@@ -144,14 +144,14 @@ impl super::ElementContent for Text {
                 v.2 = line_baseline_top as f32 - baseline_top;
             }
         };
-        self.drawing_bounds = (0., prev_inline_height, suggested_size.0, inline_position_status.height());
-        (suggested_size.0, inline_position_status.height() - prev_inline_height)
+        self.drawing_bounds = Bounds::new(0., prev_inline_height, suggested_size.width(), inline_allocator.get_current_height());
+        Size::new(suggested_size.width(), inline_allocator.get_current_height() - prev_inline_height)
     }
     fn adjust_baseline_offset(&mut self, add_offset: f64) {
         for i in self.line_first_char_index..(self.line_current_char_index + 1) {
             self.characters[i].2 += add_offset as f32;
         }
-        self.drawing_bounds.3 += add_offset;
+        self.drawing_bounds.extend_bottom(add_offset);
     }
     fn draw(&mut self, style: &ElementStyle, transform: &Transform) {
         // debug!("Attempted to draw Text at {:?}", transform.apply_to_position(&(0., 0., 0., 0.)));
@@ -169,16 +169,16 @@ impl super::ElementContent for Text {
                 rm.request_draw(
                     character.tex_id(), true,
                     char_pos.0, char_pos.1, char_pos.2, char_pos.3,
-                    transform.apply_to_position(&(*left as f64, *top as f64, width, height))
+                    transform.apply_to_position(&Position::new(*left as f64, *top as f64, width, height)).into()
                 );
             }
         }
     }
     #[inline]
-    fn drawing_bounds(&self) -> (f64, f64, f64, f64) {
+    fn drawing_bounds(&self) -> Bounds {
         self.drawing_bounds
     }
-    fn is_under_point(&self, x: f64, y: f64, transform: Transform) -> bool {
+    fn is_under_point(&self, point: Point, transform: Transform) -> bool {
         // FIXME use area detection
         for (character, left, top) in self.characters.iter() {
             if character.tex_id() == -1 {
@@ -187,9 +187,9 @@ impl super::ElementContent for Text {
                 let char_pos = character.position();
                 let width = char_pos.4 * self.size_ratio as f64;
                 let height = char_pos.5 * self.size_ratio as f64;
-                let pos = transform.apply_to_position(&(*left as f64, *top as f64, width, height));
+                let pos = transform.apply_to_position(&Position::new(*left as f64, *top as f64, width, height));
                 // debug!("testing {:?} in text pos {:?}", (x, y), pos);
-                if x < pos.0 || x >= pos.0 + pos.2 || y < pos.1 || y >= pos.1 + pos.3 {
+                if !point.in_position(&pos) {
                     continue;
                 }
                 return true

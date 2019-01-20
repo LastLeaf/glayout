@@ -15,3 +15,10 @@ pub enum PositionType {
     Fixed,
     Sticky,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TextAlignType {
+    Left,
+    Center,
+    Right,
+}

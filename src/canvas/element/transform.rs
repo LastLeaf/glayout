@@ -1,3 +1,5 @@
+use super::{Position, Size, Point, Bounds};
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Transform {
     x: (f64, f64, f64, f64),
@@ -19,14 +21,14 @@ impl Transform {
         self.z = (0., 0., 1., 0.);
         self
     }
-    pub fn offset(&mut self, left: f64, top: f64) -> &mut Self {
-        self.x.3 += left;
-        self.y.3 += top;
+    pub fn offset(&mut self, s: Size) -> &mut Self {
+        self.x.3 += s.width();
+        self.y.3 += s.height();
         self
     }
     #[inline]
-    pub fn get_offset(&self) -> (f64, f64) {
-        (self.x.3, self.y.3)
+    pub fn get_offset(&self) -> Size {
+        Size::new(self.x.3, self.y.3)
     }
     pub fn reset_scale(&mut self, scale_x: f64, scale_y: f64) -> &mut Self {
         self.x.0 = scale_x;
@@ -68,22 +70,22 @@ impl Transform {
         }
     }
     #[inline]
-    pub fn apply_to_point(&self, pointer: (f64, f64)) -> (f64, f64) {
-        (
-            self.x.0 * pointer.0 + self.x.1 * pointer.1 + self.x.3,
-            self.y.0 * pointer.0 + self.y.1 * pointer.1 + self.y.3,
+    pub fn apply_to_point(&self, pointer: Point) -> Point {
+        Point::new(
+            self.x.0 * pointer.left() + self.x.1 * pointer.top() + self.x.3,
+            self.y.0 * pointer.left() + self.y.1 * pointer.top() + self.y.3,
         )
     }
     #[inline]
-    pub fn apply_to_position(&self, pos: &(f64, f64, f64, f64)) -> (f64, f64, f64, f64) {
-        let (x, y) = self.apply_to_point((pos.0, pos.1));
-        let (xw, yh) = self.apply_to_point((pos.0 + pos.2, pos.1 + pos.3));
-        (x, y, xw - x, yh - y)
+    pub fn apply_to_position(&self, pos: &Position) -> Position {
+        let (x, y) = self.apply_to_point(Point::new(pos.left(), pos.top())).into();
+        let (xw, yh) = self.apply_to_point(Point::new(pos.right(), pos.bottom())).into();
+        Position::new(x, y, xw - x, yh - y)
     }
     #[inline]
-    pub fn apply_to_bounds(&self, pos: &(f64, f64, f64, f64)) -> (f64, f64, f64, f64) {
-        let (x, y) = self.apply_to_point((pos.0, pos.1));
-        let (xw, yh) = self.apply_to_point((pos.2, pos.3));
-        (x, y, xw, yh)
+    pub fn apply_to_bounds(&self, pos: &Bounds) -> Bounds {
+        let (x, y) = self.apply_to_point(Point::new(pos.left(), pos.top())).into();
+        let (xw, yh) = self.apply_to_point(Point::new(pos.right(), pos.bottom())).into();
+        Bounds::new(x, y, xw, yh)
     }
 }

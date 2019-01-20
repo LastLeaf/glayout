@@ -27,7 +27,7 @@ pub struct CanvasContext {
     root_node: TreeNodeRc<Element>,
     need_redraw: bool,
     touching: bool,
-    touch_point: (f64, f64),
+    touch_point: element::Point,
     last_key: KeyDescriptor,
 }
 
@@ -53,7 +53,7 @@ impl Canvas {
             root_node,
             need_redraw: false,
             touching: false,
-            touch_point: (0., 0.),
+            touch_point: element::Point::new(0., 0.),
             last_key: Default::default(),
         }));
         let frame_ctx = ctx.clone();
@@ -98,7 +98,7 @@ impl CanvasContext {
     }
     fn set_canvas_size_inner(&mut self, w: i32, h: i32, pixel_ratio: f64, update_logical_size: bool) {
         log!("Canvas size changed: {}", self.canvas_config.index);
-        self.canvas_config.canvas_size.set((w as f64, h as f64));
+        self.canvas_config.canvas_size.set(element::Size::new(w as f64, h as f64));
         lib!(set_canvas_size(self.canvas_config.index, w, h, pixel_ratio, update_logical_size as i32));
         self.root_node.elem().mark_dirty();
     }
@@ -146,7 +146,7 @@ impl CanvasContext {
         self.touching
     }
     #[inline]
-    pub fn touch_point(&self) -> (f64, f64) {
+    pub fn touch_point(&self) -> element::Point {
         self.touch_point
     }
     #[inline]
@@ -167,7 +167,7 @@ impl CanvasContext {
             if dirty {
                 root_node_rc.elem().dfs_update_position_offset(size);
             }
-            root_node_rc.elem().draw((0., 0., size.0, size.1), element::Transform::new());
+            root_node_rc.elem().draw(element::Position::new(0., 0., size.width(), size.height()), element::Transform::new());
             let rm = self.canvas_config.resource_manager();
             rm.borrow_mut().flush_draw();
             // debug!("Redraw time: {}ms", end_measure_time!(now));
@@ -191,27 +191,27 @@ lib_define_callback! (TouchEventCallback (Rc<RefCell<CanvasContext>>) {
             match touch_type {
                 TOUCHSTART => {
                     ctx.touching = true;
-                    ctx.touch_point = (x as f64, y as f64);
+                    ctx.touch_point = element::Point::new(x as f64, y as f64);
                 },
                 TOUCHMOVE => {
-                    ctx.touch_point = (x as f64, y as f64);
+                    ctx.touch_point = element::Point::new(x as f64, y as f64);
                 },
                 TOUCHEND => {
-                    ctx.touch_point = (x as f64, y as f64);
+                    ctx.touch_point = element::Point::new(x as f64, y as f64);
                     ctx.touching = false;
                 },
                 TOUCHCANCEL => {
-                    ctx.touch_point = (x as f64, y as f64);
+                    ctx.touch_point = element::Point::new(x as f64, y as f64);
                     ctx.touching = false;
                 },
                 FREEMOVE => {
-                    ctx.touch_point = (x as f64, y as f64);
+                    ctx.touch_point = element::Point::new(x as f64, y as f64);
                 },
                 _ => {
                     panic!();
                 }
             }
-            ctx.root().elem().node_under_point((x as f64, y as f64))
+            ctx.root().elem().node_under_point(element::Point::new(x as f64, y as f64))
         };
         if node.is_some() {
             let event_name = String::from(match touch_type {

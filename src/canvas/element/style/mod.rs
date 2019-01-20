@@ -5,7 +5,7 @@ use super::{Element, Transform};
 use super::super::super::tree::{TreeNodeRc, TreeNodeWeak};
 
 mod types;
-pub use self::types::{DisplayType, PositionType};
+pub use self::types::{DisplayType, PositionType, TextAlignType};
 mod class;
 pub use self::class::{StyleName, ElementClass};
 mod style_sheet;
@@ -33,6 +33,8 @@ pub struct ElementStyle {
     inherit_font_size: bool,
     line_height: f32,
     inherit_line_height: bool,
+    text_align: TextAlignType,
+    inherit_text_align: bool,
     color: (f32, f32, f32, f32),
     inherit_color: bool,
     background_color: (f32, f32, f32, f32),
@@ -61,6 +63,8 @@ impl Default for ElementStyle {
             inherit_font_size: true,
             line_height: DEFAULT_F32,
             inherit_line_height: true,
+            text_align: TextAlignType::Left,
+            inherit_text_align: true,
             color: (0., 0., 0., 1.),
             inherit_color: true,
             background_color: (-1., -1., -1., -1.),
@@ -172,6 +176,7 @@ impl ElementStyle {
     getter_setter_inherit_dirty!(font_family, get_font_family, set_font_family, inherit_font_family, get_inherit_font_family, inherit_font_family, String);
     getter_setter_inherit_dirty!(font_size, get_font_size, set_font_size, inherit_font_size, get_inherit_font_size, inherit_font_size, f32);
     getter_setter_inherit_dirty!(line_height, get_line_height, set_line_height, inherit_line_height, get_inherit_line_height, inherit_line_height, f32);
+    getter_setter_inherit_dirty!(text_align, get_text_align, set_text_align, inherit_text_align, get_inherit_text_align, inherit_text_align, TextAlignType);
     // FIXME changing color does not need mark dirty
     getter_setter_inherit_dirty!(color, get_color, set_color, inherit_color, get_inherit_color, inherit_color, (f32, f32, f32, f32));
     getter_setter!(background_color, get_background_color, set_background_color, (f32, f32, f32, f32));

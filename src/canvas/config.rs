@@ -3,6 +3,7 @@ use std::cell::{Cell, RefCell};
 use super::character::CharacterManager;
 use super::resource::ResourceManager;
 use super::element::style::{StyleSheetGroup, StyleSheet, ElementClass};
+use super::element::Size;
 
 pub struct CanvasConfig {
     pub index: i32,
@@ -10,7 +11,7 @@ pub struct CanvasConfig {
     pub tex_count: i32,
     pub tex_max_draws: i32,
     pub device_pixel_ratio: f64,
-    pub canvas_size: Cell<(f64, f64)>,
+    pub canvas_size: Cell<Size>,
     clear_color: Cell<(f32, f32, f32, f32)>,
     resource_manager: Rc<RefCell<ResourceManager>>,
     character_manager: Rc<RefCell<CharacterManager>>,
@@ -26,7 +27,7 @@ impl CanvasConfig {
             tex_count,
             tex_max_draws,
             device_pixel_ratio,
-            canvas_size: Cell::new((1280., 720.)),
+            canvas_size: Cell::new(Size::new(1280., 720.)),
             clear_color: Cell::new((1., 1., 1., 0.)),
             resource_manager: resource_manager.clone(),
             character_manager: Rc::new(RefCell::new(CharacterManager::new(index, resource_manager))),
