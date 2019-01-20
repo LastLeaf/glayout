@@ -244,8 +244,7 @@ impl<T: TreeElem> TreeNodeRc<T> {
         let inserts = match other_children_parent {
             None => { vec![] },
             Some(ref mut x) => {
-                let mut children = vec![];
-                children.append(&mut x.rc.children.borrow_mut());
+                let mut children = x.rc.children.borrow().clone();
                 for child in children.iter() {
                     child.replace_from_old_parent(Some(self.downgrade()));
                     child.elem().parent_node_changed(Some(self.clone()));

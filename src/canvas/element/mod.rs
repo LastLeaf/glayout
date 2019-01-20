@@ -132,9 +132,16 @@ impl Element {
     }
 
     #[inline]
-    pub fn class(&self, class_names: &str) {
-        let classes = self.canvas_config.query_classes(class_names);
-        self.style_mut().classes(classes);
+    pub fn tag_name(&self, tag_name: String) {
+        self.style_mut().tag_name(tag_name);
+    }
+    #[inline]
+    pub fn id(&self, id: String) {
+        self.style_mut().id(id);
+    }
+    #[inline]
+    pub fn class(&self, class_names: String) {
+        self.style_mut().class(class_names);
     }
     #[inline]
     pub fn style(&self) -> Ref<ElementStyle> {

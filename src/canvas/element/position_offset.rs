@@ -59,7 +59,7 @@ impl PositionOffset {
                         request_width = 0.;
                         request_height = 0.;
                     },
-                    DisplayType::Block => {
+                    DisplayType::Block | DisplayType::Flex => {
                         request_width = suggested_width;
                         inline_position_status.reset(request_width);
                         if element.content().is_terminated() {
@@ -145,12 +145,12 @@ impl PositionOffset {
                 let child_style = child.elem().style();
 
                 match child_style.get_position() {
-                    PositionType::Static => {
+                    PositionType::Static | PositionType::Relative => {
                         match child_style.get_display() {
                             DisplayType::None => {
                                 /* do nothing */
                             },
-                            DisplayType::Block => {
+                            DisplayType::Block | DisplayType::Flex => {
                                 if current_inline_height > 0. {
                                     current_height += current_inline_height;
                                     current_inline_height = 0.;
@@ -170,7 +170,7 @@ impl PositionOffset {
                             }
                         };
                     },
-                    PositionType::Absolute => {
+                    PositionType::Absolute | PositionType::Fixed => {
                         match child_style.get_display() {
                             DisplayType::None => {
                                 /* do nothing */

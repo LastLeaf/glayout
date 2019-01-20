@@ -184,9 +184,19 @@ fn string_from_c_char_ptr(ptr: *mut c_char) -> String {
     c_str.to_str().unwrap().to_owned()
 }
 #[no_mangle]
+pub extern "C" fn element_tag_name(node_pointer: *const TreeNode<Element>, tag_name: *mut c_char) {
+    let node = node_from_pointer(node_pointer);
+    node.elem().tag_name(string_from_c_char_ptr(tag_name));
+}
+#[no_mangle]
+pub extern "C" fn element_id(node_pointer: *const TreeNode<Element>, id: *mut c_char) {
+    let node = node_from_pointer(node_pointer);
+    node.elem().id(string_from_c_char_ptr(id));
+}
+#[no_mangle]
 pub extern "C" fn element_class(node_pointer: *const TreeNode<Element>, class_names: *mut c_char) {
     let node = node_from_pointer(node_pointer);
-    node.elem().class(str_from_c_char_ptr(class_names));
+    node.elem().class(string_from_c_char_ptr(class_names));
 }
 #[no_mangle]
 pub extern "C" fn element_style(node_pointer: *const TreeNode<Element>, style_text: *mut c_char) {

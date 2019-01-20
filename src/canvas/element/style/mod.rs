@@ -18,7 +18,9 @@ pub struct ElementStyle {
     tree_node: Option<TreeNodeWeak<Element>>,
     inline_class: Cell<ElementClass>,
     classes: Vec<Rc<ElementClass>>,
+    tag_name: String,
     id: String,
+    class: String,
     display: DisplayType,
     position: PositionType,
     left: f64,
@@ -44,7 +46,9 @@ impl Default for ElementStyle {
             tree_node: None,
             inline_class: Cell::new(ElementClass::new()),
             classes: vec![],
+            tag_name: String::new(),
             id: String::new(),
+            class: String::new(),
             display: DisplayType::Inline,
             position: PositionType::Static,
             left: DEFAULT_F64,
@@ -159,7 +163,6 @@ macro_rules! update_inherit {
 }
 
 impl ElementStyle {
-    getter_setter!(id, get_id, set_id, String);
     getter_setter_dirty!(display, get_display, set_display, DisplayType);
     getter_setter_dirty!(position, get_position, set_position, PositionType);
     getter_setter_dirty!(left, get_left, set_left, f64);
@@ -181,14 +184,25 @@ impl ElementStyle {
         update_inherit!(self, parent_node, color, inherit_color, inherit_color, (0., 0., 0., 1.));
     }
 
-    pub fn get_classes(&self) -> Vec<Rc<ElementClass>> {
-        self.classes.clone()
+    pub fn tag_name(&mut self, s: String) {
+        self.tag_name = s;
     }
-    pub fn classes(&mut self, c: Vec<Rc<ElementClass>>) {
-        self.classes = c;
+    pub fn get_id(&self) -> String {
+        self.id.clone()
+    }
+    pub fn id(&mut self, s: String) {
+        self.id = s;
+        self.reload_classes();
+    }
+    pub fn get_class(&self) -> String {
+        self.class.clone()
+    }
+    pub fn class(&mut self, s: String) {
+        self.class = s;
         self.reload_classes();
     }
     fn reload_classes(&mut self) {
+        self.classes = self.tree_node.as_ref().unwrap().upgrade().unwrap().elem().canvas_config.query_classes(&self.tag_name, &self.id, &self.class);
         // FIXME if there is a class removed, here is no reset
         {
             let cs = self.classes.clone();

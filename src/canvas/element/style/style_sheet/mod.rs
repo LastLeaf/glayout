@@ -4,45 +4,14 @@ use cssparser::{Delimiter, Token, ParserInput, Parser, ParseError, Color};
 use std::collections::HashMap;
 pub(self) use super::{ElementClass, StyleName, DisplayType, PositionType};
 
-#[derive(Clone)]
-struct SelectorFragment {
-    id: String,
-    classes: Vec<String>,
-}
-
-impl SelectorFragment {
-    fn new() -> Self {
-        Self {
-            id: String::new(),
-            classes: vec![],
-        }
-    }
-}
-
-#[derive(Clone)]
-struct Selector {
-    fragments: Vec<SelectorFragment>
-}
-
-impl Selector {
-    fn new() -> Self {
-        Self {
-            fragments: vec![]
-        }
-    }
-    fn get_index_classes(&self) -> Vec<String> {
-        let mut ret = vec![];
-        for frag in self.fragments.iter() {
-            if frag.classes.len() > 0 {
-                ret.push(frag.classes[0].clone())
-            }
-        }
-        ret
-    }
-}
+mod selector;
+use self::selector::{Selector, SelectorFragment, SelectorQuery};
+mod rule;
+use self::rule::Rule;
 
 pub struct StyleSheet {
-    class_name_map: HashMap<String, Vec<(Selector, Rc<ElementClass>)>>
+    unindexed_classes: Vec<Rc<Rule>>,
+    class_name_map: HashMap<String, Vec<Rc<Rule>>>,
 }
 
 impl StyleSheet {
@@ -54,6 +23,7 @@ impl StyleSheet {
     pub fn new_from_css(text: &str) -> Self {
         let class_name_map = HashMap::new();
         let mut ret = Self {
+            unindexed_classes: vec![],
             class_name_map
         };
         ret.parse_css_text(text);
@@ -63,24 +33,31 @@ impl StyleSheet {
         // parse the css string
         let mut input = ParserInput::new(text);
         let mut parser = Parser::new(&mut input);
+        let mut rule_index = 0;
         while !parser.is_exhausted() {
             match Self::parse_rule_set(&mut parser) {
                 Ok(r) => {
+                    let rule = Rc::new(Rule::new(r.0.clone(), r.1, rule_index));
                     let classes = r.0.get_index_classes();
                     for name in classes {
-                        let has = self.class_name_map.contains_key(&name);
-                        match has {
-                            true => {
-                                self.class_name_map.get_mut(&name).unwrap().push(r.clone());
-                            },
-                            false => {
-                                self.class_name_map.insert(name, vec![r.clone()]);
+                        if name == "" {
+                            self.unindexed_classes.push(rule.clone());
+                        } else {
+                            let has = self.class_name_map.contains_key(&name);
+                            match has {
+                                true => {
+                                    self.class_name_map.get_mut(&name).unwrap().push(rule.clone());
+                                },
+                                false => {
+                                    self.class_name_map.insert(name, vec![rule.clone()]);
+                                }
                             }
                         }
                     }
                 },
                 _ => { }
             }
+            rule_index += 1;
         }
     }
 
@@ -107,21 +84,31 @@ impl StyleSheet {
             let mut has_limits = false;
             // parse id
             if parser.try(|parser| {
-                match parser.expect_delim('#') {
-                    Ok(_) => {
-                        match parser.expect_ident() {
-                            Ok(id) => {
+                match parser.expect_ident() {
+                    Ok(tag_name) => {
+                        frag.tag_name = String::from(tag_name.as_ref());
+                        has_limits = true;
+                        Ok(())
+                    },
+                    Err(e) => Err(e)
+                }
+            }).is_err() {
+                // do nothing
+            }
+            // parse id
+            if parser.try(|parser| {
+                match parser.next() {
+                    Ok(token) => {
+                        match token {
+                            Token::IDHash(id) => {
                                 frag.id = String::from(id.as_ref());
                                 has_limits = true;
                                 Ok(())
                             },
-                            Err(e) => {
-                                warn!("CSS ParseError {:?}", e);
-                                Err(e)
-                            }
+                            _ => Err(())
                         }
                     },
-                    Err(e) => Err(e)
+                    Err(_) => Err(())
                 }
             }).is_err() {
                 // do nothing
@@ -150,8 +137,17 @@ impl StyleSheet {
                 }
             }
             if !parser.is_exhausted() {
-                let token = parser.next().unwrap().clone();
-                warn!("CSS ParseError {:?}", parser.new_unexpected_token_error::<()>(token));
+                {
+                    if parser.next().is_err() {
+                        // do nothing
+                    }
+                }
+                warn!("CSS ParseError {:?}", parser.new_custom_error::<_, ()>(()));
+            }
+            while !parser.is_exhausted() {
+                if parser.next().is_err() {
+                    // do nothing
+                }
             }
             if has_limits {
                 selector.fragments.push(frag);
@@ -243,16 +239,25 @@ impl StyleSheet {
                     "opacity" => {
                         add_rule!(StyleName::opacity, Self::parse_number::<f32>(parser));
                     },
-                    "transform" => {
-                        unimplemented!();
-                    },
+                    // "transform" => {
+                    //     unimplemented!();
+                    // },
                     _ => {
                         add_rule!(StyleName::glayout_unrecognized, Err(parser.new_custom_error::<_, ()>(())));
                     }
                 };
                 if !parser.is_exhausted() {
-                    let token = parser.next().unwrap().clone();
-                    warn!("CSS ParseError {:?}", parser.new_unexpected_token_error::<()>(token));
+                    {
+                        if parser.next().is_err() {
+                            // do nothing
+                        }
+                    }
+                    warn!("CSS ParseError {:?}", parser.new_custom_error::<_, ()>(()));
+                }
+                while !parser.is_exhausted() {
+                    if parser.next().is_err() {
+                        // do nothing
+                    }
                 }
                 Ok(())
             }).unwrap();
@@ -396,15 +401,41 @@ impl StyleSheet {
         }
     }
 
-    pub fn query_declarations<'a>(&'a self, name: &str) -> Vec<Rc<ElementClass>> {
-        match self.class_name_map.get(name) {
-            None => vec![],
-            Some(x) => {
-                x.iter().map(|(_selector, class)| {
-                    class.clone()
-                }).collect()
+    fn query_declarations<'a>(&'a self, cond: &SelectorQuery) -> Vec<Rc<ElementClass>> {
+        let mut ret: Vec<Rc<Rule>> = vec![];
+        {
+            let mut match_and_insert = |rule: &Rc<Rule>| {
+                if rule.selector.match_query(cond) {
+                    let index = ret.iter().rposition(|r| {
+                        r.priority <= rule.priority
+                    });
+                    match index {
+                        Some(index) => {
+                            if !Rc::ptr_eq(&ret[index], rule) {
+                                ret.insert(index + 1, rule.clone());
+                            }
+                        },
+                        None => {
+                            ret.insert(0, rule.clone());
+                        }
+                    }
+                }
+            };
+            for rule in self.unindexed_classes.iter() {
+                match_and_insert(rule);
+            }
+            for s in cond.classes.iter() {
+                match self.class_name_map.get(&String::from(*s)) {
+                    None => {},
+                    Some(rules) => {
+                        for rule in rules {
+                            match_and_insert(rule);
+                        }
+                    }
+                }
             }
         }
+        ret.into_iter().map(|x| x.rc_class.clone()).collect()
     }
 }
 
@@ -421,10 +452,11 @@ impl StyleSheetGroup {
     pub fn append(&mut self, sheet: StyleSheet) {
         self.sheets.push(sheet);
     }
-    pub fn query_declarations<'a>(&'a self, name: &str) -> Vec<Rc<ElementClass>> {
+    pub fn query_declarations<'a>(&'a self, tag_name: &'a str, id: &'a str, classes: Box<[&'a str]>) -> Vec<Rc<ElementClass>> {
+        let sq = SelectorQuery::new(tag_name, id, classes);
         let mut ret = vec![];
         for sheet in self.sheets.iter() {
-            ret.append(&mut sheet.query_declarations(name))
+            ret.append(&mut sheet.query_declarations(&sq))
         }
         ret
     }
@@ -433,7 +465,7 @@ impl StyleSheetGroup {
 #[cfg(test)]
 mod test {
     use std::any::Any;
-    use super::{StyleSheet, StyleSheetGroup, StyleName};
+    use super::{StyleSheet, StyleSheetGroup, StyleName, SelectorQuery};
 
     #[test]
     fn parse_css_text() {
@@ -453,7 +485,7 @@ mod test {
                 opacity: 0.8;
             }
         ");
-        let classes = ss.query_declarations("a");
+        let classes = ss.query_declarations(&SelectorQuery::new("", "", Box::new(["a"])));
         let rules: Vec<&(StyleName, Box<Any + Send>)> = classes[0].iter_rules().collect();
         assert_eq!(rules[0].0, StyleName::display);
         assert_eq!(rules[0].1.downcast_ref::<super::DisplayType>().unwrap().clone(), super::DisplayType::Block);
@@ -496,7 +528,7 @@ mod test {
             .a { left: 0 }
         ");
         ssg.append(ss);
-        let classes = ssg.query_declarations("a");
+        let classes = ssg.query_declarations("", "", Box::new(["a"]));
         assert_eq!(classes.len(), 3);
         assert_eq!(classes[0].iter_rules().next().unwrap().0, StyleName::position);
         assert_eq!(classes[1].iter_rules().next().unwrap().0, StyleName::display);

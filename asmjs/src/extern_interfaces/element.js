@@ -68,6 +68,16 @@ export class Element {
     return Element._from_ptr(__glayoutAsm__._element_node_under_point(this._ptr, x, y))
   }
 
+  setTagName(str) {
+    const bufAddr = __glayoutAsm__._get_swap_buffer(STR_BUF_LEN)
+    __glayoutAsm__.stringToUTF8(str, bufAddr, STR_BUF_LEN)
+    __glayoutAsm__._element_tag_name(this._ptr, bufAddr)
+  }
+  setId(str) {
+    const bufAddr = __glayoutAsm__._get_swap_buffer(STR_BUF_LEN)
+    __glayoutAsm__.stringToUTF8(str, bufAddr, STR_BUF_LEN)
+    __glayoutAsm__._element_id(this._ptr, bufAddr)
+  }
   setClass(str) {
     const bufAddr = __glayoutAsm__._get_swap_buffer(STR_BUF_LEN)
     __glayoutAsm__.stringToUTF8(str, bufAddr, STR_BUF_LEN)
