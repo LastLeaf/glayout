@@ -448,6 +448,7 @@ dependencies = [
  "glutin 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "image 0.20.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rc_forest 0.1.0",
 ]
 
 [[package]]
@@ -861,6 +862,10 @@ dependencies = [
  "libc 0.2.43 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus 1.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "rc_forest"
+version = "0.1.0"
 
 [[package]]
 name = "redox_syscall"
