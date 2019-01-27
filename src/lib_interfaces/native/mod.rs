@@ -245,6 +245,15 @@ pub fn main_loop(f: fn() -> ()) {
         }
     }
 }
+pub fn log_with_level(str: String, level: i32) {
+    println!("[glayout] [{}] {}", match level {
+        -1 => "debug",
+        1 => "info",
+        2 => "warn",
+        3 => "error",
+        _ => "log"
+    }, str)
+}
 pub fn timeout(ms: i32, cb_ptr: *mut Box<Callback>) {
     layout_thread::push_event_from_layout_thread(
         Instant::now() + Duration::new((ms / 1000) as u64, (ms % 1000 * 1000000) as u32),

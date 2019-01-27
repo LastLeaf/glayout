@@ -61,7 +61,7 @@ impl Canvas {
             frame_ctx.borrow_mut().generate_frame();
             true
         }));
-        frame::bind(frame_fn.clone(), frame::FramePriority::Low);
+        frame::bind(frame_fn.clone(), frame::FramePriority::Low); // FIXME only bind when neccessary
         lib!(bind_touch_events(index, lib_callback!(TouchEventCallback(ctx.clone()))));
         lib!(bind_keyboard_events(index, lib_callback!(KeyboardEventCallback(ctx.clone()))));
         lib!(bind_canvas_size_change(index, lib_callback!(CanvasSizeChangeCallback(ctx.clone()))));

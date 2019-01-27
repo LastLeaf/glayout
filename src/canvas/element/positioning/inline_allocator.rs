@@ -31,6 +31,7 @@ pub struct InlineAllocator {
     width: f64,
     text_align: TextAlignType,
     height: f64, // total height (excludes latest line)
+    expected_width: f64, // the actual width used
     current_node_height: f64, // the height of latest node (excludes latest line)
     used_width: f64, // the occupied width for current line
     line_height: f64, // total height
@@ -46,6 +47,7 @@ impl InlineAllocator {
             width,
             text_align,
             height: 0.,
+            expected_width: 0.,
             current_node_height: 0.,
             used_width: 0.,
             line_height: 0.,
@@ -61,6 +63,7 @@ impl InlineAllocator {
             self.apply_text_align();
             self.current_line_nodes.truncate(0);
             self.height = 0.;
+            self.expected_width = 0.;
             self.current_node_height = 0.;
             self.used_width = 0.;
             self.line_height = 0.;
@@ -68,6 +71,10 @@ impl InlineAllocator {
             self.last_required_line_height = 0.;
             self.last_required_baseline_offset = 0.;
         }
+    }
+    #[inline]
+    pub fn get_current_width(&self) -> f64 {
+        self.expected_width
     }
     #[inline]
     pub fn get_current_height(&self) -> f64 {
@@ -106,6 +113,7 @@ impl InlineAllocator {
         }
         let ret = Point::new(self.used_width, self.current_node_height + self.baseline_offset);
         self.used_width += width;
+        if self.expected_width < self.used_width { self.expected_width = self.used_width }
         ret
     }
     fn apply_text_align(&mut self) {

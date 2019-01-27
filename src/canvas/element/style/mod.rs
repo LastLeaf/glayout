@@ -40,6 +40,14 @@ pub struct ElementStyle {
     background_color: (f32, f32, f32, f32),
     opacity: f32,
     transform: Transform,
+    margin_left: f64,
+    margin_right: f64,
+    margin_top: f64,
+    margin_bottom: f64,
+    padding_left: f64,
+    padding_right: f64,
+    padding_top: f64,
+    padding_bottom: f64,
 }
 
 impl Default for ElementStyle {
@@ -70,6 +78,14 @@ impl Default for ElementStyle {
             background_color: (-1., -1., -1., -1.),
             opacity: 1.,
             transform: Transform::new(),
+            margin_left: 0.,
+            margin_right: 0.,
+            margin_top: 0.,
+            margin_bottom: 0.,
+            padding_left: 0.,
+            padding_right: 0.,
+            padding_top: 0.,
+            padding_bottom: 0.,
         }
     }
 }
@@ -182,6 +198,14 @@ impl ElementStyle {
     getter_setter!(background_color, get_background_color, set_background_color, (f32, f32, f32, f32));
     getter_setter!(opacity, get_opacity, set_opacity, f32);
     getter_setter!(transform, get_transform, set_transform, Transform);
+    getter_setter_dirty!(margin_left, get_margin_left, set_margin_left, f64);
+    getter_setter_dirty!(margin_right, get_margin_right, set_margin_right, f64);
+    getter_setter_dirty!(margin_top, get_margin_top, set_margin_top, f64);
+    getter_setter_dirty!(margin_bottom, get_margin_bottom, set_margin_bottom, f64);
+    getter_setter_dirty!(padding_left, get_padding_left, set_padding_left, f64);
+    getter_setter_dirty!(padding_right, get_padding_right, set_padding_right, f64);
+    getter_setter_dirty!(padding_top, get_padding_top, set_padding_top, f64);
+    getter_setter_dirty!(padding_bottom, get_padding_bottom, set_padding_bottom, f64);
 
     fn update_inherit(&mut self, parent_node: Option<TreeNodeRc<Element>>) {
         update_inherit!(self, parent_node, font_family, inherit_font_family, inherit_font_family, String::from("sans-serif"));
@@ -189,8 +213,12 @@ impl ElementStyle {
         update_inherit!(self, parent_node, color, inherit_color, inherit_color, (0., 0., 0., 1.));
     }
 
+    pub fn get_tag_name(&self) -> String {
+        self.tag_name.clone()
+    }
     pub fn tag_name(&mut self, s: String) {
         self.tag_name = s;
+        self.reload_classes();
     }
     pub fn get_id(&self) -> String {
         self.id.clone()
@@ -207,6 +235,7 @@ impl ElementStyle {
         self.reload_classes();
     }
     fn reload_classes(&mut self) {
+        // FIXME only do queries when needed
         self.classes = self.tree_node.as_ref().unwrap().upgrade().unwrap().elem().canvas_config.query_classes(&self.tag_name, &self.id, &self.class);
         // FIXME if there is a class removed, here is no reset
         {

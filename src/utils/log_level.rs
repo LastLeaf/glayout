@@ -20,8 +20,7 @@ pub fn log_level_num() -> i32 {
 macro_rules! debug {
     ($($c:tt)*) => {
         if $crate::utils::log_level::log_level_num() <= -1 {
-            print!("[glayout] [debug] ");
-            println!($($c)*);
+            $crate::log_with_level(format!($($c)*), -1);
         }
     }
 }
@@ -30,8 +29,7 @@ macro_rules! debug {
 macro_rules! log {
     ($($c:tt)*) => {
         if $crate::utils::log_level::log_level_num() <= 0 {
-            print!("[glayout] [log] ");
-            println!($($c)*);
+            $crate::log_with_level(format!($($c)*), 0);
         }
     }
 }
@@ -40,8 +38,7 @@ macro_rules! log {
 macro_rules! info {
     ($($c:tt)*) => {
         if $crate::utils::log_level::log_level_num() <= 1 {
-            print!("[glayout] [info] ");
-            println!($($c)*);
+            $crate::log_with_level(format!($($c)*), 1);
         }
     }
 }
@@ -50,8 +47,7 @@ macro_rules! info {
 macro_rules! warn {
     ($($c:tt)*) => {
         if $crate::utils::log_level::log_level_num() <= 2 {
-            print!("[glayout] [warn] ");
-            println!($($c)*);
+            $crate::log_with_level(format!($($c)*), 2);
         }
     }
 }
@@ -60,8 +56,7 @@ macro_rules! warn {
 macro_rules! error {
     ($($c:tt)*) => {
         if $crate::utils::log_level::log_level_num() <= 3 {
-            print!("[glayout] [error] ");
-            println!($($c)*);
+            $crate::log_with_level(format!($($c)*), 3);
         }
     }
 }

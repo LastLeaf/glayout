@@ -30,6 +30,10 @@ pub fn set_log_level_num(level: i32) {
     utils::log_level::set_log_level_num(level);
 }
 
+pub fn log_with_level(str: String, level: i32) {
+    lib!(log_with_level(str, level));
+}
+
 lib_define_callback!(TimeoutCallback (Box<Fn() + 'static>) {
     fn callback(&mut self, _: i32, _: i32, _: i32, _: i32) -> bool {
         self.0();

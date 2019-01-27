@@ -8,6 +8,7 @@ extern crate glayout;
 
 use std::ffi::CStr;
 use std::os::raw::c_char;
+pub use glayout::log_with_level;
 
 mod utils;
 mod test;

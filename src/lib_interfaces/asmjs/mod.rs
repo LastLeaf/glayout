@@ -1,6 +1,7 @@
 #![allow(improper_ctypes, dead_code)]
 
 use std::os::raw::c_char;
+use std::ffi::CString;
 use std::time;
 use super::Callback;
 
@@ -8,6 +9,7 @@ pub mod extern_js;
 
 extern {
     fn emscripten_exit_with_live_runtime();
+    fn console_log_with_level(url: *mut c_char, level: i32);
 
     pub fn init_lib();
     pub fn timeout(ms: i32, cbPtr: *mut Box<Callback>);
@@ -56,4 +58,8 @@ extern {
 pub unsafe fn main_loop(f: fn() -> ()) {
     super::super::set_timeout(f, time::Duration::new(0, 0));
     emscripten_exit_with_live_runtime();
+}
+
+pub unsafe fn log_with_level(str: String, level: i32) {
+    console_log_with_level(CString::new(format!("[glayout] {}", str)).unwrap().into_raw(), level);
 }

@@ -41,6 +41,15 @@ export const setLogLevelNum = function(num) {
   }
 }
 
+export const consoleLogWithLevel = function(utf8Str, level) {
+  const str = __glayoutAsm__.UTF8ToString(utf8Str)
+  if (level === 3) console.error(str)
+  else if (level === 2) console.warn(str)
+  else if (level === 1) console.info(str)
+  else if (level === -1) console.debug(str)
+  else console.log(str)
+}
+
 export const loadTestCases = function() {
   __glayoutAsm__._load_test_cases()
   console.log('[GLayout] [log] GLayout test cases loaded.')

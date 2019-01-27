@@ -214,3 +214,4 @@ pub extern "C" fn image_element_load(node_pointer: *const TreeNode<Element>, url
     // FIXME image loader reuse
     node.elem().content_mut().downcast_mut::<Image>().unwrap().load(string_from_c_char_ptr(url));
 }
+// FIXME added image_element_get_natural_size interface

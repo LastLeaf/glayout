@@ -65,7 +65,7 @@ pub struct Element {
 
 impl Debug for Element {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "<{} id={:?}>", self.name(), self.style().get_id())
+        write!(f, "<{} id=\"{}\" class=\"{}\"> @ {:p}", self.style().get_tag_name(), self.style().get_id(), self.style().get_class(), self)
     }
 }
 
@@ -175,6 +175,7 @@ impl Element {
     #[inline]
     pub(crate) fn mark_dirty(&self) {
         if self.dirty.replace(true) { return; }
+        log!("Mark dirty {:?}", &self);
         let tn = self.tree_node.replace(None);
         match tn.as_ref().unwrap().upgrade().unwrap().parent() {
             None => { },
@@ -186,6 +187,7 @@ impl Element {
     }
     #[inline]
     pub(crate) fn clear_dirty(&self) -> bool {
+        // debug!("Clear dirty {:?}", &self);
         self.dirty.replace(false)
     }
     #[inline]
@@ -198,11 +200,13 @@ impl Element {
     }
     #[inline]
     pub(crate) fn suggest_size(&self, suggested_size: Size, inline_allocator: &mut InlineAllocator) -> Size {
+        log!("Suggest size {:?}", &self);
         let is_dirty = self.is_dirty();
         self.position_offset.borrow_mut().suggest_size(is_dirty, suggested_size, inline_allocator, self)
     }
     #[inline]
     pub(crate) fn allocate_position(&self, pos: Position) -> Bounds {
+        log!("Allocate position {:?}", &self);
         let is_dirty = self.clear_dirty();
         self.position_offset.borrow_mut().allocate_position(is_dirty, pos, self)
     }
@@ -213,10 +217,17 @@ impl Element {
     }
 
     pub(crate) fn draw(&self, viewport: Position, mut transform: Transform) {
+        log!("Drawing {:?}", &self);
         let style = self.style();
         if style.get_display() == style::DisplayType::None { return }
         let position_offset = self.position_offset();
         let allocated_position = position_offset.allocated_position();
+        let border_position = Position::new(
+            style.get_margin_left(),
+            style.get_margin_top(),
+            allocated_position.width() - style.get_margin_left() - style.get_margin_right(),
+            allocated_position.height() - style.get_margin_top() - style.get_margin_bottom(),
+        );
 
         // check if drawing on separate tex is needed
         if style.get_opacity() < 1. && style.get_opacity() >= 0. {
@@ -249,7 +260,7 @@ impl Element {
             rm.request_draw(
                 -2, true,
                 0., 0., 1., 1.,
-                child_transform.apply_to_position(&Position::new(0., 0., allocated_position.width(), allocated_position.height())).into()
+                child_transform.apply_to_position(&border_position).into()
             );
         }
 
@@ -344,13 +355,6 @@ impl Element {
         self.get_node_under_point(point, Transform::new())
     }
 }
-
-impl fmt::Display for Element {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{name}", name = self.name())
-    }
-}
-
 
 
 impl TreeElem for Element {

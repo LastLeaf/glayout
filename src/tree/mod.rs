@@ -225,7 +225,8 @@ impl<T: TreeElem> TreeNodeRc<T> {
             Some(x) => {
                 let mut parent = x.upgrade().unwrap();
                 let i = parent.find_child_position(&self).unwrap();
-                parent.remove(i);
+                let mut children = parent.rc.children.borrow_mut();
+                children.remove(i);
             },
             None => {}
         }

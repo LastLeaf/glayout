@@ -241,6 +241,9 @@ impl StyleSheet {
                     "color" => {
                         add_rule!(StyleName::color, Self::parse_color(parser));
                     },
+                    "background" => {
+                        add_rule!(StyleName::background_color, Self::parse_color(parser));
+                    },
                     "background-color" => {
                         add_rule!(StyleName::background_color, Self::parse_color(parser));
                     },
@@ -250,6 +253,44 @@ impl StyleSheet {
                     // "transform" => {
                     //     unimplemented!();
                     // },
+                    "margin" => {
+                        let [top, right, bottom, left] = Self::parse_bounds::<f64>(parser);
+                        add_rule!(StyleName::margin_left, left);
+                        add_rule!(StyleName::margin_right, right);
+                        add_rule!(StyleName::margin_top, top);
+                        add_rule!(StyleName::margin_bottom, bottom);
+                    },
+                    "margin-left" => {
+                        add_rule!(StyleName::margin_left, Self::parse_length::<f64>(parser));
+                    },
+                    "margin-right" => {
+                        add_rule!(StyleName::margin_right, Self::parse_length::<f64>(parser));
+                    },
+                    "margin-top" => {
+                        add_rule!(StyleName::margin_top, Self::parse_length::<f64>(parser));
+                    },
+                    "margin-bottom" => {
+                        add_rule!(StyleName::margin_bottom, Self::parse_length::<f64>(parser));
+                    },
+                    "padding" => {
+                        let [top, right, bottom, left] = Self::parse_bounds::<f64>(parser);
+                        add_rule!(StyleName::padding_left, left);
+                        add_rule!(StyleName::padding_right, right);
+                        add_rule!(StyleName::padding_top, top);
+                        add_rule!(StyleName::padding_bottom, bottom);
+                    },
+                    "padding-left" => {
+                        add_rule!(StyleName::padding_left, Self::parse_length::<f64>(parser));
+                    },
+                    "padding-right" => {
+                        add_rule!(StyleName::padding_right, Self::parse_length::<f64>(parser));
+                    },
+                    "padding-top" => {
+                        add_rule!(StyleName::padding_top, Self::parse_length::<f64>(parser));
+                    },
+                    "padding-bottom" => {
+                        add_rule!(StyleName::padding_bottom, Self::parse_length::<f64>(parser));
+                    },
                     _ => {
                         add_rule!(StyleName::glayout_unrecognized, Err(parser.new_custom_error::<_, ()>(())));
                     }
@@ -291,7 +332,7 @@ impl StyleSheet {
         Err(parser.new_custom_error(()))
     }
     #[inline]
-    fn parse_length<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> Result<Box<Any + Send>, ParseError<'a, ()>> {
+    fn parse_length_inner<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> Result<Box<T>, ParseError<'a, ()>> {
         {
             let r = parser.next();
             if r.is_ok() {
@@ -314,6 +355,69 @@ impl StyleSheet {
             }
         }
         Err(parser.new_custom_error(()))
+    }
+    fn parse_length<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> Result<Box<Any + Send>, ParseError<'a, ()>> {
+        match Self::parse_length_inner::<T>(parser) {
+            Err(e) => Err(e),
+            Ok(r) => Ok(r)
+        }
+    }
+    #[inline]
+    fn parse_bounds<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> [Result<Box<Any + Send>, ParseError<'a, ()>>; 4] {
+        let next = parser.try(|parser| {
+            Self::parse_length_inner::<T>(parser)
+        });
+        match next {
+            Err(e) => [Err(e.clone()), Err(e.clone()), Err(e.clone()), Err(e)],
+            Ok(next) => {
+                let top = next;
+                let right;
+                let bottom;
+                let left;
+                let next = parser.try(|parser| {
+                    Self::parse_length_inner::<T>(parser)
+                });
+                match next {
+                    Err(_) => {
+                        right = top.clone();
+                        bottom = top.clone();
+                        left = top.clone();
+                    },
+                    Ok(next) => {
+                        right = next;
+                        let next = parser.try(|parser| {
+                            Self::parse_length_inner::<T>(parser)
+                        });
+                        match next {
+                            Err(_) => {
+                                bottom = top.clone();
+                                left = right.clone();
+                            },
+                            Ok(next) => {
+                                bottom = next;
+                                let next = parser.try(|parser| {
+                                    Self::parse_length_inner::<T>(parser)
+                                });
+                                match next {
+                                    Err(_) => {
+                                        left = right.clone();
+                                    },
+                                    Ok(next) => {
+                                        left = next;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                [
+                Ok(top),
+                Ok(right),
+                Ok(bottom),
+                Ok(left),
+                ]
+            },
+        }
     }
     #[inline]
     fn parse_color<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<Any + Send>, ParseError<'a, ()>> {

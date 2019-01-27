@@ -23,6 +23,15 @@ pub enum StyleName {
     opacity = 0x32,
 
     transform = 0x40,
+
+    margin_left = 0x50,
+    margin_right = 0x51,
+    margin_top = 0x52,
+    margin_bottom = 0x53,
+    padding_left = 0x54,
+    padding_right = 0x55,
+    padding_top = 0x56,
+    padding_bottom = 0x57,
 }
 
 #[derive(Default)]
@@ -86,6 +95,14 @@ impl ElementClass {
             StyleName::background_color => style_name!(background_color, (f32, f32, f32, f32)),
             StyleName::opacity => style_name!(opacity, f32),
             StyleName::transform => style_name!(transform, super::Transform),
+            StyleName::margin_left => style_name!(margin_left, f64),
+            StyleName::margin_right => style_name!(margin_right, f64),
+            StyleName::margin_top => style_name!(margin_top, f64),
+            StyleName::margin_bottom => style_name!(margin_bottom, f64),
+            StyleName::padding_left => style_name!(padding_left, f64),
+            StyleName::padding_right => style_name!(padding_right, f64),
+            StyleName::padding_top => style_name!(padding_top, f64),
+            StyleName::padding_bottom => style_name!(padding_bottom, f64),
         }
     }
 }
