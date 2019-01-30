@@ -5,7 +5,7 @@ use rc_forest::ForestNode;
 mod position_types;
 pub use self::position_types::{Position, Point, Size, Bounds};
 mod inline_allocator;
-pub use self::inline_allocator::{InlineSize, InlineAllocator};
+pub(crate) use self::inline_allocator::InlineAllocator;
 
 // position offset
 
@@ -46,15 +46,15 @@ impl PositionOffset {
     }
 
     #[inline]
-    pub fn requested_size(&self) -> Size {
+    pub(crate) fn requested_size(&self) -> Size {
         self.requested_size
     }
     #[inline]
-    pub fn allocated_position(&self) -> Position {
+    pub(crate) fn allocated_position(&self) -> Position {
         self.allocated_position
     }
     #[inline]
-    pub fn drawing_bounds(&self) -> Bounds {
+    pub(crate) fn drawing_bounds(&self) -> Bounds {
         self.drawing_bounds
     }
     #[inline]
@@ -62,7 +62,7 @@ impl PositionOffset {
         self.drawing_bounds.union(&(child_bounds + offset));
     }
 
-    pub fn suggest_size(&mut self, is_dirty: bool, suggested_size: Size, inline_allocator: &mut InlineAllocator) -> Size {
+    pub(crate) fn suggest_size(&mut self, is_dirty: bool, suggested_size: Size, inline_allocator: &mut InlineAllocator) -> Size {
         let element = unsafe { self.element_mut_unsafe() };
         let style = unsafe { element.style().clone_ref_unsafe() };
 
@@ -94,7 +94,7 @@ impl PositionOffset {
                         let child_suggested_width = suggested_width - style.get_margin_left() - style.get_margin_right() - style.get_padding_left() - style.get_padding_right();
                         let child_suggested_size = Size::new(child_suggested_width, 0.);
                         request_height += style.get_margin_top() + style.get_padding_top();
-                        inline_allocator.reset(child_suggested_width, style.get_text_align());
+                        inline_allocator.reset(element.node_mut(), child_suggested_width, style.get_text_align());
                         if element.is_terminated() {
                             let size = element.content_mut().suggest_size(child_suggested_size, inline_allocator, style);
                             request_height += size.height();
@@ -104,7 +104,7 @@ impl PositionOffset {
                                 request_height += size.height();
                             }
                         }
-                        inline_allocator.reset(child_suggested_width, style.get_text_align());
+                        inline_allocator.reset(element.node_mut(), child_suggested_width, style.get_text_align());
                         request_height += style.get_margin_bottom() + style.get_padding_bottom();
                         if style.get_height() != DEFAULT_F64 {
                             request_height = suggested_height;
@@ -137,7 +137,7 @@ impl PositionOffset {
                         request_width = if style.get_width() == DEFAULT_F64 { suggested_size.width() } else { style.get_width() };
                         request_height = if style.get_height() == DEFAULT_F64 { suggested_size.height() } else { style.get_height() };
                         let absolute_request_width = suggested_width; // FIXME calc it!
-                        inline_allocator.reset(absolute_request_width, style.get_text_align());
+                        inline_allocator.reset(element.node_mut(), absolute_request_width, style.get_text_align());
                         if element.content().is_terminated() {
                             element.content_mut().suggest_size(Size::new(suggested_size.width(), 0.), inline_allocator, style);
                         } else {
@@ -146,7 +146,7 @@ impl PositionOffset {
                                 child.deref_mut_with(node).suggest_size(Size::new(suggested_size.width(), 0.), inline_allocator);
                             }
                         }
-                        inline_allocator.reset(absolute_request_width, style.get_text_align());
+                        inline_allocator.reset(element.node_mut(), absolute_request_width, style.get_text_align());
                     }
                 };
             },
@@ -156,7 +156,7 @@ impl PositionOffset {
         // debug!("Suggested size for {} with ({}, {}), requested ({}, {})", element, suggested_size.width(), suggested_size.height(), self.requested_size.width(), self.requested_size.height());
         self.requested_size
     }
-    pub fn allocate_position(&mut self, is_dirty: bool, allocated_position: Position) -> Bounds {
+    pub(crate) fn allocate_position(&mut self, is_dirty: bool, allocated_position: Position) -> Bounds {
         if !is_dirty && allocated_position == self.allocated_position {
             return self.drawing_bounds
         }

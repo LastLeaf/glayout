@@ -1,4 +1,4 @@
-use rc_forest::ForestNodeRc;
+use rc_forest::{ForestNode, ForestNodeRc};
 use super::super::Element;
 use super::super::style::TextAlignType;
 use super::{Point, Size};
@@ -41,7 +41,7 @@ pub struct InlineAllocator {
 }
 
 impl InlineAllocator {
-    pub fn new(width: f64, text_align: TextAlignType) -> Self {
+    pub(crate) fn new(width: f64, text_align: TextAlignType) -> Self {
         Self {
             current_line_nodes: vec![],
             width,
@@ -56,11 +56,11 @@ impl InlineAllocator {
             last_required_baseline_offset: 0.,
         }
     }
-    pub fn reset(&mut self, width: f64, text_align: TextAlignType) {
+    pub(crate) fn reset(&mut self, current_node: &mut ForestNode<Element>, width: f64, text_align: TextAlignType) {
         self.width = width;
         self.text_align = text_align;
         if self.current_line_nodes.len() > 0 {
-            self.apply_text_align();
+            self.apply_text_align(current_node);
             self.current_line_nodes.truncate(0);
             self.height = 0.;
             self.expected_width = 0.;
@@ -73,29 +73,29 @@ impl InlineAllocator {
         }
     }
     #[inline]
-    pub fn get_current_width(&self) -> f64 {
+    pub(crate) fn get_current_width(&self) -> f64 {
         self.expected_width
     }
     #[inline]
-    pub fn get_current_height(&self) -> f64 {
+    pub(crate) fn get_current_height(&self) -> f64 {
         self.height + if self.used_width > 0. { self.line_height } else { 0. }
     }
-    pub fn start_node(&mut self, next_node: ForestNodeRc<Element>, required_line_height: f64, required_baseline_offset: f64) {
+    pub(crate) fn start_node(&mut self, next_node: &mut ForestNode<Element>, required_line_height: f64, required_baseline_offset: f64) {
         self.last_required_line_height = required_line_height;
         self.last_required_baseline_offset = required_baseline_offset;
         if self.baseline_offset < required_baseline_offset {
             let bf = self.baseline_offset;
             self.line_height += required_baseline_offset - bf;
             self.baseline_offset = required_baseline_offset;
-            self.adjust_baseline_offset(required_baseline_offset - bf);
+            self.adjust_baseline_offset(next_node, required_baseline_offset - bf);
         }
         if self.line_height < required_line_height {
             self.line_height = required_line_height;
         }
         self.current_node_height = 0.;
-        self.current_line_nodes.push(next_node);
+        self.current_line_nodes.push(next_node.rc());
     }
-    pub fn end_node(&mut self) -> InlineSize {
+    pub(crate) fn end_node(&mut self) -> InlineSize {
         // TODO use this to prevent re-cal
         let height = self.current_node_height + if self.used_width > 0. { self.line_height } else { 0. };
         InlineSize {
@@ -105,10 +105,10 @@ impl InlineAllocator {
             baseline_offset: if self.used_width > 0. { self.baseline_offset } else { 0. },
         }
     }
-    pub fn add_width(&mut self, width: f64, allow_line_wrap: bool) -> Point {
+    pub(crate) fn add_width(&mut self, current_node: &mut ForestNode<Element>, width: f64, allow_line_wrap: bool) -> Point {
         if self.used_width + width > self.width && self.used_width > 0. {
             if allow_line_wrap {
-                self.line_wrap();
+                self.line_wrap(current_node);
             }
         }
         let ret = Point::new(self.used_width, self.current_node_height + self.baseline_offset);
@@ -116,21 +116,21 @@ impl InlineAllocator {
         if self.expected_width < self.used_width { self.expected_width = self.used_width }
         ret
     }
-    fn apply_text_align(&mut self) {
+    fn apply_text_align(&mut self, current_node: &mut ForestNode<Element>) {
         match self.text_align {
             TextAlignType::Left => { },
             TextAlignType::Center => {
                 let d = self.width - self.used_width;
-                self.adjust_text_align_offset(d / 2.);
+                self.adjust_text_align_offset(current_node, d / 2.);
             },
             TextAlignType::Right => {
                 let d = self.width - self.used_width;
-                self.adjust_text_align_offset(d);
+                self.adjust_text_align_offset(current_node, d);
             },
         };
     }
-    pub fn line_wrap(&mut self) {
-        self.apply_text_align();
+    pub(crate) fn line_wrap(&mut self, current_node: &mut ForestNode<Element>) {
+        self.apply_text_align(current_node);
         let last_node = self.current_line_nodes.pop().unwrap();
         self.current_line_nodes.truncate(0);
         self.current_line_nodes.push(last_node);
@@ -142,15 +142,15 @@ impl InlineAllocator {
     }
 
     #[inline]
-    fn adjust_baseline_offset(&mut self, add_offset: f64) {
+    fn adjust_baseline_offset(&mut self, current_node: &mut ForestNode<Element>, add_offset: f64) {
         for node in self.current_line_nodes.iter_mut() {
-            node.borrow_mut().adjust_baseline_offset(add_offset); // TODO
+            node.deref_mut_with(current_node).adjust_baseline_offset(add_offset); // TODO
         }
     }
     #[inline]
-    fn adjust_text_align_offset(&mut self, add_offset: f64) {
+    fn adjust_text_align_offset(&mut self, current_node: &mut ForestNode<Element>, add_offset: f64) {
         for node in self.current_line_nodes.iter_mut() {
-            node.borrow_mut().adjust_text_align_offset(add_offset); // TODO
+            node.deref_mut_with(current_node).adjust_text_align_offset(add_offset); // TODO
         }
     }
 

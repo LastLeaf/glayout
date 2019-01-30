@@ -53,6 +53,10 @@ impl Text {
     fn element_mut<'a>(&'a mut self) -> &'a mut Element {
         unsafe { &mut *self.element }
     }
+    #[inline]
+    fn node_mut<'a>(&'a mut self) -> &'a mut ForestNode<Element> {
+        self.element_mut().node_mut()
+    }
 
     pub fn set_text<T>(&mut self, s: T) where String: From<T> {
         self.need_update = true;
@@ -133,25 +137,25 @@ impl super::ElementContent for Text {
         let prev_inline_height = inline_allocator.get_current_height();
         let line_height = if style.get_line_height() == style::DEFAULT_F32 { style.get_font_size() * 1.5 } else { style.get_line_height() };
         let baseline_top = line_height / 2.;
-        inline_allocator.start_node(self.node().rc(), line_height as f64, baseline_top as f64);
+        inline_allocator.start_node(self.node_mut(), line_height as f64, baseline_top as f64);
         self.line_first_char_index = 0;
         for i in 0..self.characters.len() {
-            let v = &mut self.characters[i];
-            let character = &v.0;
+            let character = &self.characters[i].0.clone();
             if character.tex_id() == -1 {
                 if character.unicode_char() == '\n' {
-                    inline_allocator.line_wrap();
+                    inline_allocator.line_wrap(self.node_mut());
                     self.line_first_char_index = i;
                 }
                 self.line_current_char_index = i;
             } else {
                 let char_pos = character.position();
                 let width = char_pos.4 * self.size_ratio as f64;
-                let (left, line_baseline_top) = inline_allocator.add_width(width, true).into();
+                let (left, line_baseline_top) = inline_allocator.add_width(self.node_mut(), width, true).into();
                 if left == 0. {
                     self.line_first_char_index = i;
                 }
                 self.line_current_char_index = i;
+                let v = &mut self.characters[i];
                 v.1 = left as f32;
                 v.2 = line_baseline_top as f32 - baseline_top;
             }

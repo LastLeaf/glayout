@@ -43,6 +43,10 @@ impl Image {
     fn element_mut<'a>(&'a mut self) -> &'a mut Element {
         unsafe { &mut *self.element }
     }
+    #[inline]
+    fn node_mut<'a>(&'a mut self) -> &'a mut ForestNode<Element> {
+        self.element_mut().node_mut()
+    }
 
     fn need_update_from_loader(&mut self) {
         // NOTE this method should be called if manually updated loader
@@ -163,8 +167,8 @@ impl super::ElementContent for Image {
             }
         }
         let baseline_top = height / 2.; // FIXME vertical-align middle
-        inline_allocator.start_node(self.node().rc(), height, baseline_top);
-        let (left, line_baseline_top) = inline_allocator.add_width(width, true).into();
+        inline_allocator.start_node(self.node_mut(), height, baseline_top);
+        let (left, line_baseline_top) = inline_allocator.add_width(self.node_mut(), width, true).into();
         self.inline_pos = Position::new(left, line_baseline_top - baseline_top, width, height);
         Size::new(suggested_size.width(), height - prev_inline_height)
     }

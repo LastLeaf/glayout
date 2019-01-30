@@ -14,7 +14,8 @@ use rc_forest::{ForestNodeContent, ForestNode, ForestNodeRc, ForestNodeSelf};
 pub mod style;
 pub use self::style::ElementStyle;
 mod positioning;
-pub use self::positioning::{PositionOffset, Position, Size, Point, Bounds, InlineAllocator};
+pub use self::positioning::{Position, Size, Point, Bounds};
+pub(self) use self::positioning::{PositionOffset, InlineAllocator};
 mod transform;
 pub use self::transform::Transform;
 
