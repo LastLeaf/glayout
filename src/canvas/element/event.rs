@@ -3,15 +3,37 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::any::Any;
 use super::Element;
-use super::super::super::tree::{TreeNodeRc};
+use rc_forest::ForestNodeRc;
 
-pub type EventCallback = Rc<RefCell<FnMut(&Event) + 'static>>;
+pub type EventCallback = Rc<RefCell<FnMut(&mut Element, &Event) + 'static>>;
 
 pub struct Event<'a> {
     pub name: String,
-    pub target: TreeNodeRc<Element>,
-    pub current_target: TreeNodeRc<Element>,
+    pub target: &'a ForestNodeRc<Element>,
+    pub current_target: &'a ForestNodeRc<Element>,
     pub detail: &'a Box<Any + 'static>
+}
+
+impl<'a> Event<'a> {
+    pub fn new(name: String, target: &'a ForestNodeRc<Element>, current_target: &'a ForestNodeRc<Element>, detail: &'a Box<Any + 'static>) -> Self {
+        Self {
+            name,
+            target,
+            current_target,
+            detail,
+        }
+    }
+    pub fn dispatch(self, element: &mut Element) {
+        match element.event_receiver.get_listeners(&self.name) {
+            None => { },
+            Some(x) => {
+                for listener in x.iter() {
+                    let f = &mut *listener.borrow_mut();
+                    f(element, &self);
+                }
+            }
+        };
+    }
 }
 
 pub struct EventReceiver {
@@ -57,24 +79,7 @@ impl EventReceiver {
             }
         }
     }
-    fn dispatch_event<'a, 'b>(&self, event: &'b Event<'a>) {
-        let name = event.name.clone();
-        match self.listeners.get(&name) {
-            None => { },
-            Some(x) => {
-                for listener in x.iter() {
-                    let f = &mut *listener.borrow_mut();
-                    f(&event);
-                }
-            }
-        };
-    }
-    pub fn new_event<'a>(&self, name: String, target: TreeNodeRc<Element>, current_target: TreeNodeRc<Element>, detail: &'a Box<Any + 'static>) {
-        self.dispatch_event(&Event {
-            name,
-            target,
-            current_target,
-            detail,
-        });
+    pub fn get_listeners(&self, name: &String) -> Option<Vec<EventCallback>> {
+        self.listeners.get(name).map(|x| x.clone())
     }
 }

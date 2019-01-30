@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use super::frame;
-use super::tree::{TreeNodeRc, TreeNodeSearchType};
+use rc_forest::{Forest, ForestNodeRc};
 
 pub mod element;
 mod config;
@@ -24,7 +24,7 @@ pub struct KeyDescriptor {
 
 pub struct CanvasContext {
     canvas_config: Rc<CanvasConfig>,
-    root_node: TreeNodeRc<Element>,
+    root_node: ForestNodeRc<Element>,
     need_redraw: bool,
     touching: bool,
     touch_point: element::Point,
@@ -47,7 +47,7 @@ impl Canvas {
             lib!(get_device_pixel_ratio(index)) as f64
         ));
         log!("Canvas binded: {}", index);
-        let root_node = element!(&canvas_config, Empty);
+        let root_node = ForestNodeRc::new(&mut Forest::new(), Element::new(&canvas_config, Box::new(Empty::new(&canvas_config))));
         let ctx = Rc::new(RefCell::new(CanvasContext {
             canvas_config,
             root_node,
@@ -100,7 +100,7 @@ impl CanvasContext {
         log!("Canvas size changed: {}", self.canvas_config.index);
         self.canvas_config.canvas_size.set(element::Size::new(w as f64, h as f64));
         lib!(set_canvas_size(self.canvas_config.index, w, h, pixel_ratio, update_logical_size as i32));
-        self.root_node.elem().mark_dirty();
+        self.root_node.borrow_mut().mark_dirty();
     }
     pub fn set_canvas_size(&mut self, w: i32, h: i32, pixel_ratio: f64) {
         self.set_canvas_size_inner(w, h, pixel_ratio, true)
@@ -123,19 +123,8 @@ impl CanvasContext {
         lib!(clear(self.canvas_config.index));
     }
     #[inline]
-    pub fn root(&mut self) -> TreeNodeRc<Element> {
+    pub fn root(&mut self) -> ForestNodeRc<Element> {
         self.root_node.clone()
-    }
-    pub fn node_by_id(&mut self, id: &'static str) -> Option<TreeNodeRc<Element>> {
-        let mut ret = None;
-        self.root_node.dfs(TreeNodeSearchType::ChildrenLast, &mut |node| {
-            if node.elem().style().get_id() == id {
-                ret = Some(node.clone());
-                return false;
-            }
-            true
-        });
-        ret
     }
     #[inline]
     pub fn redraw(&mut self) {
@@ -157,7 +146,7 @@ impl CanvasContext {
     }
 
     fn generate_frame(&mut self) {
-        let dirty = self.root_node.elem().is_dirty(); // any child or itself need update position offset
+        let dirty = self.root_node.borrow().is_dirty(); // any child or itself need update position offset
         if dirty || self.need_redraw {
             self.need_redraw = false;
             // let now = start_measure_time!();
@@ -165,9 +154,9 @@ impl CanvasContext {
             let root_node_rc = self.root();
             let size = self.canvas_config.canvas_size.get();
             if dirty {
-                root_node_rc.elem().dfs_update_position_offset(size);
+                root_node_rc.borrow_mut().dfs_update_position_offset(size);
             }
-            root_node_rc.elem().draw(element::Position::new(0., 0., size.width(), size.height()), element::Transform::new());
+            root_node_rc.borrow_mut().draw(element::Position::new(0., 0., size.width(), size.height()), element::Transform::new());
             let rm = self.canvas_config.resource_manager();
             rm.borrow_mut().flush_draw();
             // debug!("Redraw time: {}ms", end_measure_time!(now));
@@ -211,7 +200,7 @@ lib_define_callback! (TouchEventCallback (Rc<RefCell<CanvasContext>>) {
                     panic!();
                 }
             }
-            ctx.root().elem().node_under_point(element::Point::new(x as f64, y as f64))
+            ctx.root().borrow_mut().node_under_point(element::Point::new(x as f64, y as f64))
         };
         if node.is_some() {
             let event_name = String::from(match touch_type {
@@ -221,7 +210,7 @@ lib_define_callback! (TouchEventCallback (Rc<RefCell<CanvasContext>>) {
                 TOUCHCANCEL => "touchcancel",
                 _ => "",
             });
-            node.unwrap().elem().dispatch_event(event_name, Box::new(TouchEventDetail {
+            node.unwrap().borrow_mut().dispatch_event(event_name, Box::new(TouchEventDetail {
                 client_x: x as f64,
                 client_y: y as f64,
             }), true);

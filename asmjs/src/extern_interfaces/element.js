@@ -1,13 +1,16 @@
 import {ELEMENT_TYPE_MAP, STR_BUF_LEN} from './index'
 
-// TODO impl gc strategy
-
 export class Element {
-  static _create(context, name) {
+  static _create(context, name, tagName) {
     let [ElemConstructor, typeId] = ELEMENT_TYPE_MAP[name]
     let ret = new ElemConstructor()
     ret._name = name
     ret._ptr = __glayoutAsm__._element_new(context, typeId)
+    if (tagName) {
+      const bufAddr = __glayoutAsm__._get_swap_buffer(STR_BUF_LEN)
+      __glayoutAsm__.stringToUTF8(tagName, bufAddr, STR_BUF_LEN)
+      __glayoutAsm__._element_tag_name(ret._ptr, bufAddr)
+    }
     return ret
   }
   static _from_ptr(ptr) {
@@ -20,14 +23,14 @@ export class Element {
     __glayoutAsm__._release_node(this._ptr)
   }
   cloneNode() {
-    let [ElemConstructor, typeId] = ELEMENT_TYPE_MAP[this._name]
+    let [ElemConstructor] = ELEMENT_TYPE_MAP[this._name]
     let ret = new ElemConstructor()
     ret._name = this._name
     ret._ptr = __glayoutAsm__._element_clone_node(this._ptr)
     return ret
   }
   downcast(name) {
-    let [ElemConstructor, typeId] = ELEMENT_TYPE_MAP[name]
+    let [ElemConstructor] = ELEMENT_TYPE_MAP[name]
     let ret = new ElemConstructor()
     ret._name = name
     ret._ptr = this._ptr
@@ -55,7 +58,7 @@ export class Element {
   replaceChild(child, index) {
     __glayoutAsm__._element_replace(this._ptr, child._ptr, index)
   }
-  spliceChild(pos, length, otherChildrenParent) {
+  splice(pos, length, otherChildrenParent) {
     __glayoutAsm__._element_splice(this._ptr, pos, length, otherChildrenParent._ptr)
   }
   findChildPosition(child) {
@@ -68,11 +71,6 @@ export class Element {
     return Element._from_ptr(__glayoutAsm__._element_node_under_point(this._ptr, x, y))
   }
 
-  setTagName(str) {
-    const bufAddr = __glayoutAsm__._get_swap_buffer(STR_BUF_LEN)
-    __glayoutAsm__.stringToUTF8(str, bufAddr, STR_BUF_LEN)
-    __glayoutAsm__._element_tag_name(this._ptr, bufAddr)
-  }
   setId(str) {
     const bufAddr = __glayoutAsm__._get_swap_buffer(STR_BUF_LEN)
     __glayoutAsm__.stringToUTF8(str, bufAddr, STR_BUF_LEN)

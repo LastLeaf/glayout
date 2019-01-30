@@ -16,7 +16,8 @@ pub fn init() {
             cfg.append_style_sheet("
                 .abs { position: absolute }
             ");
-            let elem = element!(&cfg, Empty {
+            let mut root = context.root().borrow_mut();
+            let elem = element!(&mut root, &cfg, Empty {
                 font_family: "serif, 宋体";
                 Empty {
                     class: "abs";
@@ -58,7 +59,7 @@ pub fn init() {
             });
             elem
         };
-        let mut root_elem = context.root();
+        let mut root_elem = context.root().borrow_mut();
         root_elem.append(elem);
 
         let rc_context = PretendSend::new(rc_context.clone());

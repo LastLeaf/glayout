@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::{f32, f64};
 use super::{Element, Transform};
-use super::super::super::tree::{TreeNodeRc, TreeNodeWeak};
+use rc_forest::{ForestNode};
 
 mod types;
 pub use self::types::{DisplayType, PositionType, TextAlignType};
@@ -15,7 +15,7 @@ pub const DEFAULT_F64: f64 = f64::INFINITY;
 pub const DEFAULT_F32: f32 = f32::INFINITY;
 
 pub struct ElementStyle {
-    tree_node: Option<TreeNodeWeak<Element>>,
+    element: *mut Element,
     inline_class: Cell<ElementClass>,
     classes: Vec<Rc<ElementClass>>,
     tag_name: String,
@@ -53,7 +53,7 @@ pub struct ElementStyle {
 impl Default for ElementStyle {
     fn default() -> Self {
         ElementStyle {
-            tree_node: None,
+            element: 0 as *mut Element,
             inline_class: Cell::new(ElementClass::new()),
             classes: vec![],
             tag_name: String::new(),
@@ -127,7 +127,7 @@ macro_rules! getter_setter_dirty {
         }
         #[inline]
         pub(self) fn $setter(&mut self, val: $type) {
-            self.tree_node().elem().mark_dirty();
+            self.element_mut().mark_dirty();
             self.$name = val;
         }
     }
@@ -150,11 +150,12 @@ macro_rules! getter_setter_inherit_dirty {
         }
         fn $dfs_setter(&mut self, val: $type) {
             if self.$name == val { return }
-            let tree_node = self.tree_node();
-            tree_node.elem().mark_dirty();
-            self.$name = val.clone();
-            for child in tree_node.iter_children() {
-                let mut style = child.elem().style_mut();
+            let s = unsafe { self.clone_mut_unsafe() };
+            let tree_node = self.node_mut();
+            tree_node.mark_dirty();
+            s.$name = val.clone();
+            for child in tree_node.clone_children().iter() {
+                let mut style = child.deref_mut_with(tree_node).style_mut();
                 if style.$inherit_name {
                     style.$dfs_setter(val.clone());
                 }
@@ -175,7 +176,7 @@ macro_rules! update_inherit {
                     $default
                 },
                 Some(ref x) => {
-                    x.elem().style().$name.clone()
+                    x.style().$name.clone()
                 },
             });
         }
@@ -207,7 +208,7 @@ impl ElementStyle {
     getter_setter_dirty!(padding_top, get_padding_top, set_padding_top, f64);
     getter_setter_dirty!(padding_bottom, get_padding_bottom, set_padding_bottom, f64);
 
-    fn update_inherit(&mut self, parent_node: Option<TreeNodeRc<Element>>) {
+    fn update_inherit(&mut self, parent_node: Option<&mut ForestNode<Element>>) {
         update_inherit!(self, parent_node, font_family, inherit_font_family, inherit_font_family, String::from("sans-serif"));
         update_inherit!(self, parent_node, font_size, inherit_font_size, inherit_font_size, 16.);
         update_inherit!(self, parent_node, color, inherit_color, inherit_color, (0., 0., 0., 1.));
@@ -236,7 +237,9 @@ impl ElementStyle {
     }
     fn reload_classes(&mut self) {
         // FIXME only do queries when needed
-        self.classes = self.tree_node.as_ref().unwrap().upgrade().unwrap().elem().canvas_config.query_classes(&self.tag_name, &self.id, &self.class);
+        let s = unsafe { self.clone_ref_unsafe() };
+        self.classes = self.node_mut().canvas_config.query_classes(&s.tag_name, &s.id, &s.class);
+
         // FIXME if there is a class removed, here is no reset
         {
             let cs = self.classes.clone();
@@ -258,16 +261,29 @@ impl ElementStyle {
 
 impl ElementStyle {
     #[inline]
-    pub fn associate_tree_node(&mut self, tree_node: TreeNodeWeak<Element>) {
-        self.tree_node = Some(tree_node);
+    pub fn associate_element(&mut self, element: *mut Element) {
+        self.element = element;
     }
     #[inline]
-    pub fn parent_node_changed(&mut self, parent_node: Option<TreeNodeRc<Element>>) {
-        self.update_inherit(parent_node);
+    fn element_mut<'a>(&'a mut self) -> &'a mut Element {
+        unsafe { &mut *self.element }
     }
     #[inline]
-    fn tree_node(&self) -> TreeNodeRc<Element> {
-        self.tree_node.as_ref().unwrap().upgrade().unwrap()
+    fn node_mut<'a>(&'a mut self) -> &'a mut ForestNode<Element> {
+        self.element_mut().node_mut()
+    }
+    #[inline]
+    pub(super) unsafe fn clone_ref_unsafe<'a, 'b>(&'a self) -> &'b Self {
+        &*(self as *const Self)
+    }
+    #[inline]
+    pub(super) unsafe fn clone_mut_unsafe<'a, 'b>(&'a mut self) -> &'b mut Self {
+        &mut *(self as *mut Self)
+    }
+    #[inline]
+    pub fn parent_node_changed(&mut self) {
+        let s = unsafe { self.clone_mut_unsafe() };
+        s.update_inherit(self.node_mut().parent_mut());
     }
     #[inline]
     pub fn transform_ref(&self) -> &Transform {

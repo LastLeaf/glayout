@@ -3,14 +3,14 @@ use super::super::CanvasConfig;
 use super::super::resource::DrawState;
 use super::super::character::{Character, FontStyle};
 use super::{Element, ElementStyle, InlineAllocator, Transform, style, Position, Size, Point, Bounds};
-use super::super::super::tree::{TreeNodeWeak};
+use rc_forest::ForestNode;
 
 const DEFAULT_DPR: f64 = 2.;
 
 // basic text element
 
 pub struct Text {
-    tree_node: Option<TreeNodeWeak<Element>>,
+    element: *mut Element,
     canvas_config: Rc<CanvasConfig>,
     device_pixel_ratio: f64,
     text: String,
@@ -27,7 +27,7 @@ pub struct Text {
 impl Text {
     pub fn new(cfg: &Rc<CanvasConfig>) -> Self {
         Self {
-            tree_node: None,
+            element: 0 as *mut Element,
             canvas_config: cfg.clone(),
             device_pixel_ratio: if cfg.device_pixel_ratio == 1. { DEFAULT_DPR } else { cfg.device_pixel_ratio },
             text: String::from(""),
@@ -41,11 +41,23 @@ impl Text {
             drawing_bounds: Bounds::new(0., 0., 0., 0.),
         }
     }
+    #[inline]
+    fn element<'a>(&'a self) -> &'a Element {
+        unsafe { &*self.element }
+    }
+    #[inline]
+    fn node<'a>(&'a self) -> &'a ForestNode<Element> {
+        self.element().node()
+    }
+    #[inline]
+    fn element_mut<'a>(&'a mut self) -> &'a mut Element {
+        unsafe { &mut *self.element }
+    }
+
     pub fn set_text<T>(&mut self, s: T) where String: From<T> {
         self.need_update = true;
         self.text = String::from(s);
-        let t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
-        t.elem().mark_dirty();
+        self.element_mut().mark_dirty();
     }
     pub fn get_text(&mut self) -> String {
         self.text.clone()
@@ -95,7 +107,7 @@ impl super::ElementContent for Text {
     fn clone(&self) -> Box<super::ElementContent> {
         let cfg = &self.canvas_config;
         Box::new(Self {
-            tree_node: None,
+            element: 0 as *mut Element,
             canvas_config: cfg.clone(),
             device_pixel_ratio: if cfg.device_pixel_ratio == 1. { DEFAULT_DPR } else { cfg.device_pixel_ratio },
             text: self.text.clone(),
@@ -110,8 +122,8 @@ impl super::ElementContent for Text {
         })
     }
     #[inline]
-    fn associate_tree_node(&mut self, tree_node: TreeNodeWeak<Element>) {
-        self.tree_node = Some(tree_node);
+    fn associate_element(&mut self, element: *mut Element) {
+        self.element = element;
     }
     fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator, style: &ElementStyle) -> Size {
         self.check_font_changed(style);
@@ -121,7 +133,7 @@ impl super::ElementContent for Text {
         let prev_inline_height = inline_allocator.get_current_height();
         let line_height = if style.get_line_height() == style::DEFAULT_F32 { style.get_font_size() * 1.5 } else { style.get_line_height() };
         let baseline_top = line_height / 2.;
-        inline_allocator.start_node(self.tree_node.as_mut().unwrap().upgrade().unwrap(), line_height as f64, baseline_top as f64);
+        inline_allocator.start_node(self.node().rc(), line_height as f64, baseline_top as f64);
         self.line_first_char_index = 0;
         for i in 0..self.characters.len() {
             let v = &mut self.characters[i];
@@ -158,7 +170,7 @@ impl super::ElementContent for Text {
             self.characters[i].1 += add_offset as f32;
         }
     }
-    fn draw(&mut self, style: &ElementStyle, transform: &Transform) {
+    fn draw(&mut self, transform: &Transform) {
         // debug!("Attempted to draw Text at {:?}", transform.apply_to_position(&(0., 0., 0., 0.)));
         // FIXME whole element edge cutting
         for (character, left, top) in self.characters.iter() {
@@ -170,7 +182,7 @@ impl super::ElementContent for Text {
                 let height = char_pos.5 * self.size_ratio as f64;
                 let rm = self.canvas_config.resource_manager();
                 let mut rm = rm.borrow_mut();
-                rm.set_draw_state(DrawState::new().color(style.get_color()));
+                rm.set_draw_state(DrawState::new().color(self.element().style().get_color()));
                 rm.request_draw(
                     character.tex_id(), true,
                     char_pos.0, char_pos.1, char_pos.2, char_pos.3,

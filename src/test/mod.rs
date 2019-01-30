@@ -4,6 +4,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use super::utils::PretendSend;
 use std::collections::BTreeMap;
+use std::time::Duration;
 use glayout::canvas::{Canvas, CanvasContext, TouchEventDetail};
 use glayout::canvas::element::{Element, Empty, Text, Event};
 use glayout::canvas::element::style::{DisplayType};
@@ -39,7 +40,7 @@ macro_rules! register_test_case {
 #[macro_export]
 macro_rules! run_test_case {
     ($name:expr) => {
-        $crate::test::TestManager::run(&String::from($name))
+        $crate::test::TestManager::run(&$name)
     }
 }
 
@@ -66,41 +67,52 @@ pub fn init() {
 }
 
 fn show_list(rc_context: Rc<RefCell<CanvasContext>>) {
+    let rc_context_clone = rc_context.clone();
     let mut context = rc_context.borrow_mut();
     let pixel_ratio = context.device_pixel_ratio();
     context.set_canvas_size(800, 600, pixel_ratio);
     context.set_clear_color(0.5, 0.5, 0.5, 1.);
 
-    let mut root = context.root();
     let cfg = context.canvas_config();
-    let wrapper = element! (&cfg, Empty {
-        Empty {
-            display: DisplayType::Block;
-            Text {
-                set_text("Test cases:");
+    {
+        let mut root = context.root().borrow_mut();
+        let wrapper = element! (&mut root, &cfg, Empty {
+            Empty {
+                display: DisplayType::Block;
+                Text {
+                    set_text("Test cases:");
+                };
             };
-        };
-        Empty {
-            id: String::from("list");
-        };
-    });
-    root.append(wrapper);
-    let mut list = context.node_by_id("list").unwrap();
+            Empty {
+                id: String::from("list");
+            };
+        });
+        root.append(wrapper);
+    }
+
+    let list = context.root().borrow().node_by_id("list").unwrap();
     for (k, _) in TEST_CASE_MAP.borrow_mut().iter() {
-        let mut root_ev = root.clone();
-        list.append(element! (&cfg, Empty {
+        let mut root = context.root().borrow_mut();
+        let rc_context_clone_item = rc_context_clone.clone();
+        let element = element!(&mut root, &cfg, Empty {
             display: DisplayType::Block;
             Text {
                 id: k.clone();
                 set_text(k.as_str());
-                @ "touchend" => move |event: &Event| {
+                @ "touchend" => move |element: &mut Element, event: &Event| {
                     let detail = event.detail.downcast_ref::<TouchEventDetail>().unwrap();
                     debug!("Touched at {:?}", (detail.client_x, detail.client_y));
-                    let name = event.current_target.elem().style().get_id();
-                    root_ev.remove(0);
-                    run_test_case!(name);
+                    let name: String = event.current_target.deref_with(element.node_mut()).style().get_id().to_string();
+                    {
+                        let mut context = rc_context_clone_item.borrow_mut();
+                        context.root().deref_mut_with(element.node_mut()).remove(0);
+                    }
+                    glayout::set_timeout(move || {
+                        run_test_case!(name);
+                    }, Duration::new(0, 0));
                 };
             };
-        }));
+        });
+        list.deref_mut_with(&mut root).append(element);
     }
 }

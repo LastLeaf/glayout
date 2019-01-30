@@ -5,14 +5,14 @@ use super::super::CanvasConfig;
 use super::super::resource::ResourceManager;
 use super::{Element, ElementStyle, InlineAllocator, Transform, Position, Bounds, Size, Point};
 use super::style::{DEFAULT_F64};
-use super::super::super::tree::{TreeNodeWeak};
+use rc_forest::{ForestNode, ForestNodeWeak};
 
 const IMAGE_SIZE_WARN: i32 = 4096;
 
 // basic image element
 
 pub struct Image {
-    tree_node: Option<TreeNodeWeak<Element>>,
+    element: *mut Element,
     canvas_config: Rc<CanvasConfig>,
     tex_id: i32,
     loader: Option<Rc<RefCell<ImageLoader>>>,
@@ -23,7 +23,7 @@ pub struct Image {
 impl Image {
     pub fn new(cfg: &Rc<CanvasConfig>) -> Self {
         Image {
-            tree_node: None,
+            element: 0 as *mut Element,
             canvas_config: cfg.clone(),
             tex_id: -1,
             loader: None,
@@ -31,26 +31,40 @@ impl Image {
             natural_size: (0, 0),
         }
     }
+    #[inline]
+    fn element<'a>(&'a self) -> &'a Element {
+        unsafe { &*self.element }
+    }
+    #[inline]
+    fn node<'a>(&'a self) -> &'a ForestNode<Element> {
+        self.element().node()
+    }
+    #[inline]
+    fn element_mut<'a>(&'a mut self) -> &'a mut Element {
+        unsafe { &mut *self.element }
+    }
+
     fn need_update_from_loader(&mut self) {
         // NOTE this method should be called if manually updated loader
         self.tex_id = -1;
         self.natural_size = (0, 0);
-        let t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
-        t.elem().mark_dirty();
+        self.element_mut().mark_dirty();
     }
     fn update_from_loader(&mut self) {
-        let loader = self.loader.as_ref().unwrap().borrow();
-        self.tex_id = loader.tex_id;
-        let size = loader.size();
-        self.natural_size = size;
-        let t = self.tree_node.as_mut().unwrap().upgrade().unwrap();
-        t.elem().mark_dirty();
+        {
+            let loader = self.loader.as_ref().unwrap().borrow();
+            self.tex_id = loader.tex_id;
+            let size = loader.size();
+            self.natural_size = size;
+        }
+        self.element_mut().mark_dirty();
     }
     pub fn set_loader(&mut self, loader: Rc<RefCell<ImageLoader>>) {
         self.need_update_from_loader();
+        let rc = self.node().rc();
         match self.loader {
             Some(ref mut loader) => {
-                loader.borrow_mut().unbind_tree_node(self.tree_node.clone().unwrap());
+                loader.borrow_mut().unbind_tree_node(rc.downgrade());
             },
             None => { }
         }
@@ -66,7 +80,7 @@ impl Image {
             }
         };
         {
-            loader.borrow_mut().bind_tree_node(self.tree_node.clone().unwrap());
+            loader.borrow_mut().bind_tree_node(self.node().rc().downgrade());
             self.loader = Some(loader);
         }
         if loader_loaded {
@@ -82,9 +96,10 @@ impl Image {
 
 impl Drop for Image {
     fn drop(&mut self) {
+        let rc = self.node().rc();
         match self.loader {
             Some(ref mut loader) => {
-                loader.borrow_mut().unbind_tree_node(self.tree_node.clone().unwrap());
+                loader.borrow_mut().unbind_tree_node(rc.downgrade());
             },
             None => { }
         }
@@ -103,7 +118,7 @@ impl super::ElementContent for Image {
     fn clone(&self) -> Box<super::ElementContent> {
         let cfg = &self.canvas_config;
         let mut ret = Box::new(Image {
-            tree_node: None,
+            element: 0 as *mut Element,
             canvas_config: cfg.clone(),
             tex_id: self.tex_id,
             loader: None,
@@ -119,8 +134,8 @@ impl super::ElementContent for Image {
         ret
     }
     #[inline]
-    fn associate_tree_node(&mut self, tree_node: TreeNodeWeak<Element>) {
-        self.tree_node = Some(tree_node);
+    fn associate_element(&mut self, element: *mut Element) {
+        self.element = element;
     }
     fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator, style: &ElementStyle) -> Size {
         let prev_inline_height = inline_allocator.get_current_height();
@@ -148,7 +163,7 @@ impl super::ElementContent for Image {
             }
         }
         let baseline_top = height / 2.; // FIXME vertical-align middle
-        inline_allocator.start_node(self.tree_node.as_mut().unwrap().upgrade().unwrap(), height, baseline_top);
+        inline_allocator.start_node(self.node().rc(), height, baseline_top);
         let (left, line_baseline_top) = inline_allocator.add_width(width, true).into();
         self.inline_pos = Position::new(left, line_baseline_top - baseline_top, width, height);
         Size::new(suggested_size.width(), height - prev_inline_height)
@@ -161,7 +176,7 @@ impl super::ElementContent for Image {
     fn adjust_text_align_offset(&mut self, add_offset: f64) {
         self.inline_pos.move_size(Size::new(add_offset, 0.));
     }
-    fn draw(&mut self, _style: &ElementStyle, transform: &Transform) {
+    fn draw(&mut self, transform: &Transform) {
         if self.tex_id == -1 {
             return;
         }
@@ -200,7 +215,7 @@ pub enum ImageLoaderStatus {
 
 pub struct ImageLoader {
     id: String,
-    binded_tree_nodes: Vec<TreeNodeWeak<Element>>,
+    binded_tree_nodes: Vec<ForestNodeWeak<Element>>,
     canvas_config: Rc<CanvasConfig>,
     status: ImageLoaderStatus,
     img_id: i32,
@@ -224,12 +239,12 @@ impl ImageLoader {
     }
 
     #[inline]
-    pub fn bind_tree_node(&mut self, tree_node: TreeNodeWeak<Element>) {
+    pub fn bind_tree_node(&mut self, tree_node: ForestNodeWeak<Element>) {
         self.binded_tree_nodes.push(tree_node)
     }
-    pub fn unbind_tree_node(&mut self, tree_node: TreeNodeWeak<Element>) {
+    pub fn unbind_tree_node(&mut self, tree_node: ForestNodeWeak<Element>) {
         let pos = self.binded_tree_nodes.iter().position(|x| {
-            TreeNodeWeak::ptr_eq(x, &tree_node)
+            ForestNodeWeak::ptr_eq(x, &tree_node)
         });
         match pos {
             None => { },
@@ -298,8 +313,12 @@ lib_define_callback! (ImageLoaderCallback (Rc<RefCell<ImageLoader>>) {
             loader.binded_tree_nodes.clone()
         };
         nodes.iter_mut().for_each(|x| {
-            let t = x.upgrade().unwrap();
-            t.elem().content_mut().downcast_mut::<Image>().unwrap().update_from_loader();
+            match x.upgrade() {
+                None => { },
+                Some(x) => {
+                    x.borrow_mut().downcast_mut::<Image>().unwrap().update_from_loader();
+                }
+            }
         });
         false
     }

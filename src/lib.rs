@@ -12,10 +12,11 @@ extern crate euclid;
 #[cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))]
 extern crate font_kit;
 
+extern crate rc_forest;
+
 mod utils;
 pub mod lib_interfaces;
 pub mod frame;
-pub mod tree;
 pub mod canvas;
 
 use std::time;

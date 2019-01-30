@@ -1,14 +1,15 @@
 #![macro_use]
 
+use std::cell::Cell;
+use std::ops::{Deref, DerefMut};
 use std::fmt::Debug;
 use std::any::Any;
 use std::rc::Rc;
-use std::cell::{Cell, RefCell, Ref, RefMut};
 use std::fmt;
 use downcast_rs::Downcast;
 use super::CanvasConfig;
 use super::resource::DrawState;
-use super::super::tree::{TreeElem, TreeNodeRc, TreeNodeWeak};
+use rc_forest::{ForestNodeContent, ForestNode, ForestNodeRc, ForestNodeSelf};
 
 pub mod style;
 pub use self::style::ElementStyle;
@@ -32,8 +33,8 @@ pub trait ElementContent: Downcast {
     fn is_terminated(&self) -> bool;
     fn clone(&self) -> Box<ElementContent>;
     #[inline]
-    fn associate_tree_node(&mut self, _node: TreeNodeWeak<Element>) { }
-    fn draw(&mut self, style: &ElementStyle, transform: &Transform);
+    fn associate_element(&mut self, *mut Element) { }
+    fn draw(&mut self, transform: &Transform);
     #[inline]
     fn suggest_size(&mut self, _suggested_size: Size, _inline_allocator: &mut InlineAllocator, _style: &ElementStyle) -> Size {
         Size::new(0., 0.)
@@ -54,13 +55,13 @@ impl_downcast!(ElementContent);
 
 pub struct Element {
     canvas_config: Rc<CanvasConfig>,
-    tree_node: Cell<Option<TreeNodeWeak<Element>>>,
-    event_receiver: RefCell<EventReceiver>,
-    dirty: Cell<bool>,
-    style: RefCell<ElementStyle>,
-    position_offset: RefCell<PositionOffset>,
+    tree_node: Option<ForestNodeSelf<Element>>,
+    event_receiver: EventReceiver,
+    dirty: bool,
+    style: ElementStyle,
+    position_offset: PositionOffset,
     draw_separate_tex: Cell<i32>,
-    content: RefCell<Box<ElementContent>>,
+    content: Box<ElementContent>,
 }
 
 impl Debug for Element {
@@ -73,13 +74,13 @@ impl Clone for Element {
     fn clone(&self) -> Self {
         Element {
             canvas_config: self.canvas_config.clone(),
-            tree_node: Cell::new(None),
-            event_receiver: RefCell::new(EventReceiver::new()),
-            dirty: Cell::new(true),
-            style: RefCell::new(ElementStyle::new()),
-            position_offset: RefCell::new(PositionOffset::new()),
+            tree_node: None,
+            event_receiver: EventReceiver::new(),
+            dirty: true,
+            style: ElementStyle::new(),
+            position_offset: PositionOffset::new(),
             draw_separate_tex: Cell::new(-1),
-            content: RefCell::new(self.content.borrow().clone()),
+            content: self.content.clone(),
         }
     }
 }
@@ -88,156 +89,155 @@ impl Element {
     pub fn new(cfg: &Rc<CanvasConfig>, content: Box<ElementContent>) -> Self {
         Element {
             canvas_config: cfg.clone(),
-            tree_node: Cell::new(None),
-            event_receiver: RefCell::new(EventReceiver::new()),
-            dirty: Cell::new(true),
-            style: RefCell::new(ElementStyle::new()),
-            position_offset: RefCell::new(PositionOffset::new()),
+            tree_node: None,
+            event_receiver: EventReceiver::new(),
+            dirty: true,
+            style: ElementStyle::new(),
+            position_offset: PositionOffset::new(),
             draw_separate_tex: Cell::new(-1),
-            content: RefCell::new(content),
+            content,
         }
     }
     #[inline]
-    pub fn name(&self) -> &'static str {
-        self.content.borrow().name()
+    pub fn rc(&self) -> ForestNodeRc<Element> {
+        self.tree_node.as_ref().unwrap().rc()
     }
     #[inline]
-    pub fn tree_node(&self) -> TreeNodeRc<Element> {
-        let tn = self.tree_node.replace(None);
-        let ret = tn.clone().unwrap();
-        self.tree_node.replace(tn);
-        ret.upgrade().unwrap()
+    pub fn node(&self) -> &ForestNode<Element> {
+        self.tree_node.clone().unwrap().deref_by(self)
+    }
+    #[inline]
+    pub fn node_mut<'a>(&'a mut self) -> &'a mut ForestNode<Element> {
+        self.tree_node.clone().unwrap().deref_mut_by(self)
+    }
+    #[inline]
+    pub fn content(&self) -> &Box<ElementContent> {
+        &self.content
+    }
+    #[inline]
+    pub fn content_mut(&mut self) -> &mut Box<ElementContent> {
+        &mut self.content
     }
 
     #[inline]
-    pub fn add_event_listener(&self, event_name: String, f: EventCallback) {
-        self.event_receiver.borrow_mut().add_listener(event_name, f);
+    pub fn name(&self) -> &'static str {
+        self.content.name()
+    }
+
+    #[inline]
+    pub fn add_event_listener(&mut self, event_name: String, f: EventCallback) {
+        self.event_receiver.add_listener(event_name, f);
     }
     #[inline]
-    pub fn remove_event_listener(&self, event_name: String, f: EventCallback) {
-        self.event_receiver.borrow_mut().remove_listener(event_name, f);
+    pub fn remove_event_listener(&mut self, event_name: String, f: EventCallback) {
+        self.event_receiver.remove_listener(event_name, f);
     }
     #[inline]
-    pub fn dispatch_event(&self, event_name: String, detail: Box<Any + 'static>, bubbles: bool) {
-        self.do_dispatch_event(event_name, &detail, bubbles, self.tree_node().clone())
+    pub fn dispatch_event(&mut self, event_name: String, detail: Box<Any + 'static>, bubbles: bool) {
+        let rc = self.node().rc();
+        self.do_dispatch_event(event_name, &rc, &detail, bubbles);
     }
-    fn do_dispatch_event(&self, event_name: String, detail: &Box<Any + 'static>, bubbles: bool, target: TreeNodeRc<Element>) {
+    fn do_dispatch_event(&mut self, event_name: String, target: &ForestNodeRc<Element>, detail: &Box<Any + 'static>, bubbles: bool) {
         // debug!("Dispatch {:?} event for {:?}", event_name, self);
-        self.event_receiver.borrow().new_event(event_name.clone(), target.clone(), self.tree_node().clone(), detail);
+        let rc = self.rc();
+        let ev = Event::new(event_name.clone(), target, &rc, detail);
+        ev.dispatch(self);
         if bubbles {
-            match self.tree_node().parent() {
+            match self.node_mut().parent_mut() {
                 None => { },
                 Some(node) => {
-                    node.elem().do_dispatch_event(event_name, detail, true, target);
+                    node.do_dispatch_event(event_name, target, detail, true);
                 }
             }
         }
     }
 
     #[inline]
-    pub fn tag_name(&self, tag_name: String) {
+    pub fn tag_name(&mut self, tag_name: String) {
         self.style_mut().tag_name(tag_name);
     }
     #[inline]
-    pub fn id(&self, id: String) {
+    pub fn id(&mut self, id: String) {
         self.style_mut().id(id);
     }
     #[inline]
-    pub fn class(&self, class_names: String) {
+    pub fn class(&mut self, class_names: String) {
         self.style_mut().class(class_names);
     }
     #[inline]
-    pub fn style(&self) -> Ref<ElementStyle> {
-        self.style.borrow()
+    pub fn style(&self) -> &ElementStyle {
+        &self.style
     }
     #[inline]
-    pub fn style_mut(&self) -> RefMut<ElementStyle> {
-        self.style.borrow_mut()
+    pub fn style_mut(&mut self) -> &mut ElementStyle {
+        &mut self.style
     }
     #[inline]
-    pub fn style_inline_text(&self, text: &str) {
-        self.style.borrow_mut().inline_text(text)
-    }
-    #[inline]
-    pub(crate) fn position_offset(&self) -> Ref<PositionOffset> {
-        self.position_offset.borrow()
+    pub fn style_inline_text(&mut self, text: &str) {
+        self.style.inline_text(text)
     }
 
     #[inline]
-    pub fn content(&self) -> Ref<Box<ElementContent>> {
-        self.content.borrow()
-    }
-    #[inline]
-    pub fn content_mut(&self) -> RefMut<Box<ElementContent>> {
-        self.content.borrow_mut()
-    }
-
-    #[inline]
-    pub(crate) fn mark_dirty(&self) {
-        if self.dirty.replace(true) { return; }
-        log!("Mark dirty {:?}", &self);
-        let tn = self.tree_node.replace(None);
-        match tn.as_ref().unwrap().upgrade().unwrap().parent() {
+    pub(crate) fn mark_dirty(&mut self) {
+        if self.dirty { return; }
+        self.dirty = true;
+        match self.node_mut().parent_mut() {
             None => { },
-            Some(ref x) => {
-                x.elem().mark_dirty();
-            }
-        };
-        self.tree_node.replace(tn);
+            Some(x) => x.mark_dirty()
+        }
     }
     #[inline]
-    pub(crate) fn clear_dirty(&self) -> bool {
-        // debug!("Clear dirty {:?}", &self);
-        self.dirty.replace(false)
+    pub(crate) fn clear_dirty(&mut self) -> bool {
+        let ret = self.dirty;
+        self.dirty = false;
+        ret
     }
     #[inline]
     pub(crate) fn is_dirty(&self) -> bool {
-        self.dirty.get()
+        self.dirty
     }
     #[inline]
     pub(crate) fn requested_size(&self) -> Size {
-        self.position_offset.borrow().requested_size()
+        self.position_offset.requested_size()
     }
     #[inline]
-    pub(crate) fn suggest_size(&self, suggested_size: Size, inline_allocator: &mut InlineAllocator) -> Size {
+    pub(crate) fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator) -> Size {
         log!("Suggest size {:?}", &self);
         let is_dirty = self.is_dirty();
-        self.position_offset.borrow_mut().suggest_size(is_dirty, suggested_size, inline_allocator, self)
+        self.position_offset.suggest_size(is_dirty, suggested_size, inline_allocator)
     }
     #[inline]
-    pub(crate) fn allocate_position(&self, pos: Position) -> Bounds {
+    pub(crate) fn allocate_position(&mut self, pos: Position) -> Bounds {
         log!("Allocate position {:?}", &self);
         let is_dirty = self.clear_dirty();
-        self.position_offset.borrow_mut().allocate_position(is_dirty, pos, self)
+        self.position_offset.allocate_position(is_dirty, pos)
     }
     #[inline]
-    pub(crate) fn dfs_update_position_offset(&self, suggested_size: Size) {
+    pub(crate) fn dfs_update_position_offset(&mut self, suggested_size: Size) {
         let requested_size = self.suggest_size(suggested_size, &mut InlineAllocator::new(suggested_size.width(), style::TextAlignType::Left));
         self.allocate_position(Position::new(0., 0., suggested_size.width(), requested_size.height()));
     }
 
-    pub(crate) fn draw(&self, viewport: Position, mut transform: Transform) {
+    pub(crate) fn draw(&mut self, viewport: Position, mut transform: Transform) {
         log!("Drawing {:?}", &self);
-        let style = self.style();
-        if style.get_display() == style::DisplayType::None { return }
-        let position_offset = self.position_offset();
-        let allocated_position = position_offset.allocated_position();
+        if self.style.get_display() == style::DisplayType::None { return }
+        let allocated_position = self.position_offset.allocated_position();
         let border_position = Position::new(
-            style.get_margin_left(),
-            style.get_margin_top(),
-            allocated_position.width() - style.get_margin_left() - style.get_margin_right(),
-            allocated_position.height() - style.get_margin_top() - style.get_margin_bottom(),
+            self.style.get_margin_left(),
+            self.style.get_margin_top(),
+            allocated_position.width() - self.style.get_margin_left() - self.style.get_margin_right(),
+            allocated_position.height() - self.style.get_margin_top() - self.style.get_margin_bottom(),
         );
 
         // check if drawing on separate tex is needed
-        if style.get_opacity() < 1. && style.get_opacity() >= 0. {
+        if self.style.get_opacity() < 1. && self.style.get_opacity() >= 0. {
             self.enable_draw_separate_tex()
         } else {
             self.disable_draw_separate_tex()
         }
         let tex_id = self.draw_separate_tex.get();
         let (drawing_tex_position, drawing_tex_offset) = if tex_id >= 0 {
-            let drawing_bounds = style.transform_ref().apply_to_bounds(&position_offset.drawing_bounds());
+            let drawing_bounds = self.style.transform_ref().apply_to_bounds(&self.position_offset.drawing_bounds());
             let drawing_tex_position = Position::new(0., 0., (drawing_bounds.width() + 1.).floor(), (drawing_bounds.height() + 1.).floor());
             // FIXME use drawing_bounds is incorrect because child's transform is not considered
             let rm = self.canvas_config.resource_manager();
@@ -248,10 +248,10 @@ impl Element {
             (allocated_position, Size::new(0., 0.))
         };
 
-        let child_transform = transform.mul_clone(Transform::new().offset(drawing_tex_position.left_top() - Point::new(0., 0.))).mul_clone(&style.transform_ref());
+        let child_transform = transform.mul_clone(Transform::new().offset(drawing_tex_position.left_top() - Point::new(0., 0.))).mul_clone(&self.style.transform_ref());
 
         // draw background color
-        let bg_color = style.get_background_color();
+        let bg_color = self.style.get_background_color();
         if bg_color.0 >= 0. {
             let rm = self.canvas_config.resource_manager();
             let mut rm = rm.borrow_mut();
@@ -265,11 +265,13 @@ impl Element {
         }
 
         // draw content and child
-        let mut content = self.content.borrow_mut();
-        content.draw(&*self.style(), &child_transform);
-        if !content.is_terminated() {
-            for child in self.tree_node().iter_children() {
-                child.elem().draw(viewport, child_transform);
+        {
+            self.content.draw(&child_transform);
+            if !self.content.is_terminated() {
+                let node = self.node_mut();
+                for child in node.clone_children().iter() {
+                    child.deref_mut_with(node).draw(viewport, child_transform);
+                }
             }
         }
 
@@ -281,10 +283,10 @@ impl Element {
 
             // set alpha
             let mut original_alpha = -1.;
-            if style.get_opacity() < 1. && style.get_opacity() >= 0. {
+            if self.style.get_opacity() < 1. && self.style.get_opacity() >= 0. {
                 let mut ds = rm.draw_state();
                 original_alpha = ds.get_alpha();
-                rm.set_draw_state(ds.mul_alpha(style.get_opacity()));
+                rm.set_draw_state(ds.mul_alpha(self.style.get_opacity()));
             }
 
             rm.set_draw_state(DrawState::new().color(bg_color));
@@ -319,9 +321,9 @@ impl Element {
 
     // find the node under point
     // TODO check the transform correctness
-    fn get_node_under_point(&self, point: Point, mut transform: Transform) -> Option<TreeNodeRc<Element>> {
+    fn get_node_under_point(&self, point: Point, mut transform: Transform) -> Option<ForestNodeRc<Element>> {
         if self.style().get_display() == style::DisplayType::None { return None }
-        let position_offset = self.position_offset();
+        let position_offset = &self.position_offset;
         let allocated_position = position_offset.allocated_position();
         let child_transform = transform.mul_clone(Transform::new().offset(allocated_position.left_top() - Point::new(0., 0.))).mul_clone(&self.style().transform_ref());
         let drawing_bounds = child_transform.apply_to_bounds(&position_offset.drawing_bounds());
@@ -329,15 +331,16 @@ impl Element {
         if !point.in_bounds(&drawing_bounds) {
             return None;
         }
-        let content = self.content.borrow_mut();
+        let content = &self.content;
         if content.is_terminated() {
             // debug!("testing {:?} in terminated {:?}", (x, y), content.name());
             if content.is_under_point(point, child_transform) {
-                return Some(self.tree_node());
+                return Some(self.rc());
             }
         } else {
-            for child in self.tree_node().iter_children().rev() {
-                let child_match = child.elem().get_node_under_point(point, child_transform);
+            let self_node = self.node();
+            for child in self_node.iter().rev() {
+                let child_match = child.deref_with(self_node).get_node_under_point(point, child_transform);
                 if child_match.is_some() {
                     return child_match;
                 }
@@ -349,51 +352,92 @@ impl Element {
         if point.in_position(&allocated_position) {
             return None;
         }
-        Some(self.tree_node())
+        Some(self.rc())
     }
-    pub fn node_under_point(&self, point: Point) -> Option<TreeNodeRc<Element>> {
+    pub fn node_under_point(&self, point: Point) -> Option<ForestNodeRc<Element>> {
         self.get_node_under_point(point, Transform::new())
+    }
+
+    fn get_node_by_id(top: &ForestNode<Element>, node: &ForestNode<Element>, id: &str) -> Option<ForestNodeRc<Element>> {
+        for child_rc in node.iter() {
+            let child = child_rc.deref_with(top);
+            if child.style().get_id() == id {
+                return Some(child_rc.clone());
+            }
+            match Self::get_node_by_id(top, child, id) {
+                Some(x) => {
+                    return Some(x);
+                },
+                None => { }
+            }
+        }
+        None
+    }
+    pub fn node_by_id(&self, id: &str) -> Option<ForestNodeRc<Element>> {
+        if self.style().get_id() == id {
+            return Some(self.rc());
+        }
+        Self::get_node_by_id(self.node(), self.node(), id)
     }
 }
 
 
-impl TreeElem for Element {
+impl ForestNodeContent for Element {
     #[inline]
-    fn associate_node(&self, node: TreeNodeWeak<Element>) {
-        self.tree_node.set(Some(node.clone()));
-        self.style_mut().associate_tree_node(node.clone());
-        self.content.borrow_mut().associate_tree_node(node);
+    fn associate_node(&mut self, node: ForestNodeSelf<Element>) {
+        self.tree_node.replace(node);
+        let self_ptr = self as *mut Self;
+        self.style_mut().associate_element(self_ptr);
+        self.position_offset.associate_element(self_ptr);
+        self.content.associate_element(self_ptr);
     }
     #[inline]
-    fn parent_node_changed(&self, parent_node: Option<TreeNodeRc<Element>>) {
-        self.style_mut().parent_node_changed(parent_node.clone());
-        if parent_node.is_some() {
-            parent_node.unwrap().elem().mark_dirty();
+    fn parent_node_changed(&mut self) {
+        self.style_mut().parent_node_changed();
+        match self.node_mut().parent_mut() {
+            None => { },
+            Some(parent_node) => {
+                parent_node.mark_dirty();
+            }
         }
     }
 }
+
+impl Deref for Element {
+    type Target = Box<ElementContent>;
+    fn deref(&self) -> &Self::Target {
+        &self.content
+    }
+}
+
+impl DerefMut for Element {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.content
+    }
+}
+
 
 #[macro_export]
 macro_rules! __element_children {
     ($cfg:expr, $v:ident, $t:ident, ) => {};
     ($cfg:expr, $v:ident, $t:ident, @ $k:expr => $a:expr; $($r:tt)*) => {
         // event listeners
-        $v.elem().add_event_listener(String::from($k), Rc::new(RefCell::new($a)));
+        $v.add_event_listener(String::from($k), Rc::new(RefCell::new($a)));
         __element_children! ($cfg, $v, $t, $($r)*);
     };
     ($cfg:expr, $v:ident, $t:ident, class: $a:expr; $($r:tt)*) => {
         // inline styles
-        $v.elem().class($a.into());
+        $v.class($a.into());
         __element_children! ($cfg, $v, $t, $($r)*);
     };
     ($cfg:expr, $v:ident, $t:ident, $k:ident : $a:expr; $($r:tt)*) => {
         // inline styles
-        $v.elem().style_mut().$k($a.into());
+        $v.style_mut().$k($a.into());
         __element_children! ($cfg, $v, $t, $($r)*);
     };
     ($cfg:expr, $v:ident, $t:ident, $k:ident ( $($a:expr),* ); $($r:tt)*) => {
         // element content methods
-        $v.elem().content_mut().downcast_mut::<$t>().unwrap().$k($($a),*);
+        $v.content_mut().downcast_mut::<$t>().unwrap().$k($($a),*);
         __element_children! ($cfg, $v, $t, $($r)*);
     };
     ($cfg:expr, $v:ident, $t:ident, $e:ident; $($r:tt)*) => {
@@ -402,7 +446,7 @@ macro_rules! __element_children {
     };
     ($cfg:expr, $v:ident, $t:ident, $e:ident { $($c:tt)* }; $($r:tt)*) => {
         // child nodes
-        let mut temp_element_child = __element_tree! ( $cfg, $e { $($c)* });
+        let mut temp_element_child = __element_tree! ( $cfg, $v, $e { $($c)* });
         $v.append(temp_element_child);
         __element_children! ($cfg, $v, $t, $($r)*);
     }
@@ -410,14 +454,14 @@ macro_rules! __element_children {
 
 #[macro_export]
 macro_rules! __element_tree {
-    ($cfg:expr, $e:ident) => {
+    ($node:expr, $cfg:expr, $e:ident) => {
         __element_tree! ($cfg, $e {})
     };
-    ($cfg:expr, $e:ident { $($c:tt)* }) => {{
+    ($cfg:expr, $node:expr, $e:ident { $($c:tt)* }) => {{
         let mut temp_content = Box::new($e::new($cfg));
-        let mut temp_element = $crate::tree::TreeNodeRc::new(Element::new($cfg, temp_content));
+        let mut temp_element = $node.create_another(Element::new($cfg, temp_content));
         {
-            let mut _temp_element_inner = temp_element.clone();
+            let mut _temp_element_inner = temp_element.deref_mut_with($node);
             __element_children! ($cfg, _temp_element_inner, $e, $($c)*);
         }
         temp_element
@@ -426,10 +470,11 @@ macro_rules! __element_tree {
 
 #[macro_export]
 macro_rules! element {
-    ($cfg:expr, $($c:tt)*) => {{
-        __element_tree! ($cfg, $($c)*)
+    ($node:expr, $cfg:expr, $($c:tt)*) => {{
+        __element_tree! ($cfg, $node, $($c)*)
     }}
 }
+
 
 #[macro_export]
 macro_rules! __element_class_rule {

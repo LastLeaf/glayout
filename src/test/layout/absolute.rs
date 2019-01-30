@@ -12,7 +12,8 @@ pub fn init() {
 
         let elem = {
             let cfg = context.canvas_config();
-            let elem = element! (&cfg, Empty {
+            let mut root = context.root().borrow_mut();
+            let elem = element! (&mut root, &cfg, Empty {
                 Text {
                     id: String::from("a");
                     position: PositionType::Absolute;
@@ -54,19 +55,19 @@ pub fn init() {
             });
             elem
         };
-        let mut root_elem = context.root();
+        let mut root_elem = context.root().borrow_mut();
         root_elem.append(elem);
 
         let init_time = time::Instant::now();
         let rc_context = rc_context.clone();
         frame!(move |time| {
             let mut context = rc_context.borrow_mut();
-            let root = context.root();
+            let mut root = context.root().borrow_mut();
 
             if context.touching() {
-                match root.elem().node_under_point(context.touch_point()) {
+                match root.node_under_point(context.touch_point()) {
                     Some(x) => {
-                        println!("Touching: {:?}", x.elem().style().get_id());
+                        println!("Touching: {:?}", x.deref_with(&root).style().get_id());
                     },
                     None => {
                         println!("Touching nothing");
@@ -74,10 +75,10 @@ pub fn init() {
                 }
             }
 
-            let f = context.node_by_id("f").unwrap();
+            let f = root.node_by_id("f").unwrap();
             let time = time.duration_since(init_time);
             let ts = time.as_secs() as f64 * 1000. + time.subsec_nanos() as f64 / 1_000_000.;
-            f.elem().style_mut().transform_mut().reset().offset(Size::new(ts / 1000. % 4. * 400., 0.));
+            f.deref_mut_with(&mut root).style_mut().transform_mut().reset().offset(Size::new(ts / 1000. % 4. * 400., 0.));
             context.redraw();
 
             return true;

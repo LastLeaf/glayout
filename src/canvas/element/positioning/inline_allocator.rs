@@ -1,4 +1,4 @@
-use super::super::super::super::tree::TreeNodeRc;
+use rc_forest::ForestNodeRc;
 use super::super::Element;
 use super::super::style::TextAlignType;
 use super::{Point, Size};
@@ -27,7 +27,7 @@ impl InlineSize {
 }
 
 pub struct InlineAllocator {
-    current_line_nodes: Vec<TreeNodeRc<Element>>,
+    current_line_nodes: Vec<ForestNodeRc<Element>>,
     width: f64,
     text_align: TextAlignType,
     height: f64, // total height (excludes latest line)
@@ -80,7 +80,7 @@ impl InlineAllocator {
     pub fn get_current_height(&self) -> f64 {
         self.height + if self.used_width > 0. { self.line_height } else { 0. }
     }
-    pub fn start_node(&mut self, next_node: TreeNodeRc<Element>, required_line_height: f64, required_baseline_offset: f64) {
+    pub fn start_node(&mut self, next_node: ForestNodeRc<Element>, required_line_height: f64, required_baseline_offset: f64) {
         self.last_required_line_height = required_line_height;
         self.last_required_baseline_offset = required_baseline_offset;
         if self.baseline_offset < required_baseline_offset {
@@ -144,13 +144,13 @@ impl InlineAllocator {
     #[inline]
     fn adjust_baseline_offset(&mut self, add_offset: f64) {
         for node in self.current_line_nodes.iter_mut() {
-            node.elem().content_mut().adjust_baseline_offset(add_offset);
+            node.borrow_mut().adjust_baseline_offset(add_offset); // TODO
         }
     }
     #[inline]
     fn adjust_text_align_offset(&mut self, add_offset: f64) {
         for node in self.current_line_nodes.iter_mut() {
-            node.elem().content_mut().adjust_text_align_offset(add_offset);
+            node.borrow_mut().adjust_text_align_offset(add_offset); // TODO
         }
     }
 

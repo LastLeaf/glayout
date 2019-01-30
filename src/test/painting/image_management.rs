@@ -14,10 +14,11 @@ pub fn init() {
 
         glayout::set_timeout(move || {
             let mut context = rc_context_1.borrow_mut();
-            let mut root_elem = context.root();
+            let root_elem = context.root();
             let elem = {
                 let cfg = context.canvas_config();
-                let elem = element!(&cfg, Empty {
+                let mut root = context.root().borrow_mut();
+                let elem = element!(&mut root, &cfg, Empty {
                     left: 10.;
                     top: 20.;
                     Empty;
@@ -34,17 +35,17 @@ pub fn init() {
                 });
                 elem
             };
-            root_elem.append(elem);
+            root_elem.borrow_mut().append(elem);
         }, time::Duration::new(1, 0));
 
         glayout::set_timeout(move || {
             let mut context = rc_context_2.borrow_mut();
-            let image_node = context.node_by_id("img").unwrap();
-            let mut image = image_node.elem().content_mut();
+            let mut root = context.root().borrow_mut();
+            let image_node = root.node_by_id("img").unwrap().deref_mut_with(&mut root);
+            let image = image_node.content_mut();
             let t = image.downcast_mut::<Image>().unwrap();
             t.load("resources/lastleaf.jpg");
         }, time::Duration::new(2, 0));
-
         return 0;
     });
 }

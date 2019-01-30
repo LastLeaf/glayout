@@ -31,7 +31,7 @@ export class CanvasContext {
   getRootNode() {
     return Element._from_ptr(__glayoutAsm__._canvas_context_root(this._ptr))
   }
-  createElement(name) {
-    return Element._create(this._ptr, name)
+  createElement(name, tagName) {
+    return Element._create(this._ptr, name, tagName)
   }
 }

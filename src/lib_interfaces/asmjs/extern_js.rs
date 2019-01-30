@@ -2,7 +2,7 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::rc::Rc;
 use std::cell::RefCell;
-use super::super::super::tree::{TreeNodeRc, TreeNode};
+use rc_forest::{ForestNodeRc, ForestNode, ForestNodePtr};
 use super::super::super::canvas::{Canvas, CanvasContext};
 use super::super::super::canvas::element::{Element, Empty, Text, Image, Point};
 
@@ -49,20 +49,23 @@ pub extern "C" fn canvas_context_append_style_sheet(context: *const RefCell<Canv
     ctx.canvas_config().append_style_sheet(str_from_c_char_ptr(style_text));
 }
 #[no_mangle]
-pub extern "C" fn canvas_context_root(context: *const RefCell<CanvasContext>) -> *const TreeNode<Element> {
+pub extern "C" fn canvas_context_root(context: *const RefCell<CanvasContext>) -> ForestNodePtr<Element> {
     let ctx = canvas_context_from_pointer(context);
     let mut ctx = ctx.borrow_mut();
-    TreeNodeRc::into_ptr(ctx.root().clone())
+    ForestNodeRc::into_ptr(ctx.root().clone())
 }
 #[no_mangle]
-pub extern "C" fn release_node(node_pointer: *const TreeNode<Element>) {
-    unsafe { TreeNodeRc::from_ptr(node_pointer, false) };
+pub extern "C" fn release_node(node_pointer: ForestNodePtr<Element>) {
+    unsafe { ForestNodeRc::from_ptr(node_pointer, false) };
 }
 
 #[inline]
-fn node_from_pointer(node_pointer: *const TreeNode<Element>) -> TreeNodeRc<Element> {
-    let ret = unsafe { TreeNodeRc::from_ptr(node_pointer, true) };
-    ret
+fn node_rc_from_pointer(node_pointer: ForestNodePtr<Element>) -> ForestNodeRc<Element> {
+    unsafe { ForestNodeRc::from_ptr(node_pointer, true) }
+}
+#[inline]
+fn node_from_pointer<'a>(node_pointer: ForestNodePtr<Element>) -> &'a mut ForestNode<Element> {
+    unsafe { ForestNodeRc::from_ptr(node_pointer, true).forest_node_mut() }
 }
 pub enum ElementType {
     Empty = 0,
@@ -70,15 +73,16 @@ pub enum ElementType {
     Image = 2,
 }
 #[no_mangle]
-pub extern "C" fn element_new(context: *const RefCell<CanvasContext>, elem_type: ElementType) -> *const TreeNode<Element> {
+pub extern "C" fn element_new(context: *const RefCell<CanvasContext>, elem_type: ElementType) -> ForestNodePtr<Element> {
     let ctx = canvas_context_from_pointer(context);
     let mut ctx = ctx.borrow_mut();
     let cfg = ctx.canvas_config();
+    let root = unsafe { ctx.root().forest_node_mut() };
     macro_rules! create_element {
         ($t: tt) => {
             {
                 let mut temp_content = Box::new($t::new(&cfg));
-                TreeNodeRc::new(Element::new(&cfg, temp_content))
+                root.create_another(Element::new(&cfg, temp_content))
             }
         }
     }
@@ -87,89 +91,89 @@ pub extern "C" fn element_new(context: *const RefCell<CanvasContext>, elem_type:
         ElementType::Text => create_element!(Text),
         ElementType::Image => create_element!(Image),
     };
-    TreeNodeRc::into_ptr(elem)
+    ForestNodeRc::into_ptr(elem)
 }
 #[no_mangle]
-pub extern "C" fn element_clone_node(node_pointer: *const TreeNode<Element>) -> *const TreeNode<Element> {
-    let node = node_from_pointer(node_pointer);
-    TreeNodeRc::into_ptr(node.clone_node())
+pub extern "C" fn element_clone_node(node_pointer: ForestNodePtr<Element>) -> ForestNodePtr<Element> {
+    let node = node_rc_from_pointer(node_pointer);
+    ForestNodeRc::into_ptr(node.clone_node_with(unsafe {node.forest_node_mut()}))
 }
 #[no_mangle]
-pub extern "C" fn element_parent(node_pointer: *const TreeNode<Element>) -> *const TreeNode<Element> {
+pub extern "C" fn element_parent(node_pointer: ForestNodePtr<Element>) -> ForestNodePtr<Element> {
     let node = node_from_pointer(node_pointer);
     let parent = node.parent();
     match parent {
-        Some(p) => TreeNodeRc::into_ptr(p),
-        None => 0 as *const TreeNode<Element>
+        Some(p) => ForestNodeRc::into_ptr(p.rc()),
+        None => 0 as ForestNodePtr<Element>
     }
 }
 #[no_mangle]
-pub extern "C" fn element_child(node_pointer: *const TreeNode<Element>, index: i32) -> *const TreeNode<Element> {
+pub extern "C" fn element_child(node_pointer: ForestNodePtr<Element>, index: i32) -> ForestNodePtr<Element> {
     let node = node_from_pointer(node_pointer);
     let index = index as usize;
-    if index >= node.len() {
-        0 as *const TreeNode<Element>
-    } else {
-        TreeNodeRc::into_ptr(node.child(index))
+    match node.child(index) {
+        None => 0 as ForestNodePtr<Element>,
+        Some(node) => ForestNodeRc::into_ptr(node.rc())
     }
 }
 #[no_mangle]
-pub extern "C" fn element_append(node_pointer: *const TreeNode<Element>, child_node_pointer: *const TreeNode<Element>) {
-    let mut node = node_from_pointer(node_pointer);
-    let child = node_from_pointer(child_node_pointer);
+pub extern "C" fn element_append(node_pointer: ForestNodePtr<Element>, child_node_pointer: ForestNodePtr<Element>) {
+    let node = node_from_pointer(node_pointer);
+    let child = node_rc_from_pointer(child_node_pointer);
     node.append(child);
 }
 #[no_mangle]
-pub extern "C" fn element_insert(node_pointer: *const TreeNode<Element>, child_node_pointer: *const TreeNode<Element>, pos: i32) {
-    let mut node = node_from_pointer(node_pointer);
-    let child = node_from_pointer(child_node_pointer);
+pub extern "C" fn element_insert(node_pointer: ForestNodePtr<Element>, child_node_pointer: ForestNodePtr<Element>, pos: i32) {
+    let node = node_from_pointer(node_pointer);
+    let child = node_rc_from_pointer(child_node_pointer);
     let pos = pos as usize;
     node.insert(child, pos);
 }
 #[no_mangle]
-pub extern "C" fn element_remove(node_pointer: *const TreeNode<Element>, pos: i32) {
-    let mut node = node_from_pointer(node_pointer);
+pub extern "C" fn element_remove(node_pointer: ForestNodePtr<Element>, pos: i32) {
+    let node = node_from_pointer(node_pointer);
     node.remove(pos as usize);
 }
 #[no_mangle]
-pub extern "C" fn element_replace(node_pointer: *const TreeNode<Element>, child_node_pointer: *const TreeNode<Element>, pos: i32) {
-    let mut node = node_from_pointer(node_pointer);
-    let child = node_from_pointer(child_node_pointer);
+pub extern "C" fn element_replace(node_pointer: ForestNodePtr<Element>, child_node_pointer: ForestNodePtr<Element>, pos: i32) {
+    let node = node_from_pointer(node_pointer);
+    let child = node_rc_from_pointer(child_node_pointer);
     let pos = pos as usize;
     node.replace(child, pos);
 }
 #[no_mangle]
-pub extern "C" fn element_splice(node_pointer: *const TreeNode<Element>, pos: i32, length: i32, other_node_pointer: *const TreeNode<Element>) {
-    let mut node = node_from_pointer(node_pointer);
+pub extern "C" fn element_splice(node_pointer: ForestNodePtr<Element>, pos: i32, length: i32, other_node_pointer: ForestNodePtr<Element>) {
+    let node = node_from_pointer(node_pointer);
     let pos = if pos < 0 { node.len() } else { pos as usize };
-    if other_node_pointer == 0 as *const TreeNode<Element> {
-        node.splice(pos, length as usize, None);
+    if other_node_pointer == 0 as ForestNodePtr<Element> {
+        node.splice(pos, length as usize, Box::new([]));
     } else {
-        let child = node_from_pointer(other_node_pointer);
-        node.splice(pos, length as usize, Some(child));
+        let other = node_rc_from_pointer(other_node_pointer);
+        let children = other.deref_with(node).clone_children();
+        node.splice(pos, length as usize, children);
     }
 }
 #[no_mangle]
-pub extern "C" fn element_find_child_position(node_pointer: *const TreeNode<Element>, child_node_pointer: *const TreeNode<Element>) -> i32 {
+pub extern "C" fn element_find_child_position(node_pointer: ForestNodePtr<Element>, child_node_pointer: ForestNodePtr<Element>) -> i32 {
     let node = node_from_pointer(node_pointer);
-    let child = node_from_pointer(child_node_pointer);
+    let child = node_rc_from_pointer(child_node_pointer);
     match node.find_child_position(&child) {
         Some(x) => x as i32,
         None => -1
     }
 }
 #[no_mangle]
-pub extern "C" fn element_length(node_pointer: *const TreeNode<Element>) -> i32 {
+pub extern "C" fn element_length(node_pointer: ForestNodePtr<Element>) -> i32 {
     let node = node_from_pointer(node_pointer);
     node.len() as i32
 }
 #[no_mangle]
-pub extern "C" fn element_node_under_point(node_pointer: *const TreeNode<Element>, x: f64, y: f64) -> *const TreeNode<Element> {
+pub extern "C" fn element_node_under_point(node_pointer: ForestNodePtr<Element>, x: f64, y: f64) -> ForestNodePtr<Element> {
     let node = node_from_pointer(node_pointer);
-    let ret = node.elem().node_under_point(Point::new(x, y));
+    let ret = node.node_under_point(Point::new(x, y));
     match ret {
-        Some(ret) => TreeNodeRc::into_ptr(ret),
-        None => 0 as *const TreeNode<Element>
+        Some(ret) => ForestNodeRc::into_ptr(ret),
+        None => 0 as ForestNodePtr<Element>
     }
 }
 
@@ -184,34 +188,34 @@ fn string_from_c_char_ptr(ptr: *mut c_char) -> String {
     c_str.to_str().unwrap().to_owned()
 }
 #[no_mangle]
-pub extern "C" fn element_tag_name(node_pointer: *const TreeNode<Element>, tag_name: *mut c_char) {
+pub extern "C" fn element_tag_name(node_pointer: ForestNodePtr<Element>, tag_name: *mut c_char) {
     let node = node_from_pointer(node_pointer);
-    node.elem().tag_name(string_from_c_char_ptr(tag_name));
+    node.tag_name(string_from_c_char_ptr(tag_name));
 }
 #[no_mangle]
-pub extern "C" fn element_id(node_pointer: *const TreeNode<Element>, id: *mut c_char) {
+pub extern "C" fn element_id(node_pointer: ForestNodePtr<Element>, id: *mut c_char) {
     let node = node_from_pointer(node_pointer);
-    node.elem().id(string_from_c_char_ptr(id));
+    node.id(string_from_c_char_ptr(id));
 }
 #[no_mangle]
-pub extern "C" fn element_class(node_pointer: *const TreeNode<Element>, class_names: *mut c_char) {
+pub extern "C" fn element_class(node_pointer: ForestNodePtr<Element>, class_names: *mut c_char) {
     let node = node_from_pointer(node_pointer);
-    node.elem().class(string_from_c_char_ptr(class_names));
+    node.class(string_from_c_char_ptr(class_names));
 }
 #[no_mangle]
-pub extern "C" fn element_style(node_pointer: *const TreeNode<Element>, style_text: *mut c_char) {
+pub extern "C" fn element_style(node_pointer: ForestNodePtr<Element>, style_text: *mut c_char) {
     let node = node_from_pointer(node_pointer);
-    node.elem().style_inline_text(str_from_c_char_ptr(style_text));
+    node.style_inline_text(str_from_c_char_ptr(style_text));
 }
 #[no_mangle]
-pub extern "C" fn text_element_set_text(node_pointer: *const TreeNode<Element>, text: *mut c_char) {
+pub extern "C" fn text_element_set_text(node_pointer: ForestNodePtr<Element>, text: *mut c_char) {
     let node = node_from_pointer(node_pointer);
-    node.elem().content_mut().downcast_mut::<Text>().unwrap().set_text(string_from_c_char_ptr(text));
+    node.content_mut().downcast_mut::<Text>().unwrap().set_text(string_from_c_char_ptr(text));
 }
 #[no_mangle]
-pub extern "C" fn image_element_load(node_pointer: *const TreeNode<Element>, url: *mut c_char) {
+pub extern "C" fn image_element_load(node_pointer: ForestNodePtr<Element>, url: *mut c_char) {
     let node = node_from_pointer(node_pointer);
     // FIXME image loader reuse
-    node.elem().content_mut().downcast_mut::<Image>().unwrap().load(string_from_c_char_ptr(url));
+    node.content_mut().downcast_mut::<Image>().unwrap().load(string_from_c_char_ptr(url));
 }
 // FIXME added image_element_get_natural_size interface
