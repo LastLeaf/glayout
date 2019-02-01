@@ -32,6 +32,16 @@ pub enum StyleName {
     padding_right = 0x55,
     padding_top = 0x56,
     padding_bottom = 0x57,
+    box_sizing = 0x58,
+
+    border_left_width = 0x60,
+    border_right_width = 0x61,
+    border_top_width = 0x62,
+    border_bottom_width = 0x63,
+    border_left_color = 0x64,
+    border_right_color = 0x65,
+    border_top_color = 0x66,
+    border_bottom_color = 0x67,
 }
 
 #[derive(Default)]
@@ -103,6 +113,15 @@ impl ElementClass {
             StyleName::padding_right => style_name!(padding_right, f64),
             StyleName::padding_top => style_name!(padding_top, f64),
             StyleName::padding_bottom => style_name!(padding_bottom, f64),
+            StyleName::box_sizing => style_name!(box_sizing, super::BoxSizingType),
+            StyleName::border_left_width => style_name!(border_left_width, f64),
+            StyleName::border_right_width => style_name!(border_right_width, f64),
+            StyleName::border_top_width => style_name!(border_top_width, f64),
+            StyleName::border_bottom_width => style_name!(border_bottom_width, f64),
+            StyleName::border_left_color => style_name!(border_left_color, (f32, f32, f32, f32)),
+            StyleName::border_right_color => style_name!(border_right_color, (f32, f32, f32, f32)),
+            StyleName::border_top_color => style_name!(border_top_color, (f32, f32, f32, f32)),
+            StyleName::border_bottom_color => style_name!(border_bottom_color, (f32, f32, f32, f32)),
         }
     }
 }

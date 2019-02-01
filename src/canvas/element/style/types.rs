@@ -22,3 +22,11 @@ pub enum TextAlignType {
     Center,
     Right,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum BoxSizingType {
+    Default,
+    ContentBox,
+    PaddingBox,
+    BorderBox,
+}

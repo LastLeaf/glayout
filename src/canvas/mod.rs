@@ -100,7 +100,7 @@ impl CanvasContext {
         log!("Canvas size changed: {}", self.canvas_config.index);
         self.canvas_config.canvas_size.set(element::Size::new(w as f64, h as f64));
         lib!(set_canvas_size(self.canvas_config.index, w, h, pixel_ratio, update_logical_size as i32));
-        self.root_node.borrow_mut().mark_dirty();
+        self.root_node.borrow_mut().mark_layout_dirty();
     }
     pub fn set_canvas_size(&mut self, w: i32, h: i32, pixel_ratio: f64) {
         self.set_canvas_size_inner(w, h, pixel_ratio, true)
@@ -146,7 +146,7 @@ impl CanvasContext {
     }
 
     fn generate_frame(&mut self) {
-        let dirty = self.root_node.borrow().is_dirty(); // any child or itself need update position offset
+        let dirty = self.root_node.borrow().is_layout_dirty(); // any child or itself need update position offset
         if dirty || self.need_redraw {
             self.need_redraw = false;
             // let now = start_measure_time!();

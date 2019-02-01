@@ -5,7 +5,7 @@ use super::{Element, Transform};
 use rc_forest::{ForestNode};
 
 mod types;
-pub use self::types::{DisplayType, PositionType, TextAlignType};
+pub use self::types::{DisplayType, PositionType, TextAlignType, BoxSizingType};
 mod class;
 pub use self::class::{StyleName, ElementClass};
 mod style_sheet;
@@ -48,6 +48,15 @@ pub struct ElementStyle {
     padding_right: f64,
     padding_top: f64,
     padding_bottom: f64,
+    box_sizing: BoxSizingType,
+    border_left_width: f64,
+    border_right_width: f64,
+    border_top_width: f64,
+    border_bottom_width: f64,
+    border_left_color: (f32, f32, f32, f32),
+    border_right_color: (f32, f32, f32, f32),
+    border_top_color: (f32, f32, f32, f32),
+    border_bottom_color: (f32, f32, f32, f32),
 }
 
 impl Default for ElementStyle {
@@ -86,6 +95,15 @@ impl Default for ElementStyle {
             padding_right: 0.,
             padding_top: 0.,
             padding_bottom: 0.,
+            box_sizing: BoxSizingType::ContentBox,
+            border_left_width: 0.,
+            border_right_width: 0.,
+            border_top_width: 0.,
+            border_bottom_width: 0.,
+            border_left_color: (0., 0., 0., 0.),
+            border_right_color: (0., 0., 0., 0.),
+            border_top_color: (0., 0., 0., 0.),
+            border_bottom_color: (0., 0., 0., 0.),
         }
     }
 }
@@ -113,7 +131,7 @@ macro_rules! getter_setter {
         }
     }
 }
-macro_rules! getter_setter_dirty {
+macro_rules! getter_setter_layout_dirty {
     ($name:ident, $getter:ident, $setter:ident, $type:ty) => {
         #[inline]
         pub fn $getter(&self) -> $type {
@@ -127,12 +145,12 @@ macro_rules! getter_setter_dirty {
         }
         #[inline]
         pub(self) fn $setter(&mut self, val: $type) {
-            self.element_mut().mark_dirty();
+            self.element_mut().mark_layout_dirty();
             self.$name = val;
         }
     }
 }
-macro_rules! getter_setter_inherit_dirty {
+macro_rules! getter_setter_inherit_layout_dirty {
     ($name:ident, $getter:ident, $setter:ident, $inherit_name:ident, $inherit_getter:ident, $dfs_setter:ident, $type:ty) => {
         #[inline]
         pub fn $getter(&self) -> $type {
@@ -152,7 +170,7 @@ macro_rules! getter_setter_inherit_dirty {
             if self.$name == val { return }
             let s = unsafe { self.clone_mut_unsafe() };
             let tree_node = self.node_mut();
-            tree_node.mark_dirty();
+            tree_node.mark_layout_dirty();
             s.$name = val.clone();
             for child in tree_node.clone_children().iter() {
                 let mut style = child.deref_mut_with(tree_node).style_mut();
@@ -184,29 +202,38 @@ macro_rules! update_inherit {
 }
 
 impl ElementStyle {
-    getter_setter_dirty!(display, get_display, set_display, DisplayType);
-    getter_setter_dirty!(position, get_position, set_position, PositionType);
-    getter_setter_dirty!(left, get_left, set_left, f64);
-    getter_setter_dirty!(top, get_top, set_top, f64);
-    getter_setter_dirty!(width, get_width, set_width, f64);
-    getter_setter_dirty!(height, get_height, set_height, f64);
-    getter_setter_inherit_dirty!(font_family, get_font_family, set_font_family, inherit_font_family, get_inherit_font_family, inherit_font_family, String);
-    getter_setter_inherit_dirty!(font_size, get_font_size, set_font_size, inherit_font_size, get_inherit_font_size, inherit_font_size, f32);
-    getter_setter_inherit_dirty!(line_height, get_line_height, set_line_height, inherit_line_height, get_inherit_line_height, inherit_line_height, f32);
-    getter_setter_inherit_dirty!(text_align, get_text_align, set_text_align, inherit_text_align, get_inherit_text_align, inherit_text_align, TextAlignType);
+    getter_setter_layout_dirty!(display, get_display, set_display, DisplayType);
+    getter_setter_layout_dirty!(position, get_position, set_position, PositionType);
+    getter_setter_layout_dirty!(left, get_left, set_left, f64);
+    getter_setter_layout_dirty!(top, get_top, set_top, f64);
+    getter_setter_layout_dirty!(width, get_width, set_width, f64);
+    getter_setter_layout_dirty!(height, get_height, set_height, f64);
+    getter_setter_inherit_layout_dirty!(font_family, get_font_family, set_font_family, inherit_font_family, get_inherit_font_family, inherit_font_family, String);
+    getter_setter_inherit_layout_dirty!(font_size, get_font_size, set_font_size, inherit_font_size, get_inherit_font_size, inherit_font_size, f32);
+    getter_setter_inherit_layout_dirty!(line_height, get_line_height, set_line_height, inherit_line_height, get_inherit_line_height, inherit_line_height, f32);
+    getter_setter_inherit_layout_dirty!(text_align, get_text_align, set_text_align, inherit_text_align, get_inherit_text_align, inherit_text_align, TextAlignType);
     // FIXME changing color does not need mark dirty
-    getter_setter_inherit_dirty!(color, get_color, set_color, inherit_color, get_inherit_color, inherit_color, (f32, f32, f32, f32));
+    getter_setter_inherit_layout_dirty!(color, get_color, set_color, inherit_color, get_inherit_color, inherit_color, (f32, f32, f32, f32));
     getter_setter!(background_color, get_background_color, set_background_color, (f32, f32, f32, f32));
     getter_setter!(opacity, get_opacity, set_opacity, f32);
     getter_setter!(transform, get_transform, set_transform, Transform);
-    getter_setter_dirty!(margin_left, get_margin_left, set_margin_left, f64);
-    getter_setter_dirty!(margin_right, get_margin_right, set_margin_right, f64);
-    getter_setter_dirty!(margin_top, get_margin_top, set_margin_top, f64);
-    getter_setter_dirty!(margin_bottom, get_margin_bottom, set_margin_bottom, f64);
-    getter_setter_dirty!(padding_left, get_padding_left, set_padding_left, f64);
-    getter_setter_dirty!(padding_right, get_padding_right, set_padding_right, f64);
-    getter_setter_dirty!(padding_top, get_padding_top, set_padding_top, f64);
-    getter_setter_dirty!(padding_bottom, get_padding_bottom, set_padding_bottom, f64);
+    getter_setter_layout_dirty!(margin_left, get_margin_left, set_margin_left, f64);
+    getter_setter_layout_dirty!(margin_right, get_margin_right, set_margin_right, f64);
+    getter_setter_layout_dirty!(margin_top, get_margin_top, set_margin_top, f64);
+    getter_setter_layout_dirty!(margin_bottom, get_margin_bottom, set_margin_bottom, f64);
+    getter_setter_layout_dirty!(padding_left, get_padding_left, set_padding_left, f64);
+    getter_setter_layout_dirty!(padding_right, get_padding_right, set_padding_right, f64);
+    getter_setter_layout_dirty!(padding_top, get_padding_top, set_padding_top, f64);
+    getter_setter_layout_dirty!(padding_bottom, get_padding_bottom, set_padding_bottom, f64);
+    getter_setter_layout_dirty!(box_sizing, get_box_sizing, set_box_sizing, BoxSizingType);
+    getter_setter_layout_dirty!(border_left_width, get_border_left_width, set_border_left_width, f64);
+    getter_setter_layout_dirty!(border_right_width, get_border_right_width, set_border_right_width, f64);
+    getter_setter_layout_dirty!(border_top_width, get_border_top_width, set_border_top_width, f64);
+    getter_setter_layout_dirty!(border_bottom_width, get_border_bottom_width, set_border_bottom_width, f64);
+    getter_setter!(border_left_color, get_border_left_color, set_border_left_color, (f32, f32, f32, f32));
+    getter_setter!(border_right_color, get_border_right_color, set_border_right_color, (f32, f32, f32, f32));
+    getter_setter!(border_top_color, get_border_top_color, set_border_top_color, (f32, f32, f32, f32));
+    getter_setter!(border_bottom_color, get_border_bottom_color, set_border_bottom_color, (f32, f32, f32, f32));
 
     fn update_inherit(&mut self, parent_node: Option<&mut ForestNode<Element>>) {
         update_inherit!(self, parent_node, font_family, inherit_font_family, inherit_font_family, String::from("sans-serif"));

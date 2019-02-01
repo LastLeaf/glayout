@@ -1,4 +1,4 @@
-use std::ops::{Add, Sub};
+use std::ops::{Add, Sub, Neg};
 
 #[derive(Debug, Copy, Clone, Default, PartialEq)]
 pub struct Point {
@@ -40,6 +40,7 @@ impl Point {
     pub fn top(&self) -> f64 {
         self.top
     }
+    #[inline]
     pub fn move_size(&mut self, s: Size) {
         self.left += s.width;
         self.top += s.height;
@@ -82,6 +83,12 @@ impl Sub<Point> for Point {
     }
 }
 
+impl Into<Size> for Point {
+    fn into(self) -> Size {
+        Size::new(self.left, self.top)
+    }
+}
+
 impl Into<(f64, f64)> for Point {
     fn into(self) -> (f64, f64) {
         (self.left, self.top)
@@ -104,6 +111,19 @@ impl Size {
     pub fn height(&self) -> f64 {
         self.height
     }
+    #[inline]
+    pub fn add_size(&mut self, s: Size) {
+        self.width += s.width;
+        self.height += s.height;
+    }
+    #[inline]
+    pub fn add_width(&mut self, width: f64) {
+        self.width += width;
+    }
+    #[inline]
+    pub fn add_height(&mut self, height: f64) {
+        self.height += height;
+    }
 }
 
 impl Add<Size> for Size {
@@ -113,6 +133,28 @@ impl Add<Size> for Size {
         Size {
             width: self.width + other.width,
             height: self.height + other.height,
+        }
+    }
+}
+
+impl Sub<Size> for Size {
+    type Output = Size;
+
+    fn sub(self, other: Size) -> Size {
+        Size {
+            width: self.width - other.width,
+            height: self.height - other.height,
+        }
+    }
+}
+
+impl Neg for Size {
+    type Output = Size;
+
+    fn neg(self) -> Size {
+        Size {
+            width: - self.width,
+            height: - self.height,
         }
     }
 }
@@ -162,11 +204,24 @@ impl Position {
     pub fn move_size(&mut self, s: Size) {
         self.point.move_size(s);
     }
+    pub fn shrink(&mut self, left_top: Size, right_bottom: Size) {
+        self.point.move_size(left_top);
+        self.size.add_size(- left_top - right_bottom);
+    }
 }
 
 impl Into<(f64, f64, f64, f64)> for Position {
     fn into(self) -> (f64, f64, f64, f64) {
         (self.point.left, self.point.top, self.size.width, self.size.height)
+    }
+}
+
+impl From<(Point, Size)> for Position {
+    fn from(other: (Point, Size)) -> Position {
+        Position {
+            point: other.0,
+            size: other.1,
+        }
     }
 }
 

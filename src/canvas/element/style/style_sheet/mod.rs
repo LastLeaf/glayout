@@ -2,12 +2,14 @@ use std::rc::Rc;
 use std::any::Any;
 use cssparser::{Delimiter, Token, ParserInput, Parser, ParseError, Color};
 use std::collections::HashMap;
-pub(self) use super::{ElementClass, StyleName, DisplayType, PositionType, TextAlignType};
+pub(self) use super::*;
 
 mod selector;
 use self::selector::{Selector, SelectorFragment, SelectorQuery};
 mod rule;
 use self::rule::Rule;
+
+type ValueParsingResult<'a> = Result<Box<Any + Send>, ParseError<'a, ()>>;
 
 pub struct StyleSheet {
     unindexed_classes: Vec<Rc<Rule>>,
@@ -182,9 +184,24 @@ impl StyleSheet {
                                 class.add_rule($style_name, v);
                             },
                             Err(e) => {
+                                let e: &ParseError<()> = &e;
                                 warn!("CSS ParseError {:?}", e);
                             }
                         };
+                    }
+                }
+                macro_rules! add_border_rule {
+                    ($prop:ident, $v:expr) => {
+                        add_rule!(StyleName::$prop, $v.0);
+                        let enabled = match $v.1 {
+                            Err(_) => false,
+                            Ok(v) => *v.downcast_ref::<bool>().unwrap(),
+                        };
+                        if enabled {
+                            add_rule!(StyleName::$prop, Ok(Box::new((0., 0., 0., 0.))));
+                        } else {
+                            add_rule!(StyleName::$prop, $v.2);
+                        }
                     }
                 }
                 // do different parsing for different keys
@@ -291,6 +308,97 @@ impl StyleSheet {
                     "padding-bottom" => {
                         add_rule!(StyleName::padding_bottom, Self::parse_length::<f64>(parser));
                     },
+                    "box-sizing" => {
+                        const MAPPING: [(&'static str, BoxSizingType); 3] = [
+                            ("content-box", BoxSizingType::ContentBox),
+                            ("padding-box", BoxSizingType::PaddingBox),
+                            ("border-box", BoxSizingType::BorderBox),
+                        ];
+                        add_rule!(StyleName::text_align, Self::parse_enum(parser, &MAPPING));
+                    },
+                    "border" => {
+                        let [top, right, bottom, left] = Self::parse_border_multi::<f64>(parser);
+                        add_border_rule!(border_left_width, left);
+                        add_border_rule!(border_right_width, right);
+                        add_border_rule!(border_top_width, top);
+                        add_border_rule!(border_bottom_width, bottom);
+                    },
+                    "border-left" => {
+                        let (width, style, color) = Self::parse_border_single::<f64>(parser);
+                        add_rule!(StyleName::border_left_width, width);
+                        let enabled = match style {
+                            Err(_) => false,
+                            Ok(v) => *v.downcast_ref::<bool>().unwrap(),
+                        };
+                        if enabled {
+                            add_rule!(StyleName::border_left_color, Ok(Box::new((0., 0., 0., 0.))));
+                        } else {
+                            add_rule!(StyleName::border_left_color, color);
+                        }
+                    },
+                    "border-right" => {
+                        let (width, style, color) = Self::parse_border_single::<f64>(parser);
+                        add_rule!(StyleName::border_right_color, width);
+                        let enabled = match style {
+                            Err(_) => false,
+                            Ok(v) => *v.downcast_ref::<bool>().unwrap(),
+                        };
+                        if enabled {
+                            add_rule!(StyleName::border_right_color, Ok(Box::new((0., 0., 0., 0.))));
+                        } else {
+                            add_rule!(StyleName::border_right_color, color);
+                        }
+                    },
+                    "border-top" => {
+                        let (width, style, color) = Self::parse_border_single::<f64>(parser);
+                        add_rule!(StyleName::border_top_color, width);
+                        let enabled = match style {
+                            Err(_) => false,
+                            Ok(v) => *v.downcast_ref::<bool>().unwrap(),
+                        };
+                        if enabled {
+                            add_rule!(StyleName::border_top_color, Ok(Box::new((0., 0., 0., 0.))));
+                        } else {
+                            add_rule!(StyleName::border_top_color, color);
+                        }
+                    },
+                    "border-bottom" => {
+                        let (width, style, color) = Self::parse_border_single::<f64>(parser);
+                        add_rule!(StyleName::border_bottom_width, width);
+                        let enabled = match style {
+                            Err(_) => false,
+                            Ok(v) => *v.downcast_ref::<bool>().unwrap(),
+                        };
+                        if enabled {
+                            add_rule!(StyleName::border_bottom_width, Ok(Box::new((0., 0., 0., 0.))));
+                        } else {
+                            add_rule!(StyleName::border_bottom_width, color);
+                        }
+                    },
+                    "border-left-width" => {
+                        add_rule!(StyleName::border_left_width, Self::parse_length::<f64>(parser));
+                    },
+                    "border-right-width" => {
+                        add_rule!(StyleName::border_right_width, Self::parse_length::<f64>(parser));
+                    },
+                    "border-top-width" => {
+                        add_rule!(StyleName::border_top_width, Self::parse_length::<f64>(parser));
+                    },
+                    "border-bottom-width" => {
+                        add_rule!(StyleName::border_bottom_width, Self::parse_length::<f64>(parser));
+                    },
+                    "border-left-color" => {
+                        add_rule!(StyleName::border_left_color, Self::parse_color(parser));
+                    },
+                    "border-right-color" => {
+                        add_rule!(StyleName::border_right_color, Self::parse_color(parser));
+                    },
+                    "border-top-color" => {
+                        add_rule!(StyleName::border_top_color, Self::parse_color(parser));
+                    },
+                    "border-bottom-color" => {
+                        add_rule!(StyleName::border_bottom_color, Self::parse_color(parser));
+                    },
                     _ => {
                         add_rule!(StyleName::glayout_unrecognized, Err(parser.new_custom_error::<_, ()>(())));
                     }
@@ -314,7 +422,7 @@ impl StyleSheet {
         Ok(())
     }
     #[inline]
-    fn parse_number<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> Result<Box<Any + Send>, ParseError<'a, ()>> {
+    fn parse_number<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a> {
         {
             let r = parser.next();
             if r.is_ok() {
@@ -356,14 +464,14 @@ impl StyleSheet {
         }
         Err(parser.new_custom_error(()))
     }
-    fn parse_length<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> Result<Box<Any + Send>, ParseError<'a, ()>> {
+    fn parse_length<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a> {
         match Self::parse_length_inner::<T>(parser) {
             Err(e) => Err(e),
             Ok(r) => Ok(r)
         }
     }
     #[inline]
-    fn parse_bounds<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> [Result<Box<Any + Send>, ParseError<'a, ()>>; 4] {
+    fn parse_bounds<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> [ValueParsingResult<'a>; 4] {
         let next = parser.try(|parser| {
             Self::parse_length_inner::<T>(parser)
         });
@@ -420,7 +528,7 @@ impl StyleSheet {
         }
     }
     #[inline]
-    fn parse_color<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<Any + Send>, ParseError<'a, ()>> {
+    fn parse_color_inner<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<(f32, f32, f32, f32)>, ParseError<'a, ()>> {
         match Color::parse(parser) {
             Ok(c) => {
                 match c {
@@ -434,7 +542,66 @@ impl StyleSheet {
         }
     }
     #[inline]
-    fn _parse_string_or_ident<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<Any + Send>, ParseError<'a, ()>> {
+    fn parse_color<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a> {
+        match Self::parse_color_inner(parser) {
+            Err(e) => Err(e),
+            Ok(r) => Ok(r)
+        }
+    }
+    #[inline]
+    fn parse_border_single<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> (ValueParsingResult<'a>, ValueParsingResult<'a>, ValueParsingResult<'a>) {
+        let width = Self::parse_length::<T>(parser);
+        const MAPPING: [(&'static str, bool); 2] = [
+            ("none", false),
+            ("solid", true),
+        ];
+        let enabled = Self::parse_enum(parser, &MAPPING);
+        let color = Self::parse_color(parser);
+        (width, enabled, color)
+    }
+    #[inline]
+    fn parse_border_multi<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> [(ValueParsingResult<'a>, ValueParsingResult<'a>, ValueParsingResult<'a>); 4] {
+        match Self::parse_length_inner::<T>(parser) {
+            Err(e) => [
+                (Err(e.clone()), Err(e.clone()), Err(e.clone())),
+                (Err(e.clone()), Err(e.clone()), Err(e.clone())),
+                (Err(e.clone()), Err(e.clone()), Err(e.clone())),
+                (Err(e.clone()), Err(e.clone()), Err(e.clone())),
+            ],
+            Ok(width) => {
+                const MAPPING: [(&'static str, bool); 2] = [
+                    ("none", false),
+                    ("solid", true),
+                ];
+                match Self::parse_enum_inner(parser, &MAPPING) {
+                    Err(e) => [
+                        (Ok(width.clone()), Err(e.clone()), Err(e.clone())),
+                        (Ok(width.clone()), Err(e.clone()), Err(e.clone())),
+                        (Ok(width.clone()), Err(e.clone()), Err(e.clone())),
+                        (Ok(width.clone()), Err(e.clone()), Err(e)),
+                    ],
+                    Ok(enabled) => {
+                        match Self::parse_color_inner(parser) {
+                            Err(e) => [
+                                (Ok(width.clone()), Ok(enabled.clone()), Err(e.clone())),
+                                (Ok(width.clone()), Ok(enabled.clone()), Err(e.clone())),
+                                (Ok(width.clone()), Ok(enabled.clone()), Err(e.clone())),
+                                (Ok(width), Ok(enabled), Err(e)),
+                            ],
+                            Ok(color) => [
+                                (Ok(width.clone()), Ok(enabled.clone()), Ok(color.clone())),
+                                (Ok(width.clone()), Ok(enabled.clone()), Ok(color.clone())),
+                                (Ok(width.clone()), Ok(enabled.clone()), Ok(color.clone())),
+                                (Ok(width), Ok(enabled), Ok(color)),
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[inline]
+    fn _parse_string_or_ident<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a> {
         {
             let r = parser.next();
             if r.is_ok() {
@@ -453,7 +620,7 @@ impl StyleSheet {
         Err(parser.new_custom_error(()))
     }
     #[inline]
-    fn parse_enum<'a, T: Clone + Send + Sync + Sized>(parser: &mut Parser<'a, '_>, mapping: &'static [(&'static str, T)]) -> Result<Box<Any + Send>, ParseError<'a, ()>> {
+    fn parse_enum_inner<'a, T: Clone + Send + Sync + Sized>(parser: &mut Parser<'a, '_>, mapping: &'static [(&'static str, T)]) -> Result<Box<T>, ParseError<'a, ()>> {
         {
             let r = parser.expect_ident();
             if r.is_ok() {
@@ -469,7 +636,14 @@ impl StyleSheet {
         Err(parser.new_custom_error(()))
     }
     #[inline]
-    fn parse_font_family<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<Any + Send>, ParseError<'a, ()>> {
+    fn parse_enum<'a, T: Clone + Send + Sync + Sized>(parser: &mut Parser<'a, '_>, mapping: &'static [(&'static str, T)]) -> ValueParsingResult<'a> {
+        match Self::parse_enum_inner::<T>(parser, mapping) {
+            Err(e) => Err(e),
+            Ok(r) => Ok(r)
+        }
+    }
+    #[inline]
+    fn parse_font_family<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a> {
         {
             let mut ret = vec![];
             let r = parser.parse_comma_separated(|parser| {

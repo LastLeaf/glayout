@@ -52,7 +52,7 @@ impl Image {
         // NOTE this method should be called if manually updated loader
         self.tex_id = -1;
         self.natural_size = (0, 0);
-        self.element_mut().mark_dirty();
+        self.element_mut().mark_layout_dirty();
     }
     fn update_from_loader(&mut self) {
         {
@@ -61,7 +61,7 @@ impl Image {
             let size = loader.size();
             self.natural_size = size;
         }
-        self.element_mut().mark_dirty();
+        self.element_mut().mark_layout_dirty();
     }
     pub fn set_loader(&mut self, loader: Rc<RefCell<ImageLoader>>) {
         self.need_update_from_loader();

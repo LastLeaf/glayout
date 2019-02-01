@@ -61,7 +61,7 @@ impl Text {
     pub fn set_text<T>(&mut self, s: T) where String: From<T> {
         self.need_update = true;
         self.text = String::from(s);
-        self.element_mut().mark_dirty();
+        self.element_mut().mark_layout_dirty();
     }
     pub fn get_text(&mut self) -> String {
         self.text.clone()

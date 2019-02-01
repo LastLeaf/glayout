@@ -12,10 +12,10 @@ use super::resource::DrawState;
 use rc_forest::{ForestNodeContent, ForestNode, ForestNodeRc, ForestNodeSelf};
 
 pub mod style;
-pub use self::style::ElementStyle;
+pub use self::style::*;
 mod positioning;
 pub use self::positioning::{Position, Size, Point, Bounds};
-pub(self) use self::positioning::{PositionOffset, InlineAllocator};
+use self::positioning::{PositionOffset, InlineAllocator};
 mod transform;
 pub use self::transform::Transform;
 
@@ -179,22 +179,22 @@ impl Element {
     }
 
     #[inline]
-    pub(crate) fn mark_dirty(&mut self) {
+    pub(crate) fn mark_layout_dirty(&mut self) {
         if self.dirty { return; }
         self.dirty = true;
         match self.node_mut().parent_mut() {
             None => { },
-            Some(x) => x.mark_dirty()
+            Some(x) => x.mark_layout_dirty()
         }
     }
     #[inline]
-    pub(crate) fn clear_dirty(&mut self) -> bool {
+    pub(crate) fn clear_layout_dirty(&mut self) -> bool {
         let ret = self.dirty;
         self.dirty = false;
         ret
     }
     #[inline]
-    pub(crate) fn is_dirty(&self) -> bool {
+    pub(crate) fn is_layout_dirty(&self) -> bool {
         self.dirty
     }
     #[inline]
@@ -202,32 +202,36 @@ impl Element {
         self.position_offset.requested_size()
     }
     #[inline]
-    pub(crate) fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator) -> Size {
-        log!("Suggest size {:?}", &self);
-        let is_dirty = self.is_dirty();
-        self.position_offset.suggest_size(is_dirty, suggested_size, inline_allocator)
+    pub(crate) fn drawing_bounds(&self) -> Bounds {
+        self.position_offset.drawing_bounds()
     }
     #[inline]
-    pub(crate) fn allocate_position(&mut self, pos: Position) -> Bounds {
-        log!("Allocate position {:?}", &self);
-        let is_dirty = self.clear_dirty();
-        self.position_offset.allocate_position(is_dirty, pos)
+    pub(crate) fn suggest_size(&mut self, suggested_size: Size, relative_size: Size, inline_allocator: &mut InlineAllocator) -> Size {
+        let is_layout_dirty = self.is_layout_dirty();
+        self.position_offset.suggest_size(is_layout_dirty, suggested_size, relative_size, inline_allocator)
+    }
+    #[inline]
+    pub(crate) fn allocate_position(&mut self, allocated_point: Point, relative_point: Point) -> Bounds {
+        let is_layout_dirty = self.clear_layout_dirty();
+        self.position_offset.allocate_position(is_layout_dirty, allocated_point, relative_point)
     }
     #[inline]
     pub(crate) fn dfs_update_position_offset(&mut self, suggested_size: Size) {
-        let requested_size = self.suggest_size(suggested_size, &mut InlineAllocator::new(suggested_size.width(), style::TextAlignType::Left));
-        self.allocate_position(Position::new(0., 0., suggested_size.width(), requested_size.height()));
+        let _requested_size = self.suggest_size(suggested_size, suggested_size, &mut InlineAllocator::new(suggested_size.width(), style::TextAlignType::Left));
+        self.allocate_position(Point::new(0., 0.), Point::new(0., 0.));
     }
 
     pub(crate) fn draw(&mut self, viewport: Position, mut transform: Transform) {
-        log!("Drawing {:?}", &self);
         if self.style.get_display() == style::DisplayType::None { return }
-        let allocated_position = self.position_offset.allocated_position();
+        debug!("Drawing {:?}", self);
+        let allocated_point = self.position_offset.allocated_point();
+        let requested_size = self.position_offset.requested_size();
+        let allocated_position = Position::from((allocated_point, requested_size));
         let border_position = Position::new(
             self.style.get_margin_left(),
             self.style.get_margin_top(),
-            allocated_position.width() - self.style.get_margin_left() - self.style.get_margin_right(),
-            allocated_position.height() - self.style.get_margin_top() - self.style.get_margin_bottom(),
+            requested_size.width() - self.style.get_margin_left() - self.style.get_margin_right(),
+            requested_size.height() - self.style.get_margin_top() - self.style.get_margin_bottom(),
         );
 
         // check if drawing on separate tex is needed
@@ -325,9 +329,9 @@ impl Element {
     fn get_node_under_point(&self, point: Point, mut transform: Transform) -> Option<ForestNodeRc<Element>> {
         if self.style().get_display() == style::DisplayType::None { return None }
         let position_offset = &self.position_offset;
-        let allocated_position = position_offset.allocated_position();
-        let child_transform = transform.mul_clone(Transform::new().offset(allocated_position.left_top() - Point::new(0., 0.))).mul_clone(&self.style().transform_ref());
-        let drawing_bounds = child_transform.apply_to_bounds(&position_offset.drawing_bounds());
+        let allocated_point = position_offset.allocated_point();
+        let self_transform = transform.mul_clone(Transform::new().offset(allocated_point.into())).mul_clone(&self.style().transform_ref());
+        let drawing_bounds = self_transform.apply_to_bounds(&position_offset.drawing_bounds());
         // debug!("testing {:?} in bounds {:?}", (x, y), drawing_bounds);
         if !point.in_bounds(&drawing_bounds) {
             return None;
@@ -335,20 +339,19 @@ impl Element {
         let content = &self.content;
         if content.is_terminated() {
             // debug!("testing {:?} in terminated {:?}", (x, y), content.name());
-            if content.is_under_point(point, child_transform) {
+            if content.is_under_point(point, self_transform) {
                 return Some(self.rc());
             }
         } else {
             let self_node = self.node();
             for child in self_node.iter().rev() {
-                let child_match = child.deref_with(self_node).get_node_under_point(point, child_transform);
+                let child_match = child.deref_with(self_node).get_node_under_point(point, self_transform);
                 if child_match.is_some() {
                     return child_match;
                 }
             }
         }
-        let allocated_position = position_offset.allocated_position();
-        let allocated_position = child_transform.apply_to_position(&Position::new(0., 0., allocated_position.width(), allocated_position.height()));
+        let allocated_position = self_transform.apply_to_position(&Position::from((Point::new(0., 0.), position_offset.requested_size())));
         // debug!("testing {:?} in allocated_position {:?}", (x, y), allocated_position);
         if point.in_position(&allocated_position) {
             return None;
@@ -398,7 +401,7 @@ impl ForestNodeContent for Element {
         match self.node_mut().parent_mut() {
             None => { },
             Some(parent_node) => {
-                parent_node.mark_dirty();
+                parent_node.mark_layout_dirty();
             }
         }
     }
