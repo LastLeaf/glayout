@@ -72,7 +72,7 @@ impl PositionOffset {
         self.drawing_bounds.union(&(child_bounds + offset));
     }
 
-    pub(crate) fn suggest_size(&mut self, is_layout_dirty: bool, suggested_size: Size, relative_size: Size, inline_allocator: &mut InlineAllocator) -> Size {
+    pub(crate) fn suggest_size(&mut self, is_layout_dirty: bool, suggested_size: Size, inline_allocator: &mut InlineAllocator, handle_absolute: bool) -> Size {
         let element = unsafe { self.element_mut_unsafe() };
         let style = unsafe { element.style().clone_ref_unsafe() };
 
@@ -83,35 +83,33 @@ impl PositionOffset {
             (display == DisplayType::Inline || display == DisplayType::InlineBlock);
 
         // layout edge-cutting
-        if !is_layout_dirty && !is_inline && suggested_size == self.suggested_size && relative_size == self.relative_size {
+        if !is_layout_dirty && !is_inline && suggested_size == self.suggested_size {
             return self.requested_size
         }
         self.suggested_size = suggested_size;
 
-        let relative_size = match position {
-            PositionType::Static => relative_size,
-            _ => self.suggested_size, // TODO late handling independent_positioning
-        };
-        self.relative_size = relative_size;
-
         let requested_size = {
             if display == DisplayType::None {
-                none::suggest_size(element, style, suggested_size, inline_allocator, relative_size)
+                none::suggest_size(element, style, suggested_size, inline_allocator)
             } else if is_inline {
-                inline::suggest_size(element, style, suggested_size, inline_allocator, relative_size)
+                inline::suggest_size(element, style, suggested_size, inline_allocator)
             } else if box_sizing::is_independent_positioning(style) {
-                absolute::suggest_size(element, style, suggested_size, inline_allocator, relative_size)
+                absolute::suggest_size(element, style, suggested_size, inline_allocator)
             } else {
                 match display {
                     DisplayType::Flex => {
-                        flex::suggest_size(element, style, suggested_size, inline_allocator, relative_size)
+                        flex::suggest_size(element, style, suggested_size, inline_allocator)
                     },
                     _ => {
-                        block::suggest_size(element, style, suggested_size, inline_allocator, relative_size)
+                        block::suggest_size(element, style, suggested_size, inline_allocator)
                     },
                 }
             }
         };
+
+        if handle_absolute && position != PositionType::Static {
+            self.suggested_size_absolute
+        }
 
         self.requested_size = requested_size;
         debug!("Suggested size for {:?} with {:?}, requested {:?}", element, self.suggested_size, self.requested_size);
