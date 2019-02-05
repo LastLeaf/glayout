@@ -2,7 +2,7 @@ use super::super::{Element, ElementStyle, DEFAULT_F64};
 use super::{Point, Size, Position, Bounds, InlineAllocator, box_sizing};
 
 #[inline]
-pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size: Size, inline_allocator: &mut InlineAllocator, relative_size: Size) -> Size {
+pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size: Size, inline_allocator: &mut InlineAllocator, handle_absolute: bool) -> Size {
     // NOTE the returned size is the "added" size related to prev sibling
     let (margin, _border, _padding, content) = box_sizing::get_sizes(style, Size::new(suggested_size.width(), 0.));
     let child_suggested_size = content;
@@ -15,7 +15,7 @@ pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size:
     } else {
         let node = element.node_mut();
         for child in node.clone_children().iter() {
-            let size = child.deref_mut_with(node).suggest_size(child_suggested_size, relative_size, inline_allocator);
+            let size = child.deref_mut_with(node).suggest_size(child_suggested_size, inline_allocator, handle_absolute);
             child_requested_height += size.height();
         }
     }

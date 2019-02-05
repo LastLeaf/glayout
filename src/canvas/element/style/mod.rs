@@ -25,6 +25,8 @@ pub struct ElementStyle {
     position: PositionType,
     left: f64,
     top: f64,
+    right: f64,
+    bottom: f64,
     width: f64,
     height: f64,
     font_family: String,
@@ -72,6 +74,8 @@ impl Default for ElementStyle {
             position: PositionType::Static,
             left: DEFAULT_F64,
             top: DEFAULT_F64,
+            right: DEFAULT_F64,
+            bottom: DEFAULT_F64,
             width: DEFAULT_F64,
             height: DEFAULT_F64,
             font_family: String::from("sans-serif"),
@@ -206,6 +210,8 @@ impl ElementStyle {
     getter_setter_layout_dirty!(position, get_position, set_position, PositionType);
     getter_setter_layout_dirty!(left, get_left, set_left, f64);
     getter_setter_layout_dirty!(top, get_top, set_top, f64);
+    getter_setter_layout_dirty!(right, get_right, set_right, f64);
+    getter_setter_layout_dirty!(bottom, get_bottom, set_bottom, f64);
     getter_setter_layout_dirty!(width, get_width, set_width, f64);
     getter_setter_layout_dirty!(height, get_height, set_height, f64);
     getter_setter_inherit_layout_dirty!(font_family, get_font_family, set_font_family, inherit_font_family, get_inherit_font_family, inherit_font_family, String);

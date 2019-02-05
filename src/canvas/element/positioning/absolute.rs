@@ -2,34 +2,60 @@ use super::super::{Element, ElementStyle, DEFAULT_F64};
 use super::{Point, Size, Position, Bounds, InlineAllocator, box_sizing};
 
 #[inline]
-pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size: Size, inline_allocator: &mut InlineAllocator, relative_size: Size) -> Size {
+pub fn suggest_size(element: &mut Element, style: &ElementStyle, relative_size: Size, inline_allocator: &mut InlineAllocator) {
     // NOTE the returned size is the "added" size related to prev sibling
-    let (margin, _border, _padding, content) = box_sizing::get_sizes(style, Size::new(suggested_size.width(), 0.));
-    let child_suggested_size = content;
-
-    let mut child_requested_height = 0.;
-    if element.is_terminated() {
-        inline_allocator.reset(element.node_mut(), content.width(), style.get_text_align());
-        let _size = element.content_mut().suggest_size(child_suggested_size, inline_allocator, style);
-        child_requested_height = inline_allocator.get_current_height();
+    let width = if style.get_width() != DEFAULT_F64 {
+        style.get_width()
     } else {
-        let node = element.node_mut();
-        for child in node.clone_children().iter() {
-            let size = child.deref_mut_with(node).suggest_size(child_suggested_size, relative_size, inline_allocator);
-            child_requested_height += size.height();
+        let mut width = relative_size.width();
+        if style.get_left() != DEFAULT_F64 {
+            width -= style.get_left();
         }
-    }
-
-    if style.get_height() == DEFAULT_F64 {
-        margin + Size::new(0., child_requested_height)
+        if style.get_right() != DEFAULT_F64 {
+            width -= style.get_right();
+        }
+        width
+    };
+    let height = if style.get_height() != DEFAULT_F64 {
+        style.get_height()
     } else {
-        margin
-    }
+        let mut height = relative_size.height();
+        if style.get_top() != DEFAULT_F64 {
+            height -= style.get_top();
+        }
+        if style.get_bottom() != DEFAULT_F64 {
+            height -= style.get_bottom();
+        }
+        height
+    };
+    let style_padding_width = style.get_padding_left() + style.get_padding_right();
+    let style_padding_height = style.get_padding_top() + style.get_padding_bottom();
+    let style_border_width = style.get_border_left_width() + style.get_border_right_width();
+    let style_border_height = style.get_border_top_width() + style.get_border_bottom_width();
+    let content = Size::new(
+        width - style_border_width - style_padding_width,
+        height - style_border_height - style_padding_height,
+    );
+    element.suggest_size(content, inline_allocator, true);
 }
 
 #[inline]
 pub fn allocate_position(element: &mut Element, style: &ElementStyle, allocated_point: Point, relative_point: Point) -> Bounds {
-    let (_margin, _border, _padding, content) = box_sizing::get_offsets(style);
+    let left = if style.get_left() != DEFAULT_F64 {
+        style.get_left()
+    } else {
+        0.
+    };
+    let top = if style.get_top() != DEFAULT_F64 {
+        style.get_top()
+    } else {
+        0.
+    };
+    let content = Point::new(
+        relative_point.left() + left,
+        relative_point.top() + top,
+    );
+
     let requested_size = element.requested_size();
     let allocated_position = Position::from((allocated_point, requested_size));
     let mut drawing_bounds: Bounds = allocated_position.into();
@@ -43,7 +69,7 @@ pub fn allocate_position(element: &mut Element, style: &ElementStyle, allocated_
             let requested_size = child.requested_size();
             let child_bounds = child.allocate_position(
                 Point::new(0., current_top),
-                relative_point + Size::new(0., -current_top)
+                Point::new(0., -current_top)
             ) + content.into();
             drawing_bounds.union(&child_bounds);
             if !box_sizing::is_independent_positioning(child.style()) {

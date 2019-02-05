@@ -84,36 +84,62 @@ impl PositionOffset {
 
         // layout edge-cutting
         if !is_layout_dirty && !is_inline && suggested_size == self.suggested_size {
-            return self.requested_size
+            return self.requested_size;
         }
         self.suggested_size = suggested_size;
 
         let requested_size = {
             if display == DisplayType::None {
-                none::suggest_size(element, style, suggested_size, inline_allocator)
+                none::suggest_size(element, style, suggested_size, inline_allocator, handle_absolute)
             } else if is_inline {
-                inline::suggest_size(element, style, suggested_size, inline_allocator)
+                inline::suggest_size(element, style, suggested_size, inline_allocator, handle_absolute)
             } else if box_sizing::is_independent_positioning(style) {
-                absolute::suggest_size(element, style, suggested_size, inline_allocator)
+                Size::new(0., 0.)
             } else {
                 match display {
                     DisplayType::Flex => {
-                        flex::suggest_size(element, style, suggested_size, inline_allocator)
+                        flex::suggest_size(element, style, suggested_size, inline_allocator, handle_absolute)
                     },
                     _ => {
-                        block::suggest_size(element, style, suggested_size, inline_allocator)
+                        block::suggest_size(element, style, suggested_size, inline_allocator, handle_absolute)
                     },
                 }
             }
         };
 
-        if handle_absolute && position != PositionType::Static {
-            self.suggested_size_absolute
+        if handle_absolute && position != PositionType::Static && requested_size != self.relative_size {
+            let ia = InlineAllocator::new();
+            let node = element.node_mut();
+            for child in node.clone_children().iter() {
+                let child = child.deref_mut_with(node);
+                child.suggest_size_absolute(requested_size, inline_allocator);
+            }
         }
 
         self.requested_size = requested_size;
         debug!("Suggested size for {:?} with {:?}, requested {:?}", element, self.suggested_size, self.requested_size);
         requested_size
+    }
+
+    pub(crate) fn suggest_size_absolute(&mut self, is_layout_dirty: bool, relative_size: Size, inline_allocator: &mut InlineAllocator) {
+        let element = unsafe { self.element_mut_unsafe() };
+        let style = unsafe { element.style().clone_ref_unsafe() };
+
+        // layout edge-cutting
+        if !is_layout_dirty && relative_size == self.relative_size {
+            return;
+        }
+        self.relative_size = relative_size;
+
+        if box_sizing::is_independent_positioning(style) {
+            absolute::suggest_size(element, style, relative_size, inline_allocator);
+        } else {
+            let node = element.node_mut();
+            for child in node.clone_children().iter() {
+                let child = child.deref_mut_with(node);
+                child.suggest_size_absolute(relative_size, inline_allocator);
+            }
+        }
     }
 
     pub(crate) fn allocate_position(&mut self, is_layout_dirty: bool, allocated_point: Point, relative_point: Point) -> Bounds {

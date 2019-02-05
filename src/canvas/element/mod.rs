@@ -206,9 +206,14 @@ impl Element {
         self.position_offset.drawing_bounds()
     }
     #[inline]
-    pub(crate) fn suggest_size(&mut self, suggested_size: Size, relative_size: Size, inline_allocator: &mut InlineAllocator) -> Size {
+    pub(crate) fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator, handle_absolute: bool) -> Size {
         let is_layout_dirty = self.is_layout_dirty();
-        self.position_offset.suggest_size(is_layout_dirty, suggested_size, relative_size, inline_allocator)
+        self.position_offset.suggest_size(is_layout_dirty, suggested_size, inline_allocator, handle_absolute)
+    }
+    #[inline]
+    pub(crate) fn suggest_size_absolute(&mut self, relative_size: Size, inline_allocator: &mut InlineAllocator) {
+        let is_layout_dirty = self.is_layout_dirty();
+        self.position_offset.suggest_size_absolute(is_layout_dirty, relative_size, inline_allocator)
     }
     #[inline]
     pub(crate) fn allocate_position(&mut self, allocated_point: Point, relative_point: Point) -> Bounds {
@@ -217,7 +222,7 @@ impl Element {
     }
     #[inline]
     pub(crate) fn dfs_update_position_offset(&mut self, suggested_size: Size) {
-        let _requested_size = self.suggest_size(suggested_size, suggested_size, &mut InlineAllocator::new(suggested_size.width(), style::TextAlignType::Left));
+        let _requested_size = self.suggest_size(suggested_size, &mut InlineAllocator::new(), true);
         self.allocate_position(Point::new(0., 0.), Point::new(0., 0.));
     }
 

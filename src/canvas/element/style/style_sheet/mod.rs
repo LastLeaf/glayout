@@ -232,6 +232,12 @@ impl StyleSheet {
                     "top" => {
                         add_rule!(StyleName::top, Self::parse_length::<f64>(parser));
                     },
+                    "right" => {
+                        add_rule!(StyleName::right, Self::parse_length::<f64>(parser));
+                    },
+                    "bottom" => {
+                        add_rule!(StyleName::bottom, Self::parse_length::<f64>(parser));
+                    },
                     "width" => {
                         add_rule!(StyleName::width, Self::parse_length::<f64>(parser));
                     },

@@ -41,11 +41,11 @@ pub struct InlineAllocator {
 }
 
 impl InlineAllocator {
-    pub(crate) fn new(width: f64, text_align: TextAlignType) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             current_line_nodes: vec![],
-            width,
-            text_align,
+            width: 0.,
+            text_align: TextAlignType::Left,
             height: 0.,
             expected_width: 0.,
             current_node_height: 0.,
