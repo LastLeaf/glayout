@@ -184,7 +184,6 @@ impl super::ElementContent for Image {
         if self.tex_id == -1 {
             return;
         }
-        // debug!("Attempted to draw an Image at {:?}", transform.apply_to_position(&self.inline_pos));
         let rm = self.canvas_config.resource_manager();
         rm.borrow_mut().request_draw(
             self.tex_id, false,

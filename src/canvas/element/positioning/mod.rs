@@ -94,7 +94,7 @@ impl PositionOffset {
             } else if is_inline {
                 inline::suggest_size(element, style, suggested_size, inline_allocator, handle_absolute)
             } else if box_sizing::is_independent_positioning(style) {
-                Size::new(0., 0.)
+                suggested_size
             } else {
                 match display {
                     DisplayType::Flex => {
@@ -107,12 +107,14 @@ impl PositionOffset {
             }
         };
 
-        if handle_absolute && position != PositionType::Static && requested_size != self.relative_size {
-            let ia = InlineAllocator::new();
-            let node = element.node_mut();
-            for child in node.clone_children().iter() {
-                let child = child.deref_mut_with(node);
-                child.suggest_size_absolute(requested_size, inline_allocator);
+        if handle_absolute && position != PositionType::Static {
+            if is_layout_dirty || requested_size != self.relative_size {
+                let mut ia = InlineAllocator::new();
+                let node = element.node_mut();
+                for child in node.clone_children().iter() {
+                    let child = child.deref_mut_with(node);
+                    child.suggest_size_absolute(requested_size, &mut ia);
+                }
             }
         }
 

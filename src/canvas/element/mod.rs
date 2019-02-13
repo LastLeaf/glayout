@@ -67,7 +67,7 @@ pub struct Element {
 
 impl Debug for Element {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "<{} id=\"{}\" class=\"{}\"> @ {:p}", self.style().get_tag_name(), self.style().get_id(), self.style().get_class(), self)
+        write!(f, "<{}({}) id=\"{}\" class=\"{}\"> @ {:p}", self.style().get_tag_name(), self.content.name(), self.style().get_id(), self.style().get_class(), self)
     }
 }
 
