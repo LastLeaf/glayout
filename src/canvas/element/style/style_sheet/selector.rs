@@ -1,5 +1,5 @@
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(super) struct SelectorFragment {
     pub(super) tag_name: String,
     pub(super) id: String,
@@ -16,7 +16,7 @@ impl SelectorFragment {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(super) struct SelectorQuery<'a> {
     pub(super) tag_name: &'a str,
     pub(super) id: &'a str,
@@ -33,7 +33,7 @@ impl<'a> SelectorQuery<'a> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(super) struct Selector {
     pub(super) fragments: Vec<SelectorFragment>
 }
@@ -58,11 +58,14 @@ impl Selector {
         for frag in self.fragments.iter() {
             if frag.tag_name.len() > 0 && frag.tag_name != query.tag_name { continue };
             if frag.id.len() > 0 && frag.id != query.id { continue };
+            let mut class_matches = true;
             for class_name in frag.classes.iter() {
                 if !query.classes.contains(&class_name.as_str()) {
-                    continue;
+                    class_matches = false;
+                    break;
                 }
             }
+            if !class_matches { continue };
             return true;
         }
         false

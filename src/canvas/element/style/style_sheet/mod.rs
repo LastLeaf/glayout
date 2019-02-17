@@ -159,6 +159,7 @@ impl StyleSheet {
         Ok(selector)
     }
     fn parse_declarations<'a>(parser: &mut Parser<'a, '_>, class: &mut ElementClass) -> Result<(), ParseError<'a, ()>> {
+        const TRANSPARENT_COLOR: (f32, f32, f32, f32) = (0., 0., 0., 0.);
         while !parser.is_exhausted() {
             let key = {
                 let r = parser.expect_ident();
@@ -191,16 +192,16 @@ impl StyleSheet {
                     }
                 }
                 macro_rules! add_border_rule {
-                    ($prop:ident, $v:expr) => {
-                        add_rule!(StyleName::$prop, $v.0);
+                    ($width:ident, $color:ident, $v:expr) => {
+                        add_rule!(StyleName::$width, $v.0);
                         let enabled = match $v.1 {
                             Err(_) => false,
                             Ok(v) => *v.downcast_ref::<bool>().unwrap(),
                         };
                         if enabled {
-                            add_rule!(StyleName::$prop, Ok(Box::new((0., 0., 0., 0.))));
+                            add_rule!(StyleName::$color, $v.2);
                         } else {
-                            add_rule!(StyleName::$prop, $v.2);
+                            add_rule!(StyleName::$color, Ok(Box::new(TRANSPARENT_COLOR)));
                         }
                     }
                 }
@@ -324,10 +325,53 @@ impl StyleSheet {
                     },
                     "border" => {
                         let [top, right, bottom, left] = Self::parse_border_multi::<f64>(parser);
-                        add_border_rule!(border_left_width, left);
-                        add_border_rule!(border_right_width, right);
-                        add_border_rule!(border_top_width, top);
-                        add_border_rule!(border_bottom_width, bottom);
+                        add_border_rule!(border_left_width, border_left_color, left);
+                        add_border_rule!(border_right_width, border_right_color, right);
+                        add_border_rule!(border_top_width, border_top_color, top);
+                        add_border_rule!(border_bottom_width, border_bottom_color, bottom);
+                    },
+                    "border-width" => {
+                        let [top, right, bottom, left] = Self::parse_bounds::<f64>(parser);
+                        add_rule!(StyleName::border_left_width, left);
+                        add_rule!(StyleName::border_right_width, right);
+                        add_rule!(StyleName::border_top_width, top);
+                        add_rule!(StyleName::border_bottom_width, bottom);
+                    },
+                    "border-color" => {
+                        match Self::parse_color_inner(parser) {
+                            Ok(v) => {
+                                add_rule!(StyleName::border_left_color, Ok(v.clone()));
+                                add_rule!(StyleName::border_right_color, Ok(v.clone()));
+                                add_rule!(StyleName::border_top_color, Ok(v.clone()));
+                                add_rule!(StyleName::border_bottom_color, Ok(v));
+                            },
+                            Err(e) => {
+                                add_rule!(StyleName::border_left_color, Err(e.clone()));
+                                add_rule!(StyleName::border_right_color, Err(e.clone()));
+                                add_rule!(StyleName::border_top_color, Err(e.clone()));
+                                add_rule!(StyleName::border_bottom_color, Err(e));
+                            }
+                        }
+                    },
+                    "border-style" => {
+                        match Self::parse_border_type_inner(parser) {
+                            Ok(enabled) => {
+                                if *enabled {
+                                    // FIXME impl real border-style
+                                } else {
+                                    add_rule!(StyleName::border_left_color, Ok(Box::new(TRANSPARENT_COLOR)));
+                                    add_rule!(StyleName::border_right_color, Ok(Box::new(TRANSPARENT_COLOR)));
+                                    add_rule!(StyleName::border_top_color, Ok(Box::new(TRANSPARENT_COLOR)));
+                                    add_rule!(StyleName::border_bottom_color, Ok(Box::new(TRANSPARENT_COLOR)));
+                                }
+                            },
+                            Err(e) => {
+                                add_rule!(StyleName::border_left_color, Err(e.clone()));
+                                add_rule!(StyleName::border_right_color, Err(e.clone()));
+                                add_rule!(StyleName::border_top_color, Err(e.clone()));
+                                add_rule!(StyleName::border_bottom_color, Err(e));
+                            }
+                        }
                     },
                     "border-left" => {
                         let (width, style, color) = Self::parse_border_single::<f64>(parser);
@@ -337,35 +381,35 @@ impl StyleSheet {
                             Ok(v) => *v.downcast_ref::<bool>().unwrap(),
                         };
                         if enabled {
-                            add_rule!(StyleName::border_left_color, Ok(Box::new((0., 0., 0., 0.))));
-                        } else {
                             add_rule!(StyleName::border_left_color, color);
+                        } else {
+                            add_rule!(StyleName::border_left_color, Ok(Box::new(TRANSPARENT_COLOR)));
                         }
                     },
                     "border-right" => {
                         let (width, style, color) = Self::parse_border_single::<f64>(parser);
-                        add_rule!(StyleName::border_right_color, width);
+                        add_rule!(StyleName::border_right_width, width);
                         let enabled = match style {
                             Err(_) => false,
                             Ok(v) => *v.downcast_ref::<bool>().unwrap(),
                         };
                         if enabled {
-                            add_rule!(StyleName::border_right_color, Ok(Box::new((0., 0., 0., 0.))));
-                        } else {
                             add_rule!(StyleName::border_right_color, color);
+                        } else {
+                            add_rule!(StyleName::border_right_color, Ok(Box::new(TRANSPARENT_COLOR)));
                         }
                     },
                     "border-top" => {
                         let (width, style, color) = Self::parse_border_single::<f64>(parser);
-                        add_rule!(StyleName::border_top_color, width);
+                        add_rule!(StyleName::border_top_width, width);
                         let enabled = match style {
                             Err(_) => false,
                             Ok(v) => *v.downcast_ref::<bool>().unwrap(),
                         };
                         if enabled {
-                            add_rule!(StyleName::border_top_color, Ok(Box::new((0., 0., 0., 0.))));
-                        } else {
                             add_rule!(StyleName::border_top_color, color);
+                        } else {
+                            add_rule!(StyleName::border_top_color, Ok(Box::new(TRANSPARENT_COLOR)));
                         }
                     },
                     "border-bottom" => {
@@ -376,9 +420,9 @@ impl StyleSheet {
                             Ok(v) => *v.downcast_ref::<bool>().unwrap(),
                         };
                         if enabled {
-                            add_rule!(StyleName::border_bottom_width, Ok(Box::new((0., 0., 0., 0.))));
+                            add_rule!(StyleName::border_bottom_color, color);
                         } else {
-                            add_rule!(StyleName::border_bottom_width, color);
+                            add_rule!(StyleName::border_bottom_color, Ok(Box::new(TRANSPARENT_COLOR)));
                         }
                     },
                     "border-left-width" => {
@@ -555,13 +599,24 @@ impl StyleSheet {
         }
     }
     #[inline]
-    fn parse_border_single<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> (ValueParsingResult<'a>, ValueParsingResult<'a>, ValueParsingResult<'a>) {
-        let width = Self::parse_length::<T>(parser);
+    fn parse_border_type_inner<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<bool>, ParseError<'a, ()>> {
         const MAPPING: [(&'static str, bool); 2] = [
             ("none", false),
             ("solid", true),
         ];
-        let enabled = Self::parse_enum(parser, &MAPPING);
+        Self::parse_enum_inner(parser, &MAPPING)
+    }
+    #[inline]
+    fn parse_border_type<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a> {
+        match Self::parse_border_type_inner(parser) {
+            Err(e) => Err(e),
+            Ok(r) => Ok(r)
+        }
+    }
+    #[inline]
+    fn parse_border_single<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> (ValueParsingResult<'a>, ValueParsingResult<'a>, ValueParsingResult<'a>) {
+        let width = Self::parse_length::<T>(parser);
+        let enabled = Self::parse_border_type(parser);
         let color = Self::parse_color(parser);
         (width, enabled, color)
     }
@@ -584,7 +639,7 @@ impl StyleSheet {
                         (Ok(width.clone()), Err(e.clone()), Err(e.clone())),
                         (Ok(width.clone()), Err(e.clone()), Err(e.clone())),
                         (Ok(width.clone()), Err(e.clone()), Err(e.clone())),
-                        (Ok(width.clone()), Err(e.clone()), Err(e)),
+                        (Ok(width), Err(e.clone()), Err(e)),
                     ],
                     Ok(enabled) => {
                         match Self::parse_color_inner(parser) {

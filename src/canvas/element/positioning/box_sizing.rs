@@ -2,7 +2,7 @@ use super::super::{ElementStyle, BoxSizingType, PositionType, DEFAULT_F64};
 use super::{Point, Size};
 
 #[inline]
-pub fn get_sizes(style: &ElementStyle, default_size: Size) -> (Size, Size, Size, Size) {
+pub fn get_sizes(style: &ElementStyle, outer_size: Size) -> (Size, Size, Size, Size) {
     let style_content_width = style.get_width();
     let style_content_height = style.get_height();
     let style_padding_width = style.get_padding_left() + style.get_padding_right();
@@ -13,24 +13,41 @@ pub fn get_sizes(style: &ElementStyle, default_size: Size) -> (Size, Size, Size,
     let style_margin_height = style.get_margin_top() + style.get_margin_bottom();
     let content = Size::new(
         if style_content_width == DEFAULT_F64 {
-            match style.get_box_sizing() {
-                BoxSizingType::Default => default_size.width(),
-                BoxSizingType::ContentBox => default_size.width(),
-                BoxSizingType::PaddingBox => default_size.width() - style_padding_width,
-                BoxSizingType::BorderBox => default_size.width() - style_padding_width - style_border_width,
+            if outer_size.width() == DEFAULT_F64 {
+                0.
+            } else {
+                outer_size.width() - style_padding_width - style_border_width - style_margin_width
             }
-        } else { style_content_width },
+        } else {
+            match style.get_box_sizing() {
+                BoxSizingType::Default => style_content_width,
+                BoxSizingType::ContentBox => style_content_width,
+                BoxSizingType::PaddingBox => style_content_width - style_padding_width,
+                BoxSizingType::BorderBox => style_content_width - style_padding_width - style_border_width,
+            }
+        },
         if style_content_height == DEFAULT_F64 {
-            default_size.height()
-        } else { style_content_height },
+            if outer_size.height() == DEFAULT_F64 {
+                0.
+            } else {
+                outer_size.height() - style_padding_height - style_border_height - style_margin_height
+            }
+        } else {
+            match style.get_box_sizing() {
+                BoxSizingType::Default => style_content_height,
+                BoxSizingType::ContentBox => style_content_height,
+                BoxSizingType::PaddingBox => style_content_height - style_padding_height,
+                BoxSizingType::BorderBox => style_content_height - style_padding_height - style_border_height,
+            }
+        },
     );
     let padding = Size::new(
         content.width() + style_padding_width,
         content.height() + style_padding_height,
     );
     let border = Size::new(
-        content.width() + style_border_width,
-        content.height() + style_border_height,
+        padding.width() + style_border_width,
+        padding.height() + style_border_height,
     );
     let margin = Size::new(
         border.width() + style_margin_width,

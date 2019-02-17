@@ -4,7 +4,7 @@ use super::{Point, Size, Position, Bounds, InlineAllocator, box_sizing};
 #[inline]
 pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size: Size, inline_allocator: &mut InlineAllocator, handle_absolute: bool) -> Size {
     // NOTE the returned size is the "added" size related to prev sibling
-    let (margin, _border, _padding, content) = box_sizing::get_sizes(style, Size::new(suggested_size.width(), 0.));
+    let (margin, _border, _padding, content) = box_sizing::get_sizes(style, Size::new(suggested_size.width(), DEFAULT_F64));
     let child_suggested_size = content;
 
     let mut child_requested_height = 0.;
@@ -42,8 +42,8 @@ pub fn allocate_position(element: &mut Element, style: &ElementStyle, allocated_
             let child = child.deref_mut_with(node);
             let requested_size = child.requested_size();
             let child_bounds = child.allocate_position(
-                Point::new(0., current_top),
-                relative_point + Size::new(0., -current_top)
+                Point::new(content.left(), current_top),
+                relative_point + Size::new(-content.left(), -current_top)
             ) + content.into();
             drawing_bounds.union(&child_bounds);
             if !box_sizing::is_independent_positioning(child.style()) {

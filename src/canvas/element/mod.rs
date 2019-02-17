@@ -226,18 +226,80 @@ impl Element {
         self.allocate_position(Point::new(0., 0.), Point::new(0., 0.));
     }
 
+    #[inline]
+    fn draw_rect(&mut self, color: (f32, f32, f32, f32), position: Position) {
+        let rm = self.canvas_config.resource_manager();
+        let mut rm = rm.borrow_mut();
+        rm.set_draw_state(DrawState::new().color(color));
+        debug!("Try drawing rect at {:?} colored {:?}", position, color);
+        rm.request_draw(
+            -2, true,
+            0., 0., 1., 1.,
+            position.into()
+        );
+    }
+    #[inline]
+    fn draw_background_color(&mut self, requested_size: Size, child_transform: &Transform) {
+        let color = self.style.get_background_color();
+        if color.3 > 0. {
+            let position = Position::new(
+                self.style.get_margin_left() + self.style.get_border_left_width(),
+                self.style.get_margin_top() + self.style.get_border_top_width(),
+                requested_size.width() - self.style.get_margin_left() - self.style.get_margin_right() - self.style.get_border_left_width() - self.style.get_border_right_width(),
+                requested_size.height() - self.style.get_margin_top() - self.style.get_margin_bottom() - self.style.get_border_top_width() - self.style.get_border_bottom_width(),
+            );
+            self.draw_rect(color, child_transform.apply_to_position(&position));
+        }
+    }
+    #[inline]
+    fn draw_borders(&mut self, requested_size: Size, child_transform: &Transform) {
+        if self.style.get_border_top_width() > 0. {
+            let color = self.style.get_border_top_color();
+            let position = Position::new(
+                self.style.get_margin_left(),
+                self.style.get_margin_top(),
+                requested_size.width() - self.style.get_margin_left() - self.style.get_margin_right(),
+                self.style.get_border_top_width(),
+            );
+            self.draw_rect(color, child_transform.apply_to_position(&position));
+        }
+        if self.style.get_border_bottom_width() > 0. {
+            let color = self.style.get_border_bottom_color();
+            let position = Position::new(
+                self.style.get_margin_left(),
+                requested_size.height() - self.style.get_margin_bottom() - self.style.get_border_bottom_width(),
+                requested_size.width() - self.style.get_margin_left() - self.style.get_margin_right(),
+                self.style.get_border_bottom_width(),
+            );
+            self.draw_rect(color, child_transform.apply_to_position(&position));
+        }
+        if self.style.get_border_left_width() > 0. {
+            let color = self.style.get_border_left_color();
+            let position = Position::new(
+                self.style.get_margin_left(),
+                self.style.get_margin_top() + self.style.get_border_top_width(),
+                self.style.get_border_left_width(),
+                requested_size.height() - self.style.get_margin_top() - self.style.get_margin_bottom() - self.style.get_border_top_width() - self.style.get_border_bottom_width(),
+            );
+            self.draw_rect(color, child_transform.apply_to_position(&position));
+        }
+        if self.style.get_border_right_width() > 0. {
+            let color = self.style.get_border_right_color();
+            let position = Position::new(
+                requested_size.width() - self.style.get_margin_right() - self.style.get_border_right_width(),
+                self.style.get_margin_top() + self.style.get_border_top_width(),
+                self.style.get_border_right_width(),
+                requested_size.height() - self.style.get_margin_top() - self.style.get_margin_bottom() - self.style.get_border_top_width() - self.style.get_border_bottom_width(),
+            );
+            self.draw_rect(color, child_transform.apply_to_position(&position));
+        }
+    }
     pub(crate) fn draw(&mut self, viewport: Position, mut transform: Transform) {
         if self.style.get_display() == style::DisplayType::None { return }
-        debug!("Drawing {:?}", self);
+        // debug!("Drawing {:?}", self);
         let allocated_point = self.position_offset.allocated_point();
         let requested_size = self.position_offset.requested_size();
         let allocated_position = Position::from((allocated_point, requested_size));
-        let border_position = Position::new(
-            self.style.get_margin_left(),
-            self.style.get_margin_top(),
-            requested_size.width() - self.style.get_margin_left() - self.style.get_margin_right(),
-            requested_size.height() - self.style.get_margin_top() - self.style.get_margin_bottom(),
-        );
 
         // check if drawing on separate tex is needed
         if self.style.get_opacity() < 1. && self.style.get_opacity() >= 0. {
@@ -260,21 +322,9 @@ impl Element {
 
         let child_transform = transform.mul_clone(Transform::new().offset(drawing_tex_position.left_top() - Point::new(0., 0.))).mul_clone(&self.style.transform_ref());
 
-        // draw background color
-        let bg_color = self.style.get_background_color();
-        if bg_color.0 >= 0. {
-            let rm = self.canvas_config.resource_manager();
-            let mut rm = rm.borrow_mut();
-            rm.set_draw_state(DrawState::new().color(bg_color));
-            // debug!("Try drawing rect at {:?} colored {:?}", child_transform.apply_to_position(&(0., 0., allocated_position.2, allocated_position.3)), bg_color);
-            rm.request_draw(
-                -2, true,
-                0., 0., 1., 1.,
-                child_transform.apply_to_position(&border_position).into()
-            );
-        }
-
         // draw content and child
+        self.draw_background_color(requested_size, &child_transform);
+        self.draw_borders(requested_size, &child_transform);
         {
             self.content.draw(&child_transform);
             if !self.content.is_terminated() {
@@ -299,7 +349,7 @@ impl Element {
                 rm.set_draw_state(ds.mul_alpha(self.style.get_opacity()));
             }
 
-            rm.set_draw_state(DrawState::new().color(bg_color));
+            rm.set_draw_state(DrawState::new().color(self.style.get_background_color()));
             rm.request_draw(
                 tex_id, false,
                 0., 0., 1., 1.,
@@ -424,6 +474,12 @@ impl DerefMut for Element {
         &mut self.content
     }
 }
+
+// impl Drop for Element {
+//     fn drop(&mut self) {
+//         debug!("Drop element {:?}", self);
+//     }
+// }
 
 
 #[macro_export]
