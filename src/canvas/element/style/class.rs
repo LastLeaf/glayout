@@ -2,6 +2,7 @@ use std::any::Any;
 use std::slice::Iter;
 
 #[allow(non_camel_case_types)]
+#[repr(u8)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum StyleName {
     glayout_unrecognized = 0x00,

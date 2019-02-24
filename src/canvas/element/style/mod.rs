@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::{f32, f64};
 use super::{Element, Transform};
 use rc_forest::{ForestNode};
+use element_style_macro::*;
 
 mod types;
 pub use self::types::{DisplayType, PositionType, TextAlignType, BoxSizingType};
@@ -11,56 +12,65 @@ pub use self::class::{StyleName, ElementClass};
 mod style_sheet;
 pub use self::style_sheet::{StyleSheetGroup, StyleSheet};
 mod style_value;
+use self::style_value::*;
 
 pub const DEFAULT_F64: f64 = f64::INFINITY;
 pub const DEFAULT_F32: f32 = f32::INFINITY;
 
-pub struct ElementStyle {
-    element: *mut Element,
-    inline_class: Cell<ElementClass>,
-    classes: Vec<Rc<ElementClass>>,
-    tag_name: String,
-    id: String,
-    class: String,
-    display: DisplayType,
-    position: PositionType,
-    left: f64,
-    top: f64,
-    right: f64,
-    bottom: f64,
-    width: style_value::F64,
-    height: f64,
-    font_family: String,
-    inherit_font_family: bool,
-    font_size: f32,
-    inherit_font_size: bool,
-    line_height: f32,
-    inherit_line_height: bool,
-    text_align: TextAlignType,
-    inherit_text_align: bool,
-    color: (f32, f32, f32, f32),
-    inherit_color: bool,
-    background_color: (f32, f32, f32, f32),
-    opacity: f32,
-    transform: Transform,
-    margin_left: f64,
-    margin_right: f64,
-    margin_top: f64,
-    margin_bottom: f64,
-    padding_left: f64,
-    padding_right: f64,
-    padding_top: f64,
-    padding_bottom: f64,
-    box_sizing: BoxSizingType,
-    border_left_width: f64,
-    border_right_width: f64,
-    border_top_width: f64,
-    border_bottom_width: f64,
-    border_left_color: (f32, f32, f32, f32),
-    border_right_color: (f32, f32, f32, f32),
-    border_top_color: (f32, f32, f32, f32),
-    border_bottom_color: (f32, f32, f32, f32),
+macro_rules! define_struct {
+    ($name:ident $obj:tt) => {
+        pub struct $name $obj
+    }
 }
+
+style_struct!(
+    ElementStyle {
+        element: *mut Element,
+        inline_class: Cell<ElementClass>,
+        classes: Vec<Rc<ElementClass>>,
+        tag_name: String,
+        id: String,
+        class: String,
+        display: DisplayType,
+        position: PositionType,
+        left: f64,
+        top: f64,
+        right: f64,
+        bottom: f64,
+        width: f64,
+        height: f64,
+        font_family: String,
+        inherit_font_family: bool,
+        font_size: f32,
+        inherit_font_size: bool,
+        line_height: f32,
+        inherit_line_height: bool,
+        text_align: TextAlignType,
+        inherit_text_align: bool,
+        color: (f32, f32, f32, f32),
+        inherit_color: bool,
+        background_color: (f32, f32, f32, f32),
+        opacity: f32,
+        transform: Transform,
+        margin_left: f64,
+        margin_right: f64,
+        margin_top: f64,
+        margin_bottom: f64,
+        padding_left: f64,
+        padding_right: f64,
+        padding_top: f64,
+        padding_bottom: f64,
+        box_sizing: BoxSizingType,
+        border_left_width: f64,
+        border_right_width: f64,
+        border_top_width: f64,
+        border_bottom_width: f64,
+        border_left_color: (f32, f32, f32, f32),
+        border_right_color: (f32, f32, f32, f32),
+        border_top_color: (f32, f32, f32, f32),
+        border_bottom_color: (f32, f32, f32, f32),
+    }
+);
 
 impl Default for ElementStyle {
     fn default() -> Self {
