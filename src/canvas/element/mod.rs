@@ -206,9 +206,9 @@ impl Element {
         self.position_offset.drawing_bounds()
     }
     #[inline]
-    pub(crate) fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator, handle_absolute: bool) -> Size {
+    pub(crate) fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator, enable_inline: bool) -> Size {
         let is_layout_dirty = self.is_layout_dirty();
-        self.position_offset.suggest_size(is_layout_dirty, suggested_size, inline_allocator, handle_absolute)
+        self.position_offset.suggest_size(is_layout_dirty, suggested_size, inline_allocator, enable_inline)
     }
     #[inline]
     pub(crate) fn suggest_size_absolute(&mut self, relative_size: Size, inline_allocator: &mut InlineAllocator) {
@@ -222,7 +222,7 @@ impl Element {
     }
     #[inline]
     pub(crate) fn dfs_update_position_offset(&mut self, suggested_size: Size) {
-        let _requested_size = self.suggest_size(suggested_size, &mut InlineAllocator::new(), true);
+        let _requested_size = self.suggest_size(suggested_size, &mut InlineAllocator::new(), false);
         self.allocate_position(Point::new(0., 0.), Point::new(0., 0.));
     }
 
@@ -231,7 +231,7 @@ impl Element {
         let rm = self.canvas_config.resource_manager();
         let mut rm = rm.borrow_mut();
         rm.set_draw_state(DrawState::new().color(color));
-        debug!("Try drawing rect at {:?} colored {:?}", position, color);
+        // debug!("Try drawing rect at {:?} colored {:?}", position, color);
         rm.request_draw(
             -2, true,
             0., 0., 1., 1.,
@@ -323,15 +323,17 @@ impl Element {
         let child_transform = transform.mul_clone(Transform::new().offset(drawing_tex_position.left_top() - Point::new(0., 0.))).mul_clone(&self.style.transform_ref());
 
         // draw content and child
-        self.draw_background_color(requested_size, &child_transform);
-        self.draw_borders(requested_size, &child_transform);
+        if self.style.get_display() != DisplayType::Inline {
+            self.draw_background_color(requested_size, &child_transform);
+            self.draw_borders(requested_size, &child_transform);
+        }
         {
             self.content.draw(&child_transform);
             if !self.content.is_terminated() {
                 let node = self.node_mut();
-                for child in node.clone_children().iter() {
-                    child.deref_mut_with(node).draw(viewport, child_transform);
-                }
+                node.for_each_child_mut(|child| {
+                    child.draw(viewport, child_transform);
+                });
             }
         }
 

@@ -146,7 +146,7 @@ pub extern "C" fn element_splice(node_pointer: ForestNodePtr<Element>, pos: i32,
     let node = node_from_pointer(node_pointer);
     let pos = if pos < 0 { node.len() } else { pos as usize };
     if other_node_pointer == 0 as ForestNodePtr<Element> {
-        node.splice(pos, length as usize, Box::new([]));
+        node.splice(pos, length as usize, vec![]);
     } else {
         let other = node_rc_from_pointer(other_node_pointer);
         let children = other.deref_with(node).clone_children();

@@ -11,21 +11,6 @@ pub struct InlineSize {
     baseline_offset: f64,
 }
 
-impl InlineSize {
-    pub fn new(size: Size) -> Self {
-        Self {
-            size,
-            used_width: 0.,
-            line_height: 0.,
-            baseline_offset: 0.,
-        }
-    }
-    #[inline]
-    pub fn size(&self) -> Size {
-        self.size
-    }
-}
-
 pub struct InlineAllocator {
     current_line_nodes: Vec<ForestNodeRc<Element>>,
     width: f64,
@@ -57,8 +42,11 @@ impl InlineAllocator {
         }
     }
     pub(crate) fn reset(&mut self, current_node: &mut ForestNode<Element>, width: f64, text_align: TextAlignType) {
+        self.end(current_node);
         self.width = width;
         self.text_align = text_align;
+    }
+    pub(crate) fn end(&mut self, current_node: &mut ForestNode<Element>) {
         if self.current_line_nodes.len() > 0 {
             self.apply_text_align(current_node);
             self.current_line_nodes.truncate(0);
@@ -77,8 +65,20 @@ impl InlineAllocator {
         self.expected_width
     }
     #[inline]
+    pub(crate) fn get_current_line_width(&self) -> f64 {
+        self.used_width
+    }
+    #[inline]
     pub(crate) fn get_current_height(&self) -> f64 {
         self.height + if self.used_width > 0. { self.line_height } else { 0. }
+    }
+    #[inline]
+    pub(crate) fn get_current_filled_height(&self) -> f64 {
+        self.height
+    }
+    #[inline]
+    pub(crate) fn get_current_line_height(&self) -> f64 {
+        if self.used_width > 0. { self.line_height } else { 0. }
     }
     pub(crate) fn start_node(&mut self, next_node: &mut ForestNode<Element>, required_line_height: f64, required_baseline_offset: f64) {
         self.last_required_line_height = required_line_height;
@@ -94,16 +94,6 @@ impl InlineAllocator {
         }
         self.current_node_height = 0.;
         self.current_line_nodes.push(next_node.rc());
-    }
-    pub(crate) fn end_node(&mut self) -> InlineSize {
-        // TODO use this to prevent re-cal
-        let height = self.current_node_height + if self.used_width > 0. { self.line_height } else { 0. };
-        InlineSize {
-            size: Size::new(self.width, height),
-            used_width: self.used_width,
-            line_height: if self.used_width > 0. { self.line_height } else { 0. },
-            baseline_offset: if self.used_width > 0. { self.baseline_offset } else { 0. },
-        }
     }
     pub(crate) fn add_width(&mut self, current_node: &mut ForestNode<Element>, width: f64, allow_line_wrap: bool) -> Point {
         if self.used_width + width > self.width && self.used_width > 0. {

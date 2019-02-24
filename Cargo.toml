@@ -20,6 +20,7 @@ lazy_static = "1.0"
 downcast-rs = "1.0"
 cssparser = "*"
 rc_forest = { path = "./rc_forest" }
+element_style_macro = { path = "./element_style_macro" }
 
 [target.'cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))'.dependencies]
 glutin = "*"

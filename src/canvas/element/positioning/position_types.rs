@@ -72,6 +72,17 @@ impl Add<Size> for Point {
     }
 }
 
+impl Sub<Size> for Point {
+    type Output = Point;
+
+    fn sub(self, other: Size) -> Point {
+        Point {
+            left: self.left - other.width,
+            top: self.top - other.height,
+        }
+    }
+}
+
 impl Sub<Point> for Point {
     type Output = Size;
 
@@ -277,6 +288,10 @@ impl Bounds {
     pub fn extend_bottom(&mut self, v: f64) {
         self.point2.top += v;
     }
+    pub fn move_size(&mut self, s: Size) {
+        self.point1.move_size(s);
+        self.point2.move_size(s);
+    }
     pub fn union(&mut self, other: &Self) {
         if self.point1.left > other.point1.left { self.point1.left = other.point1.left };
         if self.point1.top > other.point1.top { self.point1.top = other.point1.top };
@@ -302,11 +317,31 @@ impl Add<Size> for Bounds {
     }
 }
 
+impl Sub<Size> for Bounds {
+    type Output = Bounds;
+
+    fn sub(self, other: Size) -> Bounds {
+        Bounds {
+            point1: self.point1 - other,
+            point2: self.point2 - other,
+        }
+    }
+}
+
 impl From<Position> for Bounds {
     fn from(other: Position) -> Bounds {
         Bounds {
             point1: other.point,
             point2: other.point + other.size
+        }
+    }
+}
+
+impl From<(Point, Point)> for Bounds {
+    fn from(other: (Point, Point)) -> Bounds {
+        Bounds {
+            point1: other.0,
+            point2: other.1,
         }
     }
 }

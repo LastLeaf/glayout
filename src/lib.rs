@@ -13,6 +13,7 @@ extern crate euclid;
 extern crate font_kit;
 
 extern crate rc_forest;
+extern crate element_style_macro;
 
 mod utils;
 pub mod lib_interfaces;

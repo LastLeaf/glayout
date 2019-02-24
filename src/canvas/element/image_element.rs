@@ -142,7 +142,7 @@ impl super::ElementContent for Image {
         self.element = element;
     }
     fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator, style: &ElementStyle) -> Size {
-        let prev_inline_height = inline_allocator.get_current_height();
+        let base_requested_top = inline_allocator.get_current_height();
         let spec_width = style.get_width() != DEFAULT_F64;
         let spec_height = style.get_height() != DEFAULT_F64;
         let width;
@@ -169,8 +169,8 @@ impl super::ElementContent for Image {
         let baseline_top = height / 2.; // FIXME vertical-align middle
         inline_allocator.start_node(self.node_mut(), height, baseline_top);
         let (left, line_baseline_top) = inline_allocator.add_width(self.node_mut(), width, true).into();
-        self.inline_pos = Position::new(left, line_baseline_top - baseline_top, width, height);
-        Size::new(suggested_size.width(), height - prev_inline_height)
+        self.inline_pos = Position::new(left, line_baseline_top - baseline_top - base_requested_top, width, height);
+        Size::new(suggested_size.width(), height - base_requested_top)
     }
     #[inline]
     fn adjust_baseline_offset(&mut self, add_offset: f64) {

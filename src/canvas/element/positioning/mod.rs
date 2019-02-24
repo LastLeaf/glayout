@@ -8,6 +8,7 @@ mod inline_allocator;
 pub(crate) use self::inline_allocator::InlineAllocator;
 mod box_sizing;
 mod inline;
+mod inline_block;
 mod block;
 mod absolute;
 mod flex;
@@ -21,6 +22,7 @@ pub struct PositionOffset {
     suggested_size: Size,
     relative_size: Size,
     requested_size: Size,
+    inline_position_offset: Size, // left-top corner of the inline/inline_block relative to base position
     allocated_point: Point, // left-top corner relative to content box of parent node
     relative_point: Point, // left-top corner relative to content box of relative node
     drawing_bounds: Bounds, // drawing bounds relative to content box of parent node
@@ -33,6 +35,7 @@ impl PositionOffset {
             suggested_size: Size::new(0., 0.),
             relative_size: Size::new(0., 0.),
             requested_size: Size::new(0., 0.),
+            inline_position_offset: Size::new(0., 0.),
             allocated_point: Point::new(0., 0.),
             relative_point: Point::new(0., 0.),
             drawing_bounds: Bounds::new(0., 0., 0., 0.),
@@ -72,13 +75,14 @@ impl PositionOffset {
         self.drawing_bounds.union(&(child_bounds + offset));
     }
 
-    pub(crate) fn suggest_size(&mut self, is_layout_dirty: bool, suggested_size: Size, inline_allocator: &mut InlineAllocator, handle_absolute: bool) -> Size {
+    pub(crate) fn suggest_size(&mut self, is_layout_dirty: bool, suggested_size: Size, inline_allocator: &mut InlineAllocator, enable_inline: bool) -> Size {
         let element = unsafe { self.element_mut_unsafe() };
         let style = unsafe { element.style().clone_ref_unsafe() };
 
         let display = style.get_display();
         let position = style.get_position();
         let is_inline =
+            enable_inline &&
             !box_sizing::is_independent_positioning(style) &&
             (display == DisplayType::Inline || display == DisplayType::InlineBlock);
 
@@ -90,31 +94,34 @@ impl PositionOffset {
 
         let requested_size = {
             if display == DisplayType::None {
-                none::suggest_size(element, style, suggested_size, inline_allocator, handle_absolute)
+                none::suggest_size(element, style, suggested_size, inline_allocator)
             } else if is_inline {
-                inline::suggest_size(element, style, suggested_size, inline_allocator, handle_absolute)
+                if display == DisplayType::InlineBlock {
+                    inline_block::suggest_size(element, style, suggested_size, inline_allocator)
+                } else {
+                    inline::suggest_size(element, style, suggested_size, inline_allocator)
+                }
             } else if box_sizing::is_independent_positioning(style) {
                 suggested_size
             } else {
                 match display {
                     DisplayType::Flex => {
-                        flex::suggest_size(element, style, suggested_size, inline_allocator, handle_absolute)
+                        flex::suggest_size(element, style, suggested_size, inline_allocator)
                     },
                     _ => {
-                        block::suggest_size(element, style, suggested_size, inline_allocator, handle_absolute)
+                        block::suggest_size(element, style, suggested_size, inline_allocator)
                     },
                 }
             }
         };
 
-        if handle_absolute && position != PositionType::Static {
+        if position != PositionType::Static {
             if is_layout_dirty || requested_size != self.relative_size {
                 let mut ia = InlineAllocator::new();
                 let node = element.node_mut();
-                for child in node.clone_children().iter() {
-                    let child = child.deref_mut_with(node);
+                node.for_each_child_mut(|child| {
                     child.suggest_size_absolute(requested_size, &mut ia);
-                }
+                });
             }
         }
 
@@ -137,10 +144,9 @@ impl PositionOffset {
             absolute::suggest_size(element, style, relative_size, inline_allocator);
         } else {
             let node = element.node_mut();
-            for child in node.clone_children().iter() {
-                let child = child.deref_mut_with(node);
+            node.for_each_child_mut(|child| {
                 child.suggest_size_absolute(relative_size, inline_allocator);
-            }
+            })
         }
     }
 
@@ -158,7 +164,6 @@ impl PositionOffset {
         if !is_layout_dirty && !is_inline && allocated_point == self.allocated_point && relative_point == self.relative_point {
             return self.drawing_bounds
         }
-        self.allocated_point = allocated_point;
 
         let relative_point = match position {
             PositionType::Static => relative_point,
@@ -166,11 +171,15 @@ impl PositionOffset {
         };
         self.relative_point = relative_point;
 
-        let drawing_bounds = {
+        let (allocated_point, drawing_bounds) = {
             if display == DisplayType::None {
                 none::allocate_position(element, style, allocated_point, relative_point)
             } else if is_inline {
-                inline::allocate_position(element, style, allocated_point, relative_point)
+                if display == DisplayType::InlineBlock {
+                    inline_block::allocate_position(element, style, allocated_point, relative_point)
+                } else {
+                    inline::allocate_position(element, style, allocated_point, relative_point)
+                }
             } else if box_sizing::is_independent_positioning(style) {
                 absolute::allocate_position(element, style, allocated_point, relative_point)
             } else {
@@ -185,8 +194,13 @@ impl PositionOffset {
             }
         };
 
+        self.allocated_point = allocated_point;
         self.drawing_bounds = drawing_bounds;
         debug!("Allocated position for {:?} with {:?} drawing bounds {:?}", element, self.allocated_point, self.drawing_bounds);
         drawing_bounds
+    }
+
+    pub(crate) fn get_background_rect(&mut self, ) {
+
     }
 }

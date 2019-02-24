@@ -23,6 +23,10 @@ export class CanvasContext {
   setClearColor(r, g, b, a) {
     __glayoutAsm__._canvas_context_set_clear_color(this._ptr, r, g, b, a)
   }
+  // eslint-disable-next-line class-methods-use-this
+  render(cb) {
+    cb()
+  }
   appendStyleSheet(styleText) {
     const bufAddr = __glayoutAsm__._get_swap_buffer(STR_BUF_LEN)
     __glayoutAsm__.stringToUTF8(styleText, bufAddr, STR_BUF_LEN)

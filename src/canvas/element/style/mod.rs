@@ -10,6 +10,7 @@ mod class;
 pub use self::class::{StyleName, ElementClass};
 mod style_sheet;
 pub use self::style_sheet::{StyleSheetGroup, StyleSheet};
+mod style_value;
 
 pub const DEFAULT_F64: f64 = f64::INFINITY;
 pub const DEFAULT_F32: f32 = f32::INFINITY;
@@ -27,7 +28,7 @@ pub struct ElementStyle {
     top: f64,
     right: f64,
     bottom: f64,
-    width: f64,
+    width: style_value::F64,
     height: f64,
     font_family: String,
     inherit_font_family: bool,
@@ -176,12 +177,12 @@ macro_rules! getter_setter_inherit_layout_dirty {
             let tree_node = self.node_mut();
             tree_node.mark_layout_dirty();
             s.$name = val.clone();
-            for child in tree_node.clone_children().iter() {
-                let mut style = child.deref_mut_with(tree_node).style_mut();
+            tree_node.for_each_child_mut(|child| {
+                let style = child.style_mut();
                 if style.$inherit_name {
                     style.$dfs_setter(val.clone());
                 }
-            }
+            })
         }
         #[inline]
         pub fn $inherit_getter(&self) -> bool {

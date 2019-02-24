@@ -89,8 +89,25 @@ impl<T: ForestNodeContent> ForestNode<T> {
         self.children[r].to_vec()
     }
     #[inline]
-    pub fn clone_children(&self) -> Box<[ForestNodeRc<T>]> {
-        self.children.clone().into()
+    pub fn clone_children(&self) -> Vec<ForestNodeRc<T>> {
+        self.children.clone()
+    }
+    #[inline]
+    pub fn iter_children<'a>(&'a self) -> ForestNodeIter<'a, T> {
+        ForestNodeIter {
+            parent: self,
+            cur: 0,
+        }
+    }
+    #[inline]
+    pub fn for_each_child_mut<F>(&mut self, mut f: F) where F: FnMut(&mut ForestNode<T>) {
+        let children = unsafe { &*(&self.children as *const Vec<ForestNodeRc<T>>) };
+        for child_rc in children.iter() {
+            {
+                let child = self.another_mut(child_rc);
+                f(child);
+            }
+        }
     }
 
     #[inline]
@@ -153,9 +170,9 @@ impl<T: ForestNodeContent> ForestNode<T> {
         c.content.parent_node_changed();
         old_child
     }
-    pub fn splice(&mut self, position: usize, removes: usize, inserts: Box<[ForestNodeRc<T>]>) -> Box<[ForestNodeRc<T>]> {
+    pub fn splice(&mut self, position: usize, removes: usize, inserts: Vec<ForestNodeRc<T>>) -> Box<[ForestNodeRc<T>]> {
         let self_rc = self.rc();
-        let removes: Box<[ForestNodeRc<T>]> = self.children.splice(position..(position + removes), inserts.iter().cloned()).collect();
+        let removes: Box<[ForestNodeRc<T>]> = self.children.splice(position..(position + removes), inserts.clone()).collect();
         for child in removes.iter() {
             let c = child.deref_mut_with(self);
             c.parent.take();
@@ -231,5 +248,23 @@ impl<T: ForestNodeContent> Index<usize> for ForestNode<T> {
 impl<T: ForestNodeContent> IndexMut<usize> for ForestNode<T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.child_mut(index).unwrap()
+    }
+}
+
+pub struct ForestNodeIter<'a, T: ForestNodeContent> {
+    parent: &'a ForestNode<T>,
+    cur: usize,
+}
+
+impl<'a, T: ForestNodeContent> Iterator for ForestNodeIter<'a, T> {
+    type Item = &'a ForestNode<T>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur < self.parent.children.len() {
+            let cur = self.cur;
+            self.cur += 1;
+            self.parent.child(cur)
+        } else {
+            None
+        }
     }
 }

@@ -1,0 +1,10 @@
+[package]
+name = "element_style_macro"
+version = "0.1.0"
+authors = ["LastLeaf <bqfu@163.com>"]
+edition = "2018"
+
+[lib]
+proc_macro = true
+
+[dependencies]

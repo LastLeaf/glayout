@@ -134,10 +134,11 @@ impl super::ElementContent for Text {
         if self.need_update {
             self.update(style);
         }
-        let prev_inline_height = inline_allocator.get_current_height();
+        let base_requested_top = inline_allocator.get_current_height();
+        let initial_line_top = -inline_allocator.get_current_line_height();
         let line_height = if style.get_line_height() == style::DEFAULT_F32 { style.get_font_size() * 1.5 } else { style.get_line_height() };
-        let baseline_top = line_height / 2.;
-        inline_allocator.start_node(self.node_mut(), line_height as f64, baseline_top as f64);
+        let character_baseline_top = line_height / 2.;
+        inline_allocator.start_node(self.node_mut(), line_height as f64, character_baseline_top as f64);
         self.line_first_char_index = 0;
         for i in 0..self.characters.len() {
             let character = &self.characters[i].0.clone();
@@ -157,11 +158,11 @@ impl super::ElementContent for Text {
                 self.line_current_char_index = i;
                 let v = &mut self.characters[i];
                 v.1 = left as f32;
-                v.2 = line_baseline_top as f32 - baseline_top;
+                v.2 = line_baseline_top as f32 - character_baseline_top - base_requested_top as f32;
             }
         };
-        self.drawing_bounds = Bounds::new(0., prev_inline_height, suggested_size.width(), inline_allocator.get_current_height());
-        Size::new(suggested_size.width(), inline_allocator.get_current_height() - prev_inline_height)
+        self.drawing_bounds = Bounds::new(0., initial_line_top, suggested_size.width(), inline_allocator.get_current_height() - base_requested_top);
+        Size::new(suggested_size.width(), inline_allocator.get_current_height() - base_requested_top)
     }
     fn adjust_baseline_offset(&mut self, add_offset: f64) {
         for i in self.line_first_char_index..(self.line_current_char_index + 1) {

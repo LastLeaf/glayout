@@ -40,7 +40,7 @@ pub fn suggest_size(element: &mut Element, style: &ElementStyle, relative_size: 
 }
 
 #[inline]
-pub fn allocate_position(element: &mut Element, style: &ElementStyle, allocated_point: Point, relative_point: Point) -> Bounds {
+pub fn allocate_position(element: &mut Element, style: &ElementStyle, allocated_point: Point, relative_point: Point) -> (Point, Bounds) {
     let left = if style.get_left() != DEFAULT_F64 {
         style.get_left()
     } else {
@@ -64,8 +64,7 @@ pub fn allocate_position(element: &mut Element, style: &ElementStyle, allocated_
     } else {
         let mut current_top = content.top();
         let node = element.node_mut();
-        for child in node.clone_children().iter() {
-            let child = child.deref_mut_with(node);
+        node.for_each_child_mut(|child| {
             let requested_size = child.requested_size();
             let child_bounds = child.allocate_position(
                 Point::new(0., current_top),
@@ -75,7 +74,7 @@ pub fn allocate_position(element: &mut Element, style: &ElementStyle, allocated_
             if !box_sizing::is_independent_positioning(child.style()) {
                 current_top += requested_size.height();
             }
-        }
+        });
     };
-    drawing_bounds
+    (content, drawing_bounds)
 }

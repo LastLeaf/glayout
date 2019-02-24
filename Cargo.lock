@@ -311,6 +311,10 @@ version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
+name = "element_style_macro"
+version = "0.1.0"
+
+[[package]]
 name = "euclid"
 version = "0.19.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -442,6 +446,7 @@ version = "0.1.0"
 dependencies = [
  "cssparser 0.25.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "downcast-rs 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "element_style_macro 0.1.0",
  "euclid 0.19.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "font-kit 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "gl_generator 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
