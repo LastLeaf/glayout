@@ -39,6 +39,7 @@ style_struct!(
         bottom: f64,
         width: f64,
         height: f64,
+        flex: f32,
         font_family: String,
         inherit_font_family: bool,
         font_size: f32,
@@ -89,6 +90,7 @@ impl Default for ElementStyle {
             bottom: DEFAULT_F64,
             width: DEFAULT_F64,
             height: DEFAULT_F64,
+            flex: DEFAULT_F32,
             font_family: String::from("sans-serif"),
             inherit_font_family: true,
             font_size: 16.,
@@ -225,6 +227,7 @@ impl ElementStyle {
     getter_setter_layout_dirty!(bottom, get_bottom, set_bottom, f64);
     getter_setter_layout_dirty!(width, get_width, set_width, f64);
     getter_setter_layout_dirty!(height, get_height, set_height, f64);
+    getter_setter_layout_dirty!(flex, get_flex, set_flex, f32);
     getter_setter_inherit_layout_dirty!(font_family, get_font_family, set_font_family, inherit_font_family, get_inherit_font_family, inherit_font_family, String);
     getter_setter_inherit_layout_dirty!(font_size, get_font_size, set_font_size, inherit_font_size, get_inherit_font_size, inherit_font_size, f32);
     getter_setter_inherit_layout_dirty!(line_height, get_line_height, set_line_height, inherit_line_height, get_inherit_line_height, inherit_line_height, f32);
@@ -255,6 +258,7 @@ impl ElementStyle {
     fn update_inherit(&mut self, parent_node: Option<&mut ForestNode<Element>>) {
         update_inherit!(self, parent_node, font_family, inherit_font_family, inherit_font_family, String::from("sans-serif"));
         update_inherit!(self, parent_node, font_size, inherit_font_size, inherit_font_size, 16.);
+        update_inherit!(self, parent_node, text_align, inherit_text_align, inherit_text_align, TextAlignType::Left);
         update_inherit!(self, parent_node, color, inherit_color, inherit_color, (0., 0., 0., 1.));
     }
 

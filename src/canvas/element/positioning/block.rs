@@ -1,12 +1,19 @@
 use super::super::{Element, ElementStyle, DEFAULT_F64};
-use super::{Point, Size, Position, Bounds, InlineAllocator, box_sizing};
+use super::{Point, Size, Position, Bounds, InlineAllocator, InlineAllocatorState, box_sizing};
+
+#[inline]
+pub fn get_min_max_width(element: &mut Element, style: &ElementStyle, inline_allocator: &mut InlineAllocator) -> (f64, f64) {
+    let (_margin, _border, _padding, content) = box_sizing::get_sizes(style, Size::new(suggested_size.width(), DEFAULT_F64));
+
+}
 
 #[inline]
 pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size: Size, inline_allocator: &mut InlineAllocator) -> Size {
     let (margin, _border, _padding, content) = box_sizing::get_sizes(style, Size::new(suggested_size.width(), DEFAULT_F64));
     let child_suggested_size = content;
 
-    inline_allocator.reset(element.node_mut(), content.width(), style.get_text_align());
+    let state = inline_allocator.state().clone();
+    inline_allocator.reset(element.node_mut(), &InlineAllocatorState::new(content.width(), style.get_text_align()));
     let mut child_requested_height = 0.;
     if element.is_terminated() {
         let _size = element.content_mut().suggest_size(child_suggested_size, inline_allocator, style);
@@ -18,7 +25,7 @@ pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size:
             child_requested_height += size.height();
         });
     }
-    inline_allocator.reset(element.node_mut(), content.width(), style.get_text_align());
+    inline_allocator.reset(element.node_mut(), &state);
 
     if style.get_height() == DEFAULT_F64 {
         margin + Size::new(0., child_requested_height)

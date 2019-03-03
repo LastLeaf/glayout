@@ -58,7 +58,6 @@ pub struct Element {
     canvas_config: Rc<CanvasConfig>,
     tree_node: Option<ForestNodeSelf<Element>>,
     event_receiver: EventReceiver,
-    dirty: bool,
     style: ElementStyle,
     position_offset: PositionOffset,
     draw_separate_tex: Cell<i32>,
@@ -77,7 +76,6 @@ impl Clone for Element {
             canvas_config: self.canvas_config.clone(),
             tree_node: None,
             event_receiver: EventReceiver::new(),
-            dirty: true,
             style: ElementStyle::new(),
             position_offset: PositionOffset::new(),
             draw_separate_tex: Cell::new(-1),
@@ -92,7 +90,6 @@ impl Element {
             canvas_config: cfg.clone(),
             tree_node: None,
             event_receiver: EventReceiver::new(),
-            dirty: true,
             style: ElementStyle::new(),
             position_offset: PositionOffset::new(),
             draw_separate_tex: Cell::new(-1),
@@ -180,22 +177,15 @@ impl Element {
 
     #[inline]
     pub(crate) fn mark_layout_dirty(&mut self) {
-        if self.dirty { return; }
-        self.dirty = true;
+        self.position_offset.mark_dirty();
         match self.node_mut().parent_mut() {
             None => { },
             Some(x) => x.mark_layout_dirty()
         }
     }
     #[inline]
-    pub(crate) fn clear_layout_dirty(&mut self) -> bool {
-        let ret = self.dirty;
-        self.dirty = false;
-        ret
-    }
-    #[inline]
     pub(crate) fn is_layout_dirty(&self) -> bool {
-        self.dirty
+        self.position_offset.is_dirty()
     }
     #[inline]
     pub(crate) fn requested_size(&self) -> Size {
@@ -207,18 +197,15 @@ impl Element {
     }
     #[inline]
     pub(crate) fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator, enable_inline: bool) -> Size {
-        let is_layout_dirty = self.is_layout_dirty();
-        self.position_offset.suggest_size(is_layout_dirty, suggested_size, inline_allocator, enable_inline)
+        self.position_offset.suggest_size(suggested_size, inline_allocator, enable_inline)
     }
     #[inline]
     pub(crate) fn suggest_size_absolute(&mut self, relative_size: Size, inline_allocator: &mut InlineAllocator) {
-        let is_layout_dirty = self.is_layout_dirty();
-        self.position_offset.suggest_size_absolute(is_layout_dirty, relative_size, inline_allocator)
+        self.position_offset.suggest_size_absolute(relative_size, inline_allocator)
     }
     #[inline]
     pub(crate) fn allocate_position(&mut self, allocated_point: Point, relative_point: Point) -> Bounds {
-        let is_layout_dirty = self.clear_layout_dirty();
-        self.position_offset.allocate_position(is_layout_dirty, allocated_point, relative_point)
+        self.position_offset.allocate_position(allocated_point, relative_point)
     }
     #[inline]
     pub(crate) fn dfs_update_position_offset(&mut self, suggested_size: Size) {
@@ -231,7 +218,7 @@ impl Element {
         let rm = self.canvas_config.resource_manager();
         let mut rm = rm.borrow_mut();
         rm.set_draw_state(DrawState::new().color(color));
-        // debug!("Try drawing rect at {:?} colored {:?}", position, color);
+        debug!("Try drawing rect at {:?} colored {:?}", position, color);
         rm.request_draw(
             -2, true,
             0., 0., 1., 1.,

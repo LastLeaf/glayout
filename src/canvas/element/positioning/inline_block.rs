@@ -1,5 +1,5 @@
 use super::super::{Element, ElementStyle, DEFAULT_F64};
-use super::{Point, Size, Position, Bounds, InlineAllocator, box_sizing};
+use super::{Point, Size, Position, Bounds, InlineAllocator, InlineAllocatorState, box_sizing};
 
 #[inline]
 pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size: Size, inline_allocator: &mut InlineAllocator) -> Size {
@@ -10,7 +10,7 @@ pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size:
     let child_suggested_size = Size::new(suggested_size.width(), 0.);
     let prev_filled_height = inline_allocator.get_current_filled_height();
     let mut child_inline_allocator = InlineAllocator::new();
-    child_inline_allocator.reset(element.node_mut(), child_suggested_size.width(), style.get_text_align());
+    child_inline_allocator.reset(element.node_mut(), &InlineAllocatorState::new(child_suggested_size.width(), style.get_text_align()));
 
     let mut child_requested_height = 0.;
     if element.is_terminated() {

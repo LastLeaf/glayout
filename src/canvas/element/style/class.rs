@@ -45,6 +45,8 @@ pub enum StyleName {
     border_right_color = 0x65,
     border_top_color = 0x66,
     border_bottom_color = 0x67,
+
+    flex = 0x70,
 }
 
 #[derive(Default)]
@@ -102,6 +104,7 @@ impl ElementClass {
             StyleName::bottom => style_name!(bottom, f64),
             StyleName::width => style_name!(width, f64),
             StyleName::height => style_name!(height, f64),
+            StyleName::flex => style_name!(flex, f32),
             StyleName::font_family => style_name!(font_family, String),
             StyleName::font_size => style_name!(font_size, f32),
             StyleName::line_height => style_name!(line_height, f32),

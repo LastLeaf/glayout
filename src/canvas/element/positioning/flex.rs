@@ -6,18 +6,26 @@ pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size:
     let (margin, _border, _padding, content) = box_sizing::get_sizes(style, Size::new(suggested_size.width(), DEFAULT_F64));
     let child_suggested_size = content;
 
-    let mut child_requested_height = 0.;
-    if element.is_terminated() {
-        inline_allocator.reset(element.node_mut(), content.width(), style.get_text_align());
-        let _size = element.content_mut().suggest_size(child_suggested_size, inline_allocator, style);
-        child_requested_height = inline_allocator.get_current_height();
-    } else {
-        let node = element.node_mut();
-        node.for_each_child_mut(|child| {
-            let size = child.suggest_size(child_suggested_size, inline_allocator, false);
-            child_requested_height += size.height();
-        });
+    let node = element.node_mut();
+    let child_min_max_basis = Vec::with_capacity(node.len());
+    let mut min_total = 0.;
+    let mut basis_total = 0.;
+    node.for_each_child_mut(|child| {
+        let (min, max) = child.position_offset.get_min_max_width(&mut InlineAllocator::new());
+        let basis = max;
+        child_min_max_basis.push((min, max, basis));
+        min_total += min;
+        basis_total += basis;
+    });
+    if basis_total < suggested_size.width() {
+
     }
+
+    let node = element.node_mut();
+    node.for_each_child_mut(|child| {
+        let size = child.suggest_size(child_suggested_size, inline_allocator, false);
+        child_requested_height += size.height();
+    });
 
     if style.get_height() == DEFAULT_F64 {
         margin + Size::new(0., child_requested_height)
