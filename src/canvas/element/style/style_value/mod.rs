@@ -46,7 +46,7 @@ impl<T: Clone> StyleValue<T> {
             r: Cell::new(r as u8),
         };
         if inherit {
-            ret.set_inherit(true);
+            ret.r.set(ret.r.get() | INHERIT | DIRTY);
         }
         ret
     }
