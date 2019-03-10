@@ -1,5 +1,28 @@
+use std::f64;
 use super::super::{Element, ElementStyle, DEFAULT_F64};
 use super::{Point, Size, Bounds, InlineAllocator, box_sizing};
+
+#[inline]
+pub fn get_min_max_width(element: &mut Element, style: &ElementStyle, inline_allocator: &mut InlineAllocator) -> (f64, f64) {
+    let (_margin, _border, _padding, content) = box_sizing::get_sizes(style, Size::new(DEFAULT_F64, DEFAULT_F64));
+
+    let min_max_width = if element.is_terminated() {
+        element.content_mut().suggest_size(Size::new(f64::MAX, 0.), inline_allocator, style);
+        inline_allocator.get_min_max_width()
+    } else {
+        let node = element.node_mut();
+        let mut min_width = 0.;
+        let mut max_width = 0.;
+        node.for_each_child_mut(|child| {
+            let (min, max) = child.position_offset.get_min_max_width(inline_allocator);
+            if min_width < min { min_width = min };
+            if max_width < max { max_width = max };
+        });
+        (min_width, max_width)
+    };
+
+    min_max_width
+}
 
 #[inline]
 pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size: Size, inline_allocator: &mut InlineAllocator) -> Size {

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::{f32, f64};
 use super::{Element, Transform};
 use rc_forest::{ForestNode};
-use element_style_macro::*;
+use glayout_element_style_macro::*;
 
 mod types;
 pub use self::types::{DisplayType, PositionType, TextAlignType, BoxSizingType};
@@ -12,256 +12,194 @@ pub use self::class::{StyleName, ElementClass};
 mod style_sheet;
 pub use self::style_sheet::{StyleSheetGroup, StyleSheet};
 mod style_value;
-use self::style_value::*;
+use self::style_value::{StyleValue, StyleValueReferrer};
 
 pub const DEFAULT_F64: f64 = f64::INFINITY;
 pub const DEFAULT_F32: f32 = f32::INFINITY;
 
 macro_rules! define_struct {
-    ($name:ident $obj:tt) => {
-        pub struct $name $obj
-    }
-}
-
-style_struct!(
-    ElementStyle {
-        element: *mut Element,
-        inline_class: Cell<ElementClass>,
-        classes: Vec<Rc<ElementClass>>,
-        tag_name: String,
-        id: String,
-        class: String,
-        display: DisplayType,
-        position: PositionType,
-        left: f64,
-        top: f64,
-        right: f64,
-        bottom: f64,
-        width: f64,
-        height: f64,
-        flex: f32,
-        font_family: String,
-        inherit_font_family: bool,
-        font_size: f32,
-        inherit_font_size: bool,
-        line_height: f32,
-        inherit_line_height: bool,
-        text_align: TextAlignType,
-        inherit_text_align: bool,
-        color: (f32, f32, f32, f32),
-        inherit_color: bool,
-        background_color: (f32, f32, f32, f32),
-        opacity: f32,
-        transform: Transform,
-        margin_left: f64,
-        margin_right: f64,
-        margin_top: f64,
-        margin_bottom: f64,
-        padding_left: f64,
-        padding_right: f64,
-        padding_top: f64,
-        padding_bottom: f64,
-        box_sizing: BoxSizingType,
-        border_left_width: f64,
-        border_right_width: f64,
-        border_top_width: f64,
-        border_bottom_width: f64,
-        border_left_color: (f32, f32, f32, f32),
-        border_right_color: (f32, f32, f32, f32),
-        border_top_color: (f32, f32, f32, f32),
-        border_bottom_color: (f32, f32, f32, f32),
-    }
-);
-
-impl Default for ElementStyle {
-    fn default() -> Self {
-        ElementStyle {
-            element: 0 as *mut Element,
-            inline_class: Cell::new(ElementClass::new()),
-            classes: vec![],
-            tag_name: String::new(),
-            id: String::new(),
-            class: String::new(),
-            display: DisplayType::Inline,
-            position: PositionType::Static,
-            left: DEFAULT_F64,
-            top: DEFAULT_F64,
-            right: DEFAULT_F64,
-            bottom: DEFAULT_F64,
-            width: DEFAULT_F64,
-            height: DEFAULT_F64,
-            flex: DEFAULT_F32,
-            font_family: String::from("sans-serif"),
-            inherit_font_family: true,
-            font_size: 16.,
-            inherit_font_size: true,
-            line_height: DEFAULT_F32,
-            inherit_line_height: true,
-            text_align: TextAlignType::Left,
-            inherit_text_align: true,
-            color: (0., 0., 0., 1.),
-            inherit_color: true,
-            background_color: (-1., -1., -1., -1.),
-            opacity: 1.,
-            transform: Transform::new(),
-            margin_left: 0.,
-            margin_right: 0.,
-            margin_top: 0.,
-            margin_bottom: 0.,
-            padding_left: 0.,
-            padding_right: 0.,
-            padding_top: 0.,
-            padding_bottom: 0.,
-            box_sizing: BoxSizingType::ContentBox,
-            border_left_width: 0.,
-            border_right_width: 0.,
-            border_top_width: 0.,
-            border_bottom_width: 0.,
-            border_left_color: (0., 0., 0., 0.),
-            border_right_color: (0., 0., 0., 0.),
-            border_top_color: (0., 0., 0., 0.),
-            border_bottom_color: (0., 0., 0., 0.),
+    ($($items:tt)*) => {
+        pub struct ElementStyle {
+            element: *mut Element,
+            inline_class: Cell<ElementClass>,
+            classes: Vec<Rc<ElementClass>>,
+            tag_name: String,
+            id: String,
+            class: String,
+            $($items)*
         }
     }
 }
 
-impl ElementStyle {
-    pub fn new() -> Self {
-        Self { ..Default::default() }
-    }
-}
-
-macro_rules! getter_setter {
-    ($name:ident, $getter:ident, $setter:ident, $type:ty) => {
-        #[inline]
-        pub fn $getter(&self) -> $type {
-            self.$name.clone()
-        }
-        #[inline]
-        pub fn $name(&mut self, val: $type) {
-            self.inline_class.get_mut().replace_rule(StyleName::$name, Box::new(val.clone()));
-            self.$setter(val);
-        }
-        #[inline]
-        pub(self) fn $setter(&mut self, val: $type) {
-            self.$name = val;
-        }
-    }
-}
-macro_rules! getter_setter_layout_dirty {
-    ($name:ident, $getter:ident, $setter:ident, $type:ty) => {
-        #[inline]
-        pub fn $getter(&self) -> $type {
-            self.$name.clone()
-        }
-        #[inline]
-        pub fn $name(&mut self, val: $type) {
-            if self.$name == val { return }
-            self.inline_class.get_mut().replace_rule(StyleName::$name, Box::new(val.clone()));
-            self.$setter(val);
-        }
-        #[inline]
-        pub(self) fn $setter(&mut self, val: $type) {
-            self.element_mut().mark_layout_dirty();
-            self.$name = val;
-        }
-    }
-}
-macro_rules! getter_setter_inherit_layout_dirty {
-    ($name:ident, $getter:ident, $setter:ident, $inherit_name:ident, $inherit_getter:ident, $dfs_setter:ident, $type:ty) => {
-        #[inline]
-        pub fn $getter(&self) -> $type {
-            self.$name.clone()
-        }
-        #[inline]
-        pub fn $name(&mut self, val: $type) {
-            self.inline_class.get_mut().replace_rule(StyleName::$name, Box::new(val.clone()));
-            self.$setter(val);
-        }
-        #[inline]
-        pub(self) fn $setter(&mut self, val: $type) {
-            self.$inherit_name = false;
-            self.$dfs_setter(val);
-        }
-        fn $dfs_setter(&mut self, val: $type) {
-            if self.$name == val { return }
-            let s = unsafe { self.clone_mut_unsafe() };
-            let tree_node = self.node_mut();
-            tree_node.mark_layout_dirty();
-            s.$name = val.clone();
-            tree_node.for_each_child_mut(|child| {
-                let style = child.style_mut();
-                if style.$inherit_name {
-                    style.$dfs_setter(val.clone());
+macro_rules! define_constructor {
+    ($($items:tt)*) => {
+        impl ElementStyle {
+            pub(crate) fn new() -> Self {
+                Self {
+                    element: 0 as *mut Element,
+                    inline_class: Cell::new(ElementClass::new()),
+                    classes: vec![],
+                    tag_name: String::new(),
+                    id: String::new(),
+                    class: String::new(),
+                    $($items)*
                 }
-            })
-        }
-        #[inline]
-        pub fn $inherit_getter(&self) -> bool {
-            self.$inherit_name
+            }
         }
     }
 }
 
-macro_rules! update_inherit {
-    ($self:ident, $parent_node:ident, $name:ident, $inherit_name:ident, $dfs_setter:ident, $default:expr) => {
-        if $self.$inherit_name {
-            $self.$dfs_setter(match &$parent_node {
-                None => {
-                    $default
-                },
-                Some(ref x) => {
-                    x.style().$name.clone()
-                },
-            });
+macro_rules! impl_style_item {
+    (
+        $name:ident,
+        $getter:ident,
+        $setter:ident,
+        $getter_advanced:ident,
+        $setter_advanced:ident,
+        $getter_inner:ident,
+        $setter_inner:ident,
+        $update_inherit:ident,
+        $value_type:ty,
+        $default_value_referrer:expr,
+        $default_value:expr,
+        $layout_dirty:expr,
+        $inherit:expr
+    ) => {
+        pub(self) fn $getter_inner(&self) -> (StyleValueReferrer, $value_type) {
+            if self.$name.is_dirty() {
+                if self.$name.inherit() {
+                    let value = {
+                        let tree_node = self.node();
+                        let parent = tree_node.parent();
+                        match parent {
+                            Some(p) => p.style.$name.get(),
+                            None => ($default_value_referrer, $default_value),
+                        }
+                    };
+                    self.$name.set(value.0, value.1);
+                }
+                self.$name.clear_dirty();
+            }
+            self.$name.get()
+        }
+        #[inline]
+        pub fn $getter_advanced(&self) -> (StyleValueReferrer, $value_type) {
+            self.$getter_inner()
+        }
+        #[inline]
+        pub fn $getter(&self) -> $value_type {
+            self.$getter_advanced().1
+        }
+        fn $update_inherit(tree_node: &mut ForestNode<Element>) {
+            if $layout_dirty { tree_node.mark_layout_dirty() };
+            let old_dirty = tree_node.style.$name.get_and_mark_dirty();
+            if !old_dirty {
+                tree_node.for_each_child_mut(|child| {
+                    if child.style.$name.inherit() {
+                        Self::$update_inherit(child);
+                    }
+                })
+            }
+        }
+        pub(self) fn $setter_inner(&mut self, r: StyleValueReferrer, val: $value_type, inherit: bool) {
+            let val = if r == StyleValueReferrer::Auto {
+                $default_value
+            } else {
+                val
+            };
+            let changed = if inherit {
+                let changed = !self.$name.inherit();
+                self.$name.set_inherit(true);
+                changed
+            } else {
+                let changed = r == self.$name.get_referrer() && val == *self.$name.get_value_ref();
+                self.$name.set(r, val);
+                changed
+            };
+            if changed {
+                let tree_node = self.node_mut();
+                Self::$update_inherit(tree_node);
+            }
+        }
+        #[inline]
+        pub fn $setter_advanced(&mut self, r: StyleValueReferrer, val: $value_type, inherit: bool) {
+            self.inline_class.get_mut().replace_rule(StyleName::$name, Box::new(val.clone()));
+            self.$setter_inner(r, val, inherit);
+        }
+        #[inline]
+        pub fn $setter(&mut self, val: $value_type) {
+            self.$setter_advanced(StyleValueReferrer::Absolute, val, false);
+        }
+        #[inline]
+        pub fn $name(&mut self, val: $value_type) {
+            self.$setter(val);
         }
     }
+}
+
+macro_rules! impl_style_list {
+    ($($items:tt)*) => {
+        impl ElementStyle {
+            $($items)*
+        }
+    }
+}
+
+macro_rules! impl_parent_updated_item {
+    ($s:ident, $name:ident, $update_inherit:ident) => {
+        if $s.$name.inherit() {
+            Self::$update_inherit($s.node_mut());
+        }
+    }
+}
+
+macro_rules! impl_parent_updated {
+    ($($items:tt)*) => {
+        impl ElementStyle {
+            $($items)*
+        }
+    }
+}
+
+element_style! {
+    display: DisplayType, Absolute(DisplayType::Inline), (layout_dirty);
+    position: PositionType, Absolute(PositionType::Static), (layout_dirty);
+    left: f64, Auto(DEFAULT_F64), (layout_dirty);
+    right: f64, Auto(DEFAULT_F64), (layout_dirty);
+    top: f64, Auto(DEFAULT_F64), (layout_dirty);
+    bottom: f64, Auto(DEFAULT_F64), (layout_dirty);
+    width: f64, Auto(DEFAULT_F64), (layout_dirty);
+    height: f64, Auto(DEFAULT_F64), (layout_dirty);
+    flex_grow: f32, Absolute(0.), (layout_dirty);
+    flex_shrink: f32, Absolute(0.), (layout_dirty);
+    font_family: String, Absolute(String::from("sans-serif")), (layout_dirty, inherit);
+    font_size: f32, Absolute(16.), (layout_dirty, inherit);
+    line_height: f32, Auto(DEFAULT_F32), (layout_dirty, inherit);
+    text_align: TextAlignType, Absolute(TextAlignType::Left), (layout_dirty, inherit);
+    color: (f32, f32, f32, f32), Absolute((0., 0., 0., 1.)), (inherit);
+    background_color: (f32, f32, f32, f32), Absolute((-1., -1., -1., -1.)), (inherit);
+    opacity: f32, Absolute(1.), ();
+    transform: Transform, Absolute(Transform::new()), ();
+    margin_left: f64, Absolute(0.), (layout_dirty);
+    margin_right: f64, Absolute(0.), (layout_dirty);
+    margin_top: f64, Absolute(0.), (layout_dirty);
+    margin_bottom: f64, Absolute(0.), (layout_dirty);
+    padding_left: f64, Absolute(0.), (layout_dirty);
+    padding_right: f64, Absolute(0.), (layout_dirty);
+    padding_top: f64, Absolute(0.), (layout_dirty);
+    padding_bottom: f64, Absolute(0.), (layout_dirty);
+    box_sizing: BoxSizingType, Absolute(BoxSizingType::ContentBox), (layout_dirty);
+    border_left_width: f64, Absolute(0.), (layout_dirty);
+    border_right_width: f64, Absolute(0.), (layout_dirty);
+    border_top_width: f64, Absolute(0.), (layout_dirty);
+    border_bottom_width: f64, Absolute(0.), (layout_dirty);
+    border_left_color: (f32, f32, f32, f32), Absolute((-1., -1., -1., -1.)), ();
+    border_right_color: (f32, f32, f32, f32), Absolute((-1., -1., -1., -1.)), ();
+    border_top_color: (f32, f32, f32, f32), Absolute((-1., -1., -1., -1.)), ();
+    border_bottom_color: (f32, f32, f32, f32), Absolute((-1., -1., -1., -1.)), ();
 }
 
 impl ElementStyle {
-    getter_setter_layout_dirty!(display, get_display, set_display, DisplayType);
-    getter_setter_layout_dirty!(position, get_position, set_position, PositionType);
-    getter_setter_layout_dirty!(left, get_left, set_left, f64);
-    getter_setter_layout_dirty!(top, get_top, set_top, f64);
-    getter_setter_layout_dirty!(right, get_right, set_right, f64);
-    getter_setter_layout_dirty!(bottom, get_bottom, set_bottom, f64);
-    getter_setter_layout_dirty!(width, get_width, set_width, f64);
-    getter_setter_layout_dirty!(height, get_height, set_height, f64);
-    getter_setter_layout_dirty!(flex, get_flex, set_flex, f32);
-    getter_setter_inherit_layout_dirty!(font_family, get_font_family, set_font_family, inherit_font_family, get_inherit_font_family, inherit_font_family, String);
-    getter_setter_inherit_layout_dirty!(font_size, get_font_size, set_font_size, inherit_font_size, get_inherit_font_size, inherit_font_size, f32);
-    getter_setter_inherit_layout_dirty!(line_height, get_line_height, set_line_height, inherit_line_height, get_inherit_line_height, inherit_line_height, f32);
-    getter_setter_inherit_layout_dirty!(text_align, get_text_align, set_text_align, inherit_text_align, get_inherit_text_align, inherit_text_align, TextAlignType);
-    // FIXME changing color does not need mark dirty
-    getter_setter_inherit_layout_dirty!(color, get_color, set_color, inherit_color, get_inherit_color, inherit_color, (f32, f32, f32, f32));
-    getter_setter!(background_color, get_background_color, set_background_color, (f32, f32, f32, f32));
-    getter_setter!(opacity, get_opacity, set_opacity, f32);
-    getter_setter!(transform, get_transform, set_transform, Transform);
-    getter_setter_layout_dirty!(margin_left, get_margin_left, set_margin_left, f64);
-    getter_setter_layout_dirty!(margin_right, get_margin_right, set_margin_right, f64);
-    getter_setter_layout_dirty!(margin_top, get_margin_top, set_margin_top, f64);
-    getter_setter_layout_dirty!(margin_bottom, get_margin_bottom, set_margin_bottom, f64);
-    getter_setter_layout_dirty!(padding_left, get_padding_left, set_padding_left, f64);
-    getter_setter_layout_dirty!(padding_right, get_padding_right, set_padding_right, f64);
-    getter_setter_layout_dirty!(padding_top, get_padding_top, set_padding_top, f64);
-    getter_setter_layout_dirty!(padding_bottom, get_padding_bottom, set_padding_bottom, f64);
-    getter_setter_layout_dirty!(box_sizing, get_box_sizing, set_box_sizing, BoxSizingType);
-    getter_setter_layout_dirty!(border_left_width, get_border_left_width, set_border_left_width, f64);
-    getter_setter_layout_dirty!(border_right_width, get_border_right_width, set_border_right_width, f64);
-    getter_setter_layout_dirty!(border_top_width, get_border_top_width, set_border_top_width, f64);
-    getter_setter_layout_dirty!(border_bottom_width, get_border_bottom_width, set_border_bottom_width, f64);
-    getter_setter!(border_left_color, get_border_left_color, set_border_left_color, (f32, f32, f32, f32));
-    getter_setter!(border_right_color, get_border_right_color, set_border_right_color, (f32, f32, f32, f32));
-    getter_setter!(border_top_color, get_border_top_color, set_border_top_color, (f32, f32, f32, f32));
-    getter_setter!(border_bottom_color, get_border_bottom_color, set_border_bottom_color, (f32, f32, f32, f32));
-
-    fn update_inherit(&mut self, parent_node: Option<&mut ForestNode<Element>>) {
-        update_inherit!(self, parent_node, font_family, inherit_font_family, inherit_font_family, String::from("sans-serif"));
-        update_inherit!(self, parent_node, font_size, inherit_font_size, inherit_font_size, 16.);
-        update_inherit!(self, parent_node, text_align, inherit_text_align, inherit_text_align, TextAlignType::Left);
-        update_inherit!(self, parent_node, color, inherit_color, inherit_color, (0., 0., 0., 1.));
-    }
-
     pub fn get_tag_name(&self) -> String {
         self.tag_name.clone()
     }
@@ -313,8 +251,16 @@ impl ElementStyle {
         self.element = element;
     }
     #[inline]
+    fn element<'a>(&'a self) -> &'a Element {
+        unsafe { &*self.element }
+    }
+    #[inline]
     fn element_mut<'a>(&'a mut self) -> &'a mut Element {
         unsafe { &mut *self.element }
+    }
+    #[inline]
+    fn node<'a>(&'a self) -> &'a ForestNode<Element> {
+        self.element().node()
     }
     #[inline]
     fn node_mut<'a>(&'a mut self) -> &'a mut ForestNode<Element> {
@@ -330,15 +276,14 @@ impl ElementStyle {
     }
     #[inline]
     pub fn parent_node_changed(&mut self) {
-        let s = unsafe { self.clone_mut_unsafe() };
-        s.update_inherit(self.node_mut().parent_mut());
+        self.parent_updated();
     }
     #[inline]
-    pub fn transform_ref(&self) -> &Transform {
-        &self.transform
+    pub fn transform_ref(&mut self) -> &Transform {
+        self.transform.get_value_ref()
     }
     #[inline]
     pub fn transform_mut(&mut self) -> &mut Transform {
-        &mut self.transform
+        self.transform.get_value_mut()
     }
 }

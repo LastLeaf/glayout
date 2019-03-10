@@ -46,7 +46,8 @@ pub enum StyleName {
     border_top_color = 0x66,
     border_bottom_color = 0x67,
 
-    flex = 0x70,
+    flex_grow = 0x71,
+    flex_shrink = 0x72,
 }
 
 #[derive(Default)]
@@ -90,6 +91,7 @@ impl ElementClass {
         macro_rules! style_name {
             ($field: ident, $type: ty) => {
                 {
+                    // TODO use inner set method instead
                     style.$field(value.downcast_ref::<$type>().unwrap().clone());
                 }
             }
@@ -104,7 +106,8 @@ impl ElementClass {
             StyleName::bottom => style_name!(bottom, f64),
             StyleName::width => style_name!(width, f64),
             StyleName::height => style_name!(height, f64),
-            StyleName::flex => style_name!(flex, f32),
+            StyleName::flex_grow => style_name!(flex_grow, f32),
+            StyleName::flex_shrink => style_name!(flex_shrink, f32),
             StyleName::font_family => style_name!(font_family, String),
             StyleName::font_size => style_name!(font_size, f32),
             StyleName::line_height => style_name!(line_height, f32),

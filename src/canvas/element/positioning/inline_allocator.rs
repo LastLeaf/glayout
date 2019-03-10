@@ -80,9 +80,14 @@ impl InlineAllocator {
             self.used_width = 0.;
             self.line_height = 0.;
             self.baseline_offset = 0.;
+            self.min_width = 0.;
             self.last_required_line_height = 0.;
             self.last_required_baseline_offset = 0.;
         }
+    }
+    #[inline]
+    pub(crate) fn get_min_max_width(&self) -> (f64, f64) {
+        (self.min_width, self.expected_width)
     }
     #[inline]
     pub(crate) fn get_current_width(&self) -> f64 {

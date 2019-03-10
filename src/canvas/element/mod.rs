@@ -177,7 +177,9 @@ impl Element {
 
     #[inline]
     pub(crate) fn mark_layout_dirty(&mut self) {
-        self.position_offset.mark_dirty();
+        if self.position_offset.get_and_mark_dirty() {
+            return;
+        }
         match self.node_mut().parent_mut() {
             None => { },
             Some(x) => x.mark_layout_dirty()
@@ -218,7 +220,7 @@ impl Element {
         let rm = self.canvas_config.resource_manager();
         let mut rm = rm.borrow_mut();
         rm.set_draw_state(DrawState::new().color(color));
-        debug!("Try drawing rect at {:?} colored {:?}", position, color);
+        // debug!("Try drawing rect at {:?} colored {:?}", position, color);
         rm.request_draw(
             -2, true,
             0., 0., 1., 1.,
@@ -374,7 +376,7 @@ impl Element {
         if self.style().get_display() == style::DisplayType::None { return None }
         let position_offset = &self.position_offset;
         let allocated_point = position_offset.allocated_point();
-        let self_transform = transform.mul_clone(Transform::new().offset(allocated_point.into())).mul_clone(&self.style().transform_ref());
+        let self_transform = transform.mul_clone(Transform::new().offset(allocated_point.into())).mul_clone(&self.style().get_transform());
         let drawing_bounds = self_transform.apply_to_bounds(&position_offset.drawing_bounds());
         // debug!("testing {:?} in bounds {:?}", (x, y), drawing_bounds);
         if !point.in_bounds(&drawing_bounds) {

@@ -449,6 +449,17 @@ impl StyleSheet {
                     "border-bottom-color" => {
                         add_rule!(StyleName::border_bottom_color, Self::parse_color(parser));
                     },
+                    "flex" => {
+                        let [grow, shrink] = Self::parse_flex::<f32>(parser);
+                        add_rule!(StyleName::flex_grow, grow);
+                        add_rule!(StyleName::flex_shrink, shrink);
+                    },
+                    "flex-grow" => {
+                        add_rule!(StyleName::flex_grow, Self::parse_length::<f32>(parser));
+                    },
+                    "flex-shrink" => {
+                        add_rule!(StyleName::flex_shrink, Self::parse_length::<f32>(parser));
+                    },
                     _ => {
                         add_rule!(StyleName::glayout_unrecognized, Err(parser.new_custom_error::<_, ()>(())));
                     }
@@ -518,6 +529,24 @@ impl StyleSheet {
         match Self::parse_length_inner::<T>(parser) {
             Err(e) => Err(e),
             Ok(r) => Ok(r)
+        }
+    }
+    fn parse_flex<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> [ValueParsingResult<'a>; 2] {
+        match Self::parse_length_inner::<T>(parser) {
+            Err(e) => [Err(e.clone()), Err(e)],
+            Ok(grow) => {
+                let next = parser.try(|parser| {
+                    Self::parse_length_inner::<T>(parser)
+                });
+                match next {
+                    Err(_) => {
+                        [Ok(grow.clone()), Ok(grow)]
+                    },
+                    Ok(shrink) => {
+                        [Ok(grow), Ok(shrink)]
+                    },
+                }
+            }
         }
     }
     #[inline]

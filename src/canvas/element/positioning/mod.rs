@@ -23,6 +23,7 @@ pub struct PositionOffset {
     relative_size: Size,
     requested_size: Size,
     inline_position_offset: Size, // left-top corner of the inline/inline_block relative to base position
+    content_size: Size, // the content size for flex
     allocated_point: Point, // left-top corner relative to content box of parent node
     relative_point: Point, // left-top corner relative to content box of relative node
     drawing_bounds: Bounds, // drawing bounds relative to content box of parent node
@@ -39,6 +40,7 @@ impl PositionOffset {
             relative_size: Size::new(0., 0.),
             requested_size: Size::new(0., 0.),
             inline_position_offset: Size::new(0., 0.),
+            content_size: Size::new(0., 0.),
             allocated_point: Point::new(0., 0.),
             relative_point: Point::new(0., 0.),
             drawing_bounds: Bounds::new(0., 0., 0., 0.),
@@ -65,9 +67,11 @@ impl PositionOffset {
     }
 
     #[inline]
-    pub(crate) fn mark_dirty(&mut self) {
+    pub(crate) fn get_and_mark_dirty(&mut self) -> bool {
+        let ret = self.position_dirty;
         self.position_dirty = true;
         self.min_max_width_dirty = true;
+        ret
     }
     #[inline]
     pub(crate) fn is_dirty(&self) -> bool {
@@ -245,6 +249,7 @@ impl PositionOffset {
 
         self.allocated_point = allocated_point;
         self.drawing_bounds = drawing_bounds;
+        self.position_dirty = false;
         debug!("Allocated position for {:?} with {:?} drawing bounds {:?}", element, self.allocated_point, self.drawing_bounds);
         drawing_bounds
     }

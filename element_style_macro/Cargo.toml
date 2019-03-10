@@ -1,5 +1,5 @@
 [package]
-name = "element_style_macro"
+name = "glayout_element_style_macro"
 version = "0.1.0"
 authors = ["LastLeaf <bqfu@163.com>"]
 edition = "2018"
@@ -8,3 +8,6 @@ edition = "2018"
 proc_macro = true
 
 [dependencies]
+syn = { version = "0.15", features = ["full"] }
+quote = "0.6"
+proc-macro2 = "0.4.20"
