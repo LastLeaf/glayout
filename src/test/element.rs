@@ -1,7 +1,7 @@
 use glayout;
 use glayout::canvas::element::{Element, Empty, Image, Text};
 use glayout::canvas::element::style::{DisplayType};
-use utils::PretendSend;
+use super::super::utils::PretendSend;
 use std::time;
 
 pub fn init() {

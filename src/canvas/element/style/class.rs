@@ -45,14 +45,19 @@ pub enum StyleName {
     border_right_color = 0x65,
     border_top_color = 0x66,
     border_bottom_color = 0x67,
+    border_left_style = 0x68,
+    border_right_style = 0x69,
+    border_top_style = 0x6a,
+    border_bottom_style = 0x6b,
 
+    flex_basis = 0x70,
     flex_grow = 0x71,
     flex_shrink = 0x72,
 }
 
 #[derive(Default)]
 pub struct ElementClass {
-    rules: Vec<(StyleName, Box<Any + Send>)>,
+    rules: Vec<(StyleName, Box<dyn Any + Send>)>,
 }
 
 impl ElementClass {
@@ -61,10 +66,10 @@ impl ElementClass {
             rules: vec![]
         }
     }
-    pub fn add_rule(&mut self, name: StyleName, value: Box<Any + Send>) {
+    pub fn add_rule(&mut self, name: StyleName, value: Box<dyn Any + Send>) {
         self.rules.push((name, value))
     }
-    pub fn replace_rule(&mut self, name: StyleName, value: Box<Any + Send>) {
+    pub fn replace_rule(&mut self, name: StyleName, value: Box<dyn Any + Send>) {
         let p = self.rules.iter().position(|x| x.0 == name);
         match p {
             Some(p) => {
@@ -74,7 +79,7 @@ impl ElementClass {
         }
         self.add_rule(name, value)
     }
-    pub fn iter_rules(&self) -> Iter<(StyleName, Box<Any + Send>)> {
+    pub fn iter_rules(&self) -> Iter<(StyleName, Box<dyn Any + Send>)> {
         self.rules.iter()
     }
     pub fn from_style_text(&mut self, text: &str) {
@@ -87,7 +92,7 @@ impl ElementClass {
         }
     }
 
-    fn apply_rule(&self, style: &mut super::ElementStyle, name: &StyleName, value: &Box<Any + Send>) {
+    fn apply_rule(&self, style: &mut super::ElementStyle, name: &StyleName, value: &Box<dyn Any + Send>) {
         macro_rules! style_name {
             ($field: ident, $type: ty) => {
                 {
@@ -106,6 +111,7 @@ impl ElementClass {
             StyleName::bottom => style_name!(bottom, f64),
             StyleName::width => style_name!(width, f64),
             StyleName::height => style_name!(height, f64),
+            StyleName::flex_basis => style_name!(flex_basis, f64),
             StyleName::flex_grow => style_name!(flex_grow, f32),
             StyleName::flex_shrink => style_name!(flex_shrink, f32),
             StyleName::font_family => style_name!(font_family, String),
@@ -133,6 +139,10 @@ impl ElementClass {
             StyleName::border_right_color => style_name!(border_right_color, (f32, f32, f32, f32)),
             StyleName::border_top_color => style_name!(border_top_color, (f32, f32, f32, f32)),
             StyleName::border_bottom_color => style_name!(border_bottom_color, (f32, f32, f32, f32)),
+            StyleName::border_left_style => style_name!(border_left_style, super::BorderStyleType),
+            StyleName::border_right_style => style_name!(border_right_style, super::BorderStyleType),
+            StyleName::border_top_style => style_name!(border_top_style, super::BorderStyleType),
+            StyleName::border_bottom_style => style_name!(border_bottom_style, super::BorderStyleType),
         }
     }
 }

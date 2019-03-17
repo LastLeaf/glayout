@@ -8,8 +8,8 @@ mod selector;
 use self::selector::{Selector, SelectorFragment, SelectorQuery};
 mod rule;
 use self::rule::Rule;
-
-type ValueParsingResult<'a> = Result<Box<Any + Send>, ParseError<'a, ()>>;
+mod value_parser;
+use self::value_parser::parse_value;
 
 pub struct StyleSheet {
     unindexed_classes: Vec<Rc<Rule>>,
@@ -85,7 +85,7 @@ impl StyleSheet {
             let mut frag = SelectorFragment::new();
             let mut has_limits = false;
             // parse id
-            if parser.try(|parser| {
+            if parser.r#try(|parser| {
                 match parser.expect_ident() {
                     Ok(tag_name) => {
                         frag.tag_name = String::from(tag_name.as_ref());
@@ -98,7 +98,7 @@ impl StyleSheet {
                 // do nothing
             }
             // parse id
-            if parser.try(|parser| {
+            if parser.r#try(|parser| {
                 match parser.next() {
                     Ok(token) => {
                         match token {
@@ -117,7 +117,7 @@ impl StyleSheet {
             }
             // parse class
             while !parser.is_exhausted() {
-                if parser.try(|parser| {
+                if parser.r#try(|parser| {
                     match parser.expect_delim('.') {
                         Ok(_) => {
                             match parser.expect_ident() {
@@ -159,7 +159,6 @@ impl StyleSheet {
         Ok(selector)
     }
     fn parse_declarations<'a>(parser: &mut Parser<'a, '_>, class: &mut ElementClass) -> Result<(), ParseError<'a, ()>> {
-        const TRANSPARENT_COLOR: (f32, f32, f32, f32) = (0., 0., 0., 0.);
         while !parser.is_exhausted() {
             let key = {
                 let r = parser.expect_ident();
@@ -178,292 +177,7 @@ impl StyleSheet {
                 }
             };
             parser.parse_until_after::<_, _, ()>(Delimiter::Semicolon, |parser| {
-                macro_rules! add_rule {
-                    ($style_name: expr, $value_res: expr) => {
-                        match $value_res {
-                            Ok(v) => {
-                                class.add_rule($style_name, v);
-                            },
-                            Err(e) => {
-                                let e: &ParseError<()> = &e;
-                                warn!("CSS ParseError {:?}", e);
-                            }
-                        };
-                    }
-                }
-                macro_rules! add_border_rule {
-                    ($width:ident, $color:ident, $v:expr) => {
-                        add_rule!(StyleName::$width, $v.0);
-                        let enabled = match $v.1 {
-                            Err(_) => false,
-                            Ok(v) => *v.downcast_ref::<bool>().unwrap(),
-                        };
-                        if enabled {
-                            add_rule!(StyleName::$color, $v.2);
-                        } else {
-                            add_rule!(StyleName::$color, Ok(Box::new(TRANSPARENT_COLOR)));
-                        }
-                    }
-                }
-                // do different parsing for different keys
-                match key.as_ref() {
-                    "display" => {
-                        const MAPPING: [(&'static str, DisplayType); 5] = [
-                            ("none", DisplayType::None),
-                            ("block", DisplayType::Block),
-                            ("inline", DisplayType::Inline),
-                            ("inline-block", DisplayType::InlineBlock),
-                            ("flex", DisplayType::Flex),
-                        ];
-                        add_rule!(StyleName::display, Self::parse_enum(parser, &MAPPING));
-                    },
-                    "position" => {
-                        const MAPPING: [(&'static str, PositionType); 5] = [
-                            ("static", PositionType::Static),
-                            ("relative", PositionType::Relative),
-                            ("absolute", PositionType::Absolute),
-                            ("fixed", PositionType::Fixed),
-                            ("sticky", PositionType::Sticky),
-                        ];
-                        add_rule!(StyleName::position, Self::parse_enum(parser, &MAPPING));
-                    },
-                    "left" => {
-                        add_rule!(StyleName::left, Self::parse_length::<f64>(parser));
-                    },
-                    "top" => {
-                        add_rule!(StyleName::top, Self::parse_length::<f64>(parser));
-                    },
-                    "right" => {
-                        add_rule!(StyleName::right, Self::parse_length::<f64>(parser));
-                    },
-                    "bottom" => {
-                        add_rule!(StyleName::bottom, Self::parse_length::<f64>(parser));
-                    },
-                    "width" => {
-                        add_rule!(StyleName::width, Self::parse_length::<f64>(parser));
-                    },
-                    "height" => {
-                        add_rule!(StyleName::height, Self::parse_length::<f64>(parser));
-                    },
-                    "font-family" => {
-                        add_rule!(StyleName::font_family, Self::parse_font_family(parser));
-                    },
-                    "font-size" => {
-                        add_rule!(StyleName::font_size, Self::parse_length::<f32>(parser));
-                    },
-                    "line-height" => {
-                        add_rule!(StyleName::line_height, Self::parse_length::<f32>(parser));
-                    },
-                    "text-align" => {
-                        const MAPPING: [(&'static str, TextAlignType); 3] = [
-                            ("left", TextAlignType::Left),
-                            ("center", TextAlignType::Center),
-                            ("right", TextAlignType::Right),
-                        ];
-                        add_rule!(StyleName::text_align, Self::parse_enum(parser, &MAPPING));
-                    },
-                    "color" => {
-                        add_rule!(StyleName::color, Self::parse_color(parser));
-                    },
-                    "background" => {
-                        add_rule!(StyleName::background_color, Self::parse_color(parser));
-                    },
-                    "background-color" => {
-                        add_rule!(StyleName::background_color, Self::parse_color(parser));
-                    },
-                    "opacity" => {
-                        add_rule!(StyleName::opacity, Self::parse_number::<f32>(parser));
-                    },
-                    // "transform" => {
-                    //     unimplemented!();
-                    // },
-                    "margin" => {
-                        let [top, right, bottom, left] = Self::parse_bounds::<f64>(parser);
-                        add_rule!(StyleName::margin_left, left);
-                        add_rule!(StyleName::margin_right, right);
-                        add_rule!(StyleName::margin_top, top);
-                        add_rule!(StyleName::margin_bottom, bottom);
-                    },
-                    "margin-left" => {
-                        add_rule!(StyleName::margin_left, Self::parse_length::<f64>(parser));
-                    },
-                    "margin-right" => {
-                        add_rule!(StyleName::margin_right, Self::parse_length::<f64>(parser));
-                    },
-                    "margin-top" => {
-                        add_rule!(StyleName::margin_top, Self::parse_length::<f64>(parser));
-                    },
-                    "margin-bottom" => {
-                        add_rule!(StyleName::margin_bottom, Self::parse_length::<f64>(parser));
-                    },
-                    "padding" => {
-                        let [top, right, bottom, left] = Self::parse_bounds::<f64>(parser);
-                        add_rule!(StyleName::padding_left, left);
-                        add_rule!(StyleName::padding_right, right);
-                        add_rule!(StyleName::padding_top, top);
-                        add_rule!(StyleName::padding_bottom, bottom);
-                    },
-                    "padding-left" => {
-                        add_rule!(StyleName::padding_left, Self::parse_length::<f64>(parser));
-                    },
-                    "padding-right" => {
-                        add_rule!(StyleName::padding_right, Self::parse_length::<f64>(parser));
-                    },
-                    "padding-top" => {
-                        add_rule!(StyleName::padding_top, Self::parse_length::<f64>(parser));
-                    },
-                    "padding-bottom" => {
-                        add_rule!(StyleName::padding_bottom, Self::parse_length::<f64>(parser));
-                    },
-                    "box-sizing" => {
-                        const MAPPING: [(&'static str, BoxSizingType); 3] = [
-                            ("content-box", BoxSizingType::ContentBox),
-                            ("padding-box", BoxSizingType::PaddingBox),
-                            ("border-box", BoxSizingType::BorderBox),
-                        ];
-                        add_rule!(StyleName::text_align, Self::parse_enum(parser, &MAPPING));
-                    },
-                    "border" => {
-                        let [top, right, bottom, left] = Self::parse_border_multi::<f64>(parser);
-                        add_border_rule!(border_left_width, border_left_color, left);
-                        add_border_rule!(border_right_width, border_right_color, right);
-                        add_border_rule!(border_top_width, border_top_color, top);
-                        add_border_rule!(border_bottom_width, border_bottom_color, bottom);
-                    },
-                    "border-width" => {
-                        let [top, right, bottom, left] = Self::parse_bounds::<f64>(parser);
-                        add_rule!(StyleName::border_left_width, left);
-                        add_rule!(StyleName::border_right_width, right);
-                        add_rule!(StyleName::border_top_width, top);
-                        add_rule!(StyleName::border_bottom_width, bottom);
-                    },
-                    "border-color" => {
-                        match Self::parse_color_inner(parser) {
-                            Ok(v) => {
-                                add_rule!(StyleName::border_left_color, Ok(v.clone()));
-                                add_rule!(StyleName::border_right_color, Ok(v.clone()));
-                                add_rule!(StyleName::border_top_color, Ok(v.clone()));
-                                add_rule!(StyleName::border_bottom_color, Ok(v));
-                            },
-                            Err(e) => {
-                                add_rule!(StyleName::border_left_color, Err(e.clone()));
-                                add_rule!(StyleName::border_right_color, Err(e.clone()));
-                                add_rule!(StyleName::border_top_color, Err(e.clone()));
-                                add_rule!(StyleName::border_bottom_color, Err(e));
-                            }
-                        }
-                    },
-                    "border-style" => {
-                        match Self::parse_border_type_inner(parser) {
-                            Ok(enabled) => {
-                                if *enabled {
-                                    // FIXME impl real border-style
-                                } else {
-                                    add_rule!(StyleName::border_left_color, Ok(Box::new(TRANSPARENT_COLOR)));
-                                    add_rule!(StyleName::border_right_color, Ok(Box::new(TRANSPARENT_COLOR)));
-                                    add_rule!(StyleName::border_top_color, Ok(Box::new(TRANSPARENT_COLOR)));
-                                    add_rule!(StyleName::border_bottom_color, Ok(Box::new(TRANSPARENT_COLOR)));
-                                }
-                            },
-                            Err(e) => {
-                                add_rule!(StyleName::border_left_color, Err(e.clone()));
-                                add_rule!(StyleName::border_right_color, Err(e.clone()));
-                                add_rule!(StyleName::border_top_color, Err(e.clone()));
-                                add_rule!(StyleName::border_bottom_color, Err(e));
-                            }
-                        }
-                    },
-                    "border-left" => {
-                        let (width, style, color) = Self::parse_border_single::<f64>(parser);
-                        add_rule!(StyleName::border_left_width, width);
-                        let enabled = match style {
-                            Err(_) => false,
-                            Ok(v) => *v.downcast_ref::<bool>().unwrap(),
-                        };
-                        if enabled {
-                            add_rule!(StyleName::border_left_color, color);
-                        } else {
-                            add_rule!(StyleName::border_left_color, Ok(Box::new(TRANSPARENT_COLOR)));
-                        }
-                    },
-                    "border-right" => {
-                        let (width, style, color) = Self::parse_border_single::<f64>(parser);
-                        add_rule!(StyleName::border_right_width, width);
-                        let enabled = match style {
-                            Err(_) => false,
-                            Ok(v) => *v.downcast_ref::<bool>().unwrap(),
-                        };
-                        if enabled {
-                            add_rule!(StyleName::border_right_color, color);
-                        } else {
-                            add_rule!(StyleName::border_right_color, Ok(Box::new(TRANSPARENT_COLOR)));
-                        }
-                    },
-                    "border-top" => {
-                        let (width, style, color) = Self::parse_border_single::<f64>(parser);
-                        add_rule!(StyleName::border_top_width, width);
-                        let enabled = match style {
-                            Err(_) => false,
-                            Ok(v) => *v.downcast_ref::<bool>().unwrap(),
-                        };
-                        if enabled {
-                            add_rule!(StyleName::border_top_color, color);
-                        } else {
-                            add_rule!(StyleName::border_top_color, Ok(Box::new(TRANSPARENT_COLOR)));
-                        }
-                    },
-                    "border-bottom" => {
-                        let (width, style, color) = Self::parse_border_single::<f64>(parser);
-                        add_rule!(StyleName::border_bottom_width, width);
-                        let enabled = match style {
-                            Err(_) => false,
-                            Ok(v) => *v.downcast_ref::<bool>().unwrap(),
-                        };
-                        if enabled {
-                            add_rule!(StyleName::border_bottom_color, color);
-                        } else {
-                            add_rule!(StyleName::border_bottom_color, Ok(Box::new(TRANSPARENT_COLOR)));
-                        }
-                    },
-                    "border-left-width" => {
-                        add_rule!(StyleName::border_left_width, Self::parse_length::<f64>(parser));
-                    },
-                    "border-right-width" => {
-                        add_rule!(StyleName::border_right_width, Self::parse_length::<f64>(parser));
-                    },
-                    "border-top-width" => {
-                        add_rule!(StyleName::border_top_width, Self::parse_length::<f64>(parser));
-                    },
-                    "border-bottom-width" => {
-                        add_rule!(StyleName::border_bottom_width, Self::parse_length::<f64>(parser));
-                    },
-                    "border-left-color" => {
-                        add_rule!(StyleName::border_left_color, Self::parse_color(parser));
-                    },
-                    "border-right-color" => {
-                        add_rule!(StyleName::border_right_color, Self::parse_color(parser));
-                    },
-                    "border-top-color" => {
-                        add_rule!(StyleName::border_top_color, Self::parse_color(parser));
-                    },
-                    "border-bottom-color" => {
-                        add_rule!(StyleName::border_bottom_color, Self::parse_color(parser));
-                    },
-                    "flex" => {
-                        let [grow, shrink] = Self::parse_flex::<f32>(parser);
-                        add_rule!(StyleName::flex_grow, grow);
-                        add_rule!(StyleName::flex_shrink, shrink);
-                    },
-                    "flex-grow" => {
-                        add_rule!(StyleName::flex_grow, Self::parse_length::<f32>(parser));
-                    },
-                    "flex-shrink" => {
-                        add_rule!(StyleName::flex_shrink, Self::parse_length::<f32>(parser));
-                    },
-                    _ => {
-                        add_rule!(StyleName::glayout_unrecognized, Err(parser.new_custom_error::<_, ()>(())));
-                    }
-                };
+                parse_value(parser, class, key.as_ref());
                 if !parser.is_exhausted() {
                     {
                         if parser.next().is_err() {
@@ -482,301 +196,6 @@ impl StyleSheet {
         }
         Ok(())
     }
-    #[inline]
-    fn parse_number<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a> {
-        {
-            let r = parser.next();
-            if r.is_ok() {
-                let token = r.unwrap();
-                match token {
-                    Token::Number {value, has_sign: _, int_value: _} => {
-                        let num: f32 = *value;
-                        let num_t: T = num.into();
-                        return Ok(Box::new(num_t.clone()));
-                    },
-                    _ => { }
-                }
-            }
-        }
-        Err(parser.new_custom_error(()))
-    }
-    #[inline]
-    fn parse_length_inner<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> Result<Box<T>, ParseError<'a, ()>> {
-        {
-            let r = parser.next();
-            if r.is_ok() {
-                let token = r.unwrap();
-                match token {
-                    Token::Number {value, has_sign: _, int_value: _} => {
-                        let num: f32 = *value;
-                        let num_t: T = num.into();
-                        return Ok(Box::new(num_t.clone()));
-                    },
-                    Token::Dimension {value, unit, has_sign: _, int_value: _} => {
-                        let num: f32 = *value;
-                        let num_t: T = num.into();
-                        if unit.as_ref() == "px" {
-                            return Ok(Box::new(num_t.clone()));
-                        }
-                    },
-                    _ => { }
-                }
-            }
-        }
-        Err(parser.new_custom_error(()))
-    }
-    fn parse_length<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a> {
-        match Self::parse_length_inner::<T>(parser) {
-            Err(e) => Err(e),
-            Ok(r) => Ok(r)
-        }
-    }
-    fn parse_flex<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> [ValueParsingResult<'a>; 2] {
-        match Self::parse_length_inner::<T>(parser) {
-            Err(e) => [Err(e.clone()), Err(e)],
-            Ok(grow) => {
-                let next = parser.try(|parser| {
-                    Self::parse_length_inner::<T>(parser)
-                });
-                match next {
-                    Err(_) => {
-                        [Ok(grow.clone()), Ok(grow)]
-                    },
-                    Ok(shrink) => {
-                        [Ok(grow), Ok(shrink)]
-                    },
-                }
-            }
-        }
-    }
-    #[inline]
-    fn parse_bounds<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> [ValueParsingResult<'a>; 4] {
-        let next = parser.try(|parser| {
-            Self::parse_length_inner::<T>(parser)
-        });
-        match next {
-            Err(e) => [Err(e.clone()), Err(e.clone()), Err(e.clone()), Err(e)],
-            Ok(next) => {
-                let top = next;
-                let right;
-                let bottom;
-                let left;
-                let next = parser.try(|parser| {
-                    Self::parse_length_inner::<T>(parser)
-                });
-                match next {
-                    Err(_) => {
-                        right = top.clone();
-                        bottom = top.clone();
-                        left = top.clone();
-                    },
-                    Ok(next) => {
-                        right = next;
-                        let next = parser.try(|parser| {
-                            Self::parse_length_inner::<T>(parser)
-                        });
-                        match next {
-                            Err(_) => {
-                                bottom = top.clone();
-                                left = right.clone();
-                            },
-                            Ok(next) => {
-                                bottom = next;
-                                let next = parser.try(|parser| {
-                                    Self::parse_length_inner::<T>(parser)
-                                });
-                                match next {
-                                    Err(_) => {
-                                        left = right.clone();
-                                    },
-                                    Ok(next) => {
-                                        left = next;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                [
-                Ok(top),
-                Ok(right),
-                Ok(bottom),
-                Ok(left),
-                ]
-            },
-        }
-    }
-    #[inline]
-    fn parse_color_inner<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<(f32, f32, f32, f32)>, ParseError<'a, ()>> {
-        match Color::parse(parser) {
-            Ok(c) => {
-                match c {
-                    Color::RGBA(c) => {
-                        Ok(Box::new((c.red_f32(), c.green_f32(), c.blue_f32(), c.alpha_f32())))
-                    },
-                    _ => Err(parser.new_custom_error(()))
-                }
-            },
-            Err(_) => Err(parser.new_custom_error(()))
-        }
-    }
-    #[inline]
-    fn parse_color<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a> {
-        match Self::parse_color_inner(parser) {
-            Err(e) => Err(e),
-            Ok(r) => Ok(r)
-        }
-    }
-    #[inline]
-    fn parse_border_type_inner<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<bool>, ParseError<'a, ()>> {
-        const MAPPING: [(&'static str, bool); 2] = [
-            ("none", false),
-            ("solid", true),
-        ];
-        Self::parse_enum_inner(parser, &MAPPING)
-    }
-    #[inline]
-    fn parse_border_type<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a> {
-        match Self::parse_border_type_inner(parser) {
-            Err(e) => Err(e),
-            Ok(r) => Ok(r)
-        }
-    }
-    #[inline]
-    fn parse_border_single<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> (ValueParsingResult<'a>, ValueParsingResult<'a>, ValueParsingResult<'a>) {
-        let width = Self::parse_length::<T>(parser);
-        let enabled = Self::parse_border_type(parser);
-        let color = Self::parse_color(parser);
-        (width, enabled, color)
-    }
-    #[inline]
-    fn parse_border_multi<'a, T: 'static + From<f32> + Send + Sync + Clone>(parser: &mut Parser<'a, '_>) -> [(ValueParsingResult<'a>, ValueParsingResult<'a>, ValueParsingResult<'a>); 4] {
-        match Self::parse_length_inner::<T>(parser) {
-            Err(e) => [
-                (Err(e.clone()), Err(e.clone()), Err(e.clone())),
-                (Err(e.clone()), Err(e.clone()), Err(e.clone())),
-                (Err(e.clone()), Err(e.clone()), Err(e.clone())),
-                (Err(e.clone()), Err(e.clone()), Err(e.clone())),
-            ],
-            Ok(width) => {
-                const MAPPING: [(&'static str, bool); 2] = [
-                    ("none", false),
-                    ("solid", true),
-                ];
-                match Self::parse_enum_inner(parser, &MAPPING) {
-                    Err(e) => [
-                        (Ok(width.clone()), Err(e.clone()), Err(e.clone())),
-                        (Ok(width.clone()), Err(e.clone()), Err(e.clone())),
-                        (Ok(width.clone()), Err(e.clone()), Err(e.clone())),
-                        (Ok(width), Err(e.clone()), Err(e)),
-                    ],
-                    Ok(enabled) => {
-                        match Self::parse_color_inner(parser) {
-                            Err(e) => [
-                                (Ok(width.clone()), Ok(enabled.clone()), Err(e.clone())),
-                                (Ok(width.clone()), Ok(enabled.clone()), Err(e.clone())),
-                                (Ok(width.clone()), Ok(enabled.clone()), Err(e.clone())),
-                                (Ok(width), Ok(enabled), Err(e)),
-                            ],
-                            Ok(color) => [
-                                (Ok(width.clone()), Ok(enabled.clone()), Ok(color.clone())),
-                                (Ok(width.clone()), Ok(enabled.clone()), Ok(color.clone())),
-                                (Ok(width.clone()), Ok(enabled.clone()), Ok(color.clone())),
-                                (Ok(width), Ok(enabled), Ok(color)),
-                            ]
-                        }
-                    }
-                }
-            }
-        }
-    }
-    #[inline]
-    fn _parse_string_or_ident<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a> {
-        {
-            let r = parser.next();
-            if r.is_ok() {
-                let token = r.unwrap();
-                match token {
-                    Token::QuotedString(s) => {
-                        return Ok(Box::new(String::from(s.as_ref())));
-                    },
-                    Token::Ident(s) => {
-                        return Ok(Box::new(String::from(s.as_ref())));
-                    },
-                    _ => { }
-                }
-            }
-        }
-        Err(parser.new_custom_error(()))
-    }
-    #[inline]
-    fn parse_enum_inner<'a, T: Clone + Send + Sync + Sized>(parser: &mut Parser<'a, '_>, mapping: &'static [(&'static str, T)]) -> Result<Box<T>, ParseError<'a, ()>> {
-        {
-            let r = parser.expect_ident();
-            if r.is_ok() {
-                let value = r.unwrap();
-                for (s, t) in mapping {
-                    if value == s {
-                        let t: T = (*t).clone();
-                        return Ok(Box::new(t));
-                    }
-                }
-            }
-        }
-        Err(parser.new_custom_error(()))
-    }
-    #[inline]
-    fn parse_enum<'a, T: Clone + Send + Sync + Sized>(parser: &mut Parser<'a, '_>, mapping: &'static [(&'static str, T)]) -> ValueParsingResult<'a> {
-        match Self::parse_enum_inner::<T>(parser, mapping) {
-            Err(e) => Err(e),
-            Ok(r) => Ok(r)
-        }
-    }
-    #[inline]
-    fn parse_font_family<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a> {
-        {
-            let mut ret = vec![];
-            let r = parser.parse_comma_separated(|parser| {
-                {
-                    let mut f = || {
-                        {
-                            let token = {
-                                let r = parser.next();
-                                if r.is_err() {
-                                    return Err(());
-                                }
-                                r.unwrap()
-                            };
-                            match token {
-                                Token::QuotedString(s) => {
-                                    ret.push(String::new() + "\"" + s + "\"");
-                                },
-                                Token::Ident(s) => {
-                                    ret.push(String::new() + "\"" + s + "\"");
-                                },
-                                _ => {
-                                    return Err(());
-                                }
-                            }
-                        }
-                        if !parser.is_exhausted() {
-                            return Err(());
-                        }
-                        Ok(())
-                    };
-                    f()
-                }.map_err(|_| {
-                    parser.new_custom_error(())
-                })
-            });
-            if r.is_ok() {
-                Ok(Box::new(ret.join(",")))
-            } else {
-                Err(r.unwrap_err())
-            }
-        }
-    }
-
     fn query_declarations<'a>(&'a self, cond: &SelectorQuery) -> Vec<Rc<ElementClass>> {
         let mut ret: Vec<Rc<Rule>> = vec![];
         {
@@ -859,6 +278,7 @@ mod test {
                 color: red;
                 background-color: #00ff00;
                 opacity: 0.8;
+                text-align: center;
             }
         ");
         let classes = ss.query_declarations(&SelectorQuery::new("", "", Box::new(["a"])));
@@ -887,6 +307,8 @@ mod test {
         assert_eq!(rules[10].1.downcast_ref::<(f32, f32, f32, f32)>().unwrap().clone(), (0., 1., 0., 1.));
         assert_eq!(rules[11].0, StyleName::opacity);
         assert_eq!(rules[11].1.downcast_ref::<f32>().unwrap().clone(), 0.8);
+        assert_eq!(rules[12].0, StyleName::text_align);
+        assert_eq!(rules[12].1.downcast_ref::<super::TextAlignType>().unwrap().clone(), super::TextAlignType::Center);
     }
     #[test]
     fn query_declarations() {

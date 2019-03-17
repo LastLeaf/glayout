@@ -6,7 +6,7 @@ use rc_forest::{ForestNode};
 use glayout_element_style_macro::*;
 
 mod types;
-pub use self::types::{DisplayType, PositionType, TextAlignType, BoxSizingType};
+pub use self::types::*;
 mod class;
 pub use self::class::{StyleName, ElementClass};
 mod style_sheet;
@@ -102,10 +102,10 @@ macro_rules! impl_style_item {
             }
         }
         pub(self) fn $setter_inner(&mut self, r: StyleValueReferrer, val: $value_type, inherit: bool) {
-            let val = if r == StyleValueReferrer::Auto {
-                $default_value
-            } else {
+            let val = if r.is_absolute_or_relative() {
                 val
+            } else {
+                $default_value
             };
             let changed = if inherit {
                 let changed = !self.$name.inherit();
@@ -170,6 +170,7 @@ element_style! {
     bottom: f64, Auto(DEFAULT_F64), (layout_dirty);
     width: f64, Auto(DEFAULT_F64), (layout_dirty);
     height: f64, Auto(DEFAULT_F64), (layout_dirty);
+    flex_basis: f64, Auto(DEFAULT_F64), (layout_dirty);
     flex_grow: f32, Absolute(0.), (layout_dirty);
     flex_shrink: f32, Absolute(0.), (layout_dirty);
     font_family: String, Absolute(String::from("sans-serif")), (layout_dirty, inherit);
@@ -177,7 +178,7 @@ element_style! {
     line_height: f32, Auto(DEFAULT_F32), (layout_dirty, inherit);
     text_align: TextAlignType, Absolute(TextAlignType::Left), (layout_dirty, inherit);
     color: (f32, f32, f32, f32), Absolute((0., 0., 0., 1.)), (inherit);
-    background_color: (f32, f32, f32, f32), Absolute((-1., -1., -1., -1.)), (inherit);
+    background_color: (f32, f32, f32, f32), Absolute((-1., -1., -1., -1.)), ();
     opacity: f32, Absolute(1.), ();
     transform: Transform, Absolute(Transform::new()), ();
     margin_left: f64, Absolute(0.), (layout_dirty);
@@ -193,6 +194,10 @@ element_style! {
     border_right_width: f64, Absolute(0.), (layout_dirty);
     border_top_width: f64, Absolute(0.), (layout_dirty);
     border_bottom_width: f64, Absolute(0.), (layout_dirty);
+    border_left_style: BorderStyleType, Absolute(BorderStyleType::None), (layout_dirty);
+    border_right_style: BorderStyleType, Absolute(BorderStyleType::None), (layout_dirty);
+    border_top_style: BorderStyleType, Absolute(BorderStyleType::None), (layout_dirty);
+    border_bottom_style: BorderStyleType, Absolute(BorderStyleType::None), (layout_dirty);
     border_left_color: (f32, f32, f32, f32), Absolute((-1., -1., -1., -1.)), ();
     border_right_color: (f32, f32, f32, f32), Absolute((-1., -1., -1., -1.)), ();
     border_top_color: (f32, f32, f32, f32), Absolute((-1., -1., -1., -1.)), ();

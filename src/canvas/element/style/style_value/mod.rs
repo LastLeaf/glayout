@@ -18,9 +18,16 @@ pub enum StyleValueReferrer {
 }
 pub use self::StyleValueReferrer::*;
 
-const REFERRER_MASK: u8 = 0x3f;
+const REFERRER_MASK: u8 = 0x1f;
+const RELATIVE_BIT_MASK: u8 = 0x10;
 const INHERIT: u8 = 0x40;
 const DIRTY: u8 = 0x80;
+
+impl StyleValueReferrer {
+    pub(super) fn is_absolute_or_relative(&self) -> bool {
+        *self == StyleValueReferrer::Absolute || (*self as u8) & RELATIVE_BIT_MASK == RELATIVE_BIT_MASK
+    }
+}
 
 pub(super) struct StyleValue<T: Clone> {
     cur_v: Cell<T>,
@@ -75,7 +82,7 @@ impl<T: Clone> StyleValue<T> {
         if self.inherit() == inherit {
             return;
         }
-        self.r.set(self.r.get() | INHERIT);
+        self.r.set(self.r.get() & !INHERIT);
     }
 
     #[inline]

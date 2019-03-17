@@ -30,3 +30,9 @@ pub enum BoxSizingType {
     PaddingBox,
     BorderBox,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum BorderStyleType {
+    None,
+    Solid,
+}

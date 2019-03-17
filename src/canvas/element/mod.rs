@@ -34,7 +34,7 @@ pub trait ElementContent: Downcast {
     fn is_terminated(&self) -> bool;
     fn clone(&self) -> Box<ElementContent>;
     #[inline]
-    fn associate_element(&mut self, *mut Element) { }
+    fn associate_element(&mut self, _element: *mut Element) { }
     fn draw(&mut self, transform: &Transform);
     #[inline]
     fn suggest_size(&mut self, _suggested_size: Size, _inline_allocator: &mut InlineAllocator, _style: &ElementStyle) -> Size {
@@ -242,6 +242,7 @@ impl Element {
     }
     #[inline]
     fn draw_borders(&mut self, requested_size: Size, child_transform: &Transform) {
+        // TODO check border style
         if self.style.get_border_top_width() > 0. {
             let color = self.style.get_border_top_color();
             let position = Position::new(
