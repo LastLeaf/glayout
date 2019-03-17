@@ -4,6 +4,8 @@ use std::any::Any;
 use glayout_element_style_macro::*;
 use super::*;
 
+type ValueParsingResult<'a, T> = Result<Box<StyleValue<T>>, ParseError<'a, ()>>;
+
 style_value_syntax! {
     "display": display(Enum {
         "none" => DisplayType::None,
@@ -106,7 +108,12 @@ style_value_syntax! {
 mod ParseBase {
     use super::*;
 
-    pub fn r#Enum<'a, 'b, T: Clone + Send + Sized>(parser: &mut Parser<'a, '_>, mapping: &'b [(&'b str, T)]) -> Result<Box<T>, ParseError<'a, ()>> {
+    #[inline]
+    fn absolute<T: Clone>(t: T) -> StyleValue<T> {
+        StyleValue::new(StyleValueReferrer::Absolute, t, false)
+    }
+
+    pub(super) fn r#Enum<'a, 'b, T: Clone + Send + Sized>(parser: &mut Parser<'a, '_>, mapping: &'b [(&'b str, T)]) -> ValueParsingResult<'a, T> {
         {
             let r = parser.expect_ident();
             if r.is_ok() {
@@ -114,7 +121,7 @@ mod ParseBase {
                 for (s, t) in mapping {
                     if value == s {
                         let t: T = (*t).clone();
-                        return Ok(Box::new(t));
+                        return Ok(Box::new(absolute(t)));
                     }
                 }
             }
@@ -122,7 +129,7 @@ mod ParseBase {
         Err(parser.new_custom_error(()))
     }
 
-    pub fn Number<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<f32>, ParseError<'a, ()>> {
+    pub(super) fn Number<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a, f32> {
         {
             let r = parser.next();
             if r.is_ok() {
@@ -130,7 +137,7 @@ mod ParseBase {
                 match token {
                     Token::Number {value, has_sign: _, int_value: _} => {
                         let num: f32 = *value;
-                        return Ok(Box::new(num.clone()));
+                        return Ok(Box::new(absolute(num.clone())));
                     },
                     _ => { }
                 }
@@ -139,7 +146,7 @@ mod ParseBase {
         Err(parser.new_custom_error(()))
     }
 
-    fn Length<'a, T: From<f32> + Clone + Send + Sized>(parser: &mut Parser<'a, '_>) -> Result<Box<T>, ParseError<'a, ()>> {
+    fn Length<'a, T: From<f32> + Clone + Send + Sized>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a, T> {
         {
             let r = parser.next();
             if r.is_ok() {
@@ -148,13 +155,13 @@ mod ParseBase {
                     Token::Number {value, has_sign: _, int_value: _} => {
                         let num: f32 = *value;
                         let num_t: T = num.into();
-                        return Ok(Box::new(num_t.clone()));
+                        return Ok(Box::new(absolute(num_t.clone())));
                     },
                     Token::Dimension {value, unit, has_sign: _, int_value: _} => {
                         let num: f32 = *value;
                         let num_t: T = num.into();
                         if unit.as_ref() == "px" {
-                            return Ok(Box::new(num_t.clone()));
+                            return Ok(Box::new(absolute(num_t.clone())));
                         }
                     },
                     _ => { }
@@ -163,19 +170,19 @@ mod ParseBase {
         }
         Err(parser.new_custom_error(()))
     }
-    pub fn LengthF64<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<f64>, ParseError<'a, ()>> {
+    pub(super) fn LengthF64<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a, f64> {
         Length::<f64>(parser)
     }
-    pub fn LengthF32<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<f32>, ParseError<'a, ()>> {
+    pub(super) fn LengthF32<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a, f32> {
         Length::<f32>(parser)
     }
 
-    pub fn Color<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<(f32, f32, f32, f32)>, ParseError<'a, ()>> {
+    pub(super) fn Color<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a, (f32, f32, f32, f32)> {
         match Color::parse(parser) {
             Ok(c) => {
                 match c {
                     Color::RGBA(c) => {
-                        Ok(Box::new((c.red_f32(), c.green_f32(), c.blue_f32(), c.alpha_f32())))
+                        Ok(Box::new(absolute((c.red_f32(), c.green_f32(), c.blue_f32(), c.alpha_f32()))))
                     },
                     _ => Err(parser.new_custom_error(()))
                 }
@@ -184,7 +191,8 @@ mod ParseBase {
         }
     }
 
-    pub fn FontFamily<'a>(parser: &mut Parser<'a, '_>) -> Result<Box<String>, ParseError<'a, ()>> {
+    pub(super) fn FontFamily<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a, String> {
+        // TODO use Cow<String> for FontFamily
         {
             let mut ret = vec![];
             let r = parser.parse_comma_separated(|parser| {
@@ -233,7 +241,7 @@ mod ParseBase {
                 })
             });
             if r.is_ok() {
-                Ok(Box::new(ret.join(",")))
+                Ok(Box::new(absolute(ret.join(","))))
             } else {
                 Err(r.unwrap_err())
             }
@@ -244,6 +252,7 @@ mod ParseBase {
 // post processors
 mod ParsePost {
     use super::*;
+    type OptionValue<T> = Option<Box<StyleValue<T>>>;
 
     macro_rules! arround {
         ($class:expr, $top:ident, $right:ident, $bottom:ident, $left:ident) => {
@@ -266,15 +275,15 @@ mod ParsePost {
         }
     }
 
-    pub fn around<T: 'static + Clone + Send + Sized>(class: &mut ElementClass, top: (StyleName, Option<Box<T>>), right: (StyleName, Option<Box<T>>), bottom: (StyleName, Option<Box<T>>), left: (StyleName, Option<Box<T>>)) {
+    pub(super) fn around<T: 'static + Clone + Send + Sized>(class: &mut ElementClass, top: (StyleName, Option<Box<T>>), right: (StyleName, Option<Box<T>>), bottom: (StyleName, Option<Box<T>>), left: (StyleName, Option<Box<T>>)) {
         arround!(class, top, right, bottom, left);
     }
 
-    pub fn border_around<T: 'static + Clone + Send + Sized>(class: &mut ElementClass,
-        top_width: (StyleName, Option<Box<T>>), top_style: (StyleName, Option<Box<BorderStyleType>>), top_color: (StyleName, Option<Box<(f32, f32, f32, f32)>>), _: (StyleName, Option<Box<T>>),
-        right_width: (StyleName, Option<Box<T>>), right_style: (StyleName, Option<Box<BorderStyleType>>), right_color: (StyleName, Option<Box<(f32, f32, f32, f32)>>), _: (StyleName, Option<Box<T>>),
-        bottom_width: (StyleName, Option<Box<T>>), bottom_style: (StyleName, Option<Box<BorderStyleType>>), bottom_color: (StyleName, Option<Box<(f32, f32, f32, f32)>>), _: (StyleName, Option<Box<T>>),
-        left_width: (StyleName, Option<Box<T>>), left_style: (StyleName, Option<Box<BorderStyleType>>), left_color: (StyleName, Option<Box<(f32, f32, f32, f32)>>)
+    pub(super) fn border_around<T: 'static + Clone + Send + Sized>(class: &mut ElementClass,
+        top_width: (StyleName, Option<Box<T>>), top_style: (StyleName, OptionValue<BorderStyleType>), top_color: (StyleName, OptionValue<(f32, f32, f32, f32)>), _: (StyleName, Option<Box<T>>),
+        right_width: (StyleName, Option<Box<T>>), right_style: (StyleName, OptionValue<BorderStyleType>), right_color: (StyleName, OptionValue<(f32, f32, f32, f32)>), _: (StyleName, Option<Box<T>>),
+        bottom_width: (StyleName, Option<Box<T>>), bottom_style: (StyleName, OptionValue<BorderStyleType>), bottom_color: (StyleName, OptionValue<(f32, f32, f32, f32)>), _: (StyleName, Option<Box<T>>),
+        left_width: (StyleName, Option<Box<T>>), left_style: (StyleName, OptionValue<BorderStyleType>), left_color: (StyleName, OptionValue<(f32, f32, f32, f32)>)
     ) {
         arround!(class, top_width, right_width, bottom_width, left_width);
         if top_style.1.is_some() {

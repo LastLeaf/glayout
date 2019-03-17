@@ -18,6 +18,7 @@ struct PropertyDefinition {
     value_type: Type,
     default_value_referrer: Ident,
     default_value: Expr,
+    num: LitInt,
     layout_dirty: bool,
     inherit: bool,
 }
@@ -31,18 +32,25 @@ impl Parse for PropertyDefinition {
         let value_type = input.parse()?;
         input.parse::<Token![,]>()?;
         let default_value_referrer = input.parse()?;
-        let content;
-        parenthesized!(content in input);
-        let default_value = content.parse()?;
+        let default_value = {
+            let content;
+            parenthesized!(content in input);
+            content.parse()?
+        };
         input.parse::<Token![,]>()?;
-        let content;
-        parenthesized!(content in input);
-        let options = Punctuated::parse_terminated(&content)?;
+        let num = input.parse()?;
+        input.parse::<Token![,]>()?;
+        let options = {
+            let content;
+            parenthesized!(content in input);
+            Punctuated::parse_terminated(&content)?
+        };
         Ok(Self {
             name,
             value_type,
             default_value_referrer,
             default_value,
+            num,
             layout_dirty: has_option(&options, "layout_dirty"),
             inherit: has_option(&options, "inherit"),
         })
@@ -188,6 +196,55 @@ impl ToTokens for PropertyParentUpdatedTokens {
     }
 }
 
+// into style name impl
+struct PropertyStyleNameTokens {
+    name: Ident,
+    num: LitInt,
+}
+impl Into<Vec<PropertyStyleNameTokens>> for Properties {
+    fn into(self) -> Vec<PropertyStyleNameTokens> {
+        self.p.into_iter().map(|p| {
+            PropertyStyleNameTokens {
+                name: p.name,
+                num: p.num,
+            }
+        }).collect()
+    }
+}
+impl ToTokens for PropertyStyleNameTokens {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let Self { name, num } = self;
+        tokens.append_all(quote! {
+            #name = #num,
+        });
+    }
+}
+
+// into style name impl
+struct PropertyStyleNameImplTokens {
+    name: Ident,
+    value_type: Type,
+}
+impl Into<Vec<PropertyStyleNameImplTokens>> for Properties {
+    fn into(self) -> Vec<PropertyStyleNameImplTokens> {
+        self.p.into_iter().map(|p| {
+            PropertyStyleNameImplTokens {
+                name: p.name,
+                value_type: p.value_type,
+            }
+        }).collect()
+    }
+}
+impl ToTokens for PropertyStyleNameImplTokens {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let Self { name, value_type } = self;
+        let setter_inner = Ident::new(&(String::from("set_") + &name.to_string() + "_inner"), Span::call_site());
+        tokens.append_all(quote! {
+            StyleName::#name => style_name!(#setter_inner, #value_type),
+        });
+    }
+}
+
 // element style struct composer
 #[proc_macro]
 pub fn element_style(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -197,6 +254,8 @@ pub fn element_style(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream
     let prop_default_value: Vec<PropertyDefaultValueTokens> = props.clone().into();
     let prop_impl: Vec<PropertyImplTokens> = props.clone().into();
     let parent_updated_impl: Vec<PropertyParentUpdatedTokens> = props.clone().into();
+    let style_name_def: Vec<PropertyStyleNameTokens> = props.clone().into();
+    let style_name_impl: Vec<PropertyStyleNameImplTokens> = props.clone().into();
 
     let ret = quote! {
         define_struct!(
@@ -212,6 +271,12 @@ pub fn element_style(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream
             fn parent_updated(&mut self) {
                 #(#parent_updated_impl)*
             }
+        );
+        define_style_name!(
+            #(#style_name_def)*
+        );
+        impl_style_name!(
+            #(#style_name_impl)*
         );
     };
     proc_macro::TokenStream::from(ret)

@@ -39,7 +39,7 @@ pub extern "C" fn run_test_case(name_c_char: i32) {
 
 fn auto_run() {
     set_test_log_level_num(-1);
-    load_test_cases();
+    // load_test_cases();
 }
 
 fn main() {

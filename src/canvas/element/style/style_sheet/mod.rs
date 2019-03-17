@@ -259,57 +259,8 @@ impl StyleSheetGroup {
 
 #[cfg(test)]
 mod test {
-    use std::any::Any;
-    use super::{StyleSheet, StyleSheetGroup, StyleName, SelectorQuery};
+    use super::{StyleSheet, StyleSheetGroup, StyleName};
 
-    #[test]
-    fn parse_css_text() {
-        let ss = StyleSheet::new_from_css("
-            .a {
-                display: block;
-                position: absolute;
-                left: 1px;
-                top: 2.3px;
-                width: 4px;
-                height: 5px;
-                font-family: \"宋体\", sans;
-                font-size: 6px;
-                line-height: 7px;
-                color: red;
-                background-color: #00ff00;
-                opacity: 0.8;
-                text-align: center;
-            }
-        ");
-        let classes = ss.query_declarations(&SelectorQuery::new("", "", Box::new(["a"])));
-        let rules: Vec<&(StyleName, Box<Any + Send>)> = classes[0].iter_rules().collect();
-        assert_eq!(rules[0].0, StyleName::display);
-        assert_eq!(rules[0].1.downcast_ref::<super::DisplayType>().unwrap().clone(), super::DisplayType::Block);
-        assert_eq!(rules[1].0, StyleName::position);
-        assert_eq!(rules[1].1.downcast_ref::<super::PositionType>().unwrap().clone(), super::PositionType::Absolute);
-        assert_eq!(rules[2].0, StyleName::left);
-        assert_eq!(*rules[2].1.downcast_ref::<f64>().unwrap(), 1. as f32 as f64);
-        assert_eq!(rules[3].0, StyleName::top);
-        assert_eq!(*rules[3].1.downcast_ref::<f64>().unwrap(), 2.3 as f32 as f64);
-        assert_eq!(rules[4].0, StyleName::width);
-        assert_eq!(*rules[4].1.downcast_ref::<f64>().unwrap(), 4. as f32 as f64);
-        assert_eq!(rules[5].0, StyleName::height);
-        assert_eq!(*rules[5].1.downcast_ref::<f64>().unwrap(), 5. as f32 as f64);
-        assert_eq!(rules[6].0, StyleName::font_family);
-        assert_eq!(rules[6].1.downcast_ref::<String>().unwrap().clone(), "\"宋体\",\"sans\"");
-        assert_eq!(rules[7].0, StyleName::font_size);
-        assert_eq!(*rules[7].1.downcast_ref::<f32>().unwrap(), 6.);
-        assert_eq!(rules[8].0, StyleName::line_height);
-        assert_eq!(*rules[8].1.downcast_ref::<f32>().unwrap(), 7.);
-        assert_eq!(rules[9].0, StyleName::color);
-        assert_eq!(rules[9].1.downcast_ref::<(f32, f32, f32, f32)>().unwrap().clone(), (1., 0., 0., 1.));
-        assert_eq!(rules[10].0, StyleName::background_color);
-        assert_eq!(rules[10].1.downcast_ref::<(f32, f32, f32, f32)>().unwrap().clone(), (0., 1., 0., 1.));
-        assert_eq!(rules[11].0, StyleName::opacity);
-        assert_eq!(rules[11].1.downcast_ref::<f32>().unwrap().clone(), 0.8);
-        assert_eq!(rules[12].0, StyleName::text_align);
-        assert_eq!(rules[12].1.downcast_ref::<super::TextAlignType>().unwrap().clone(), super::TextAlignType::Center);
-    }
     #[test]
     fn query_declarations() {
         let mut ssg = StyleSheetGroup::new();
