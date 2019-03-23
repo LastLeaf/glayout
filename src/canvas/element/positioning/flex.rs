@@ -1,14 +1,12 @@
 use std::f64;
-use super::super::{Element, ElementStyle, DEFAULT_F64};
+use super::super::{Element, ElementStyle};
 use super::{Point, Size, Position, Bounds, InlineAllocator, box_sizing};
 
 #[inline]
 pub fn get_min_max_width(element: &mut Element, style: &ElementStyle, inline_allocator: &mut InlineAllocator) -> (f64, f64) {
-    let (_margin, _border, _padding, content) = box_sizing::get_sizes(style, Size::new(DEFAULT_F64, DEFAULT_F64));
-
     inline_allocator.reset_with_current_state(element.node_mut());
     let min_max_width = if element.is_terminated() {
-        element.content_mut().suggest_size(Size::new(f64::MAX, 0.), inline_allocator, style);
+        element.content_mut().suggest_size(Size::new(f64::MAX, f64::INFINITY), inline_allocator, style);
         inline_allocator.get_min_max_width()
     } else {
         let node = element.node_mut();
@@ -38,7 +36,7 @@ struct FlexParams {
 
 #[inline]
 pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size: Size, inline_allocator: &mut InlineAllocator) -> Size {
-    let (margin, _border, _padding, content) = box_sizing::get_sizes(style, Size::new(suggested_size.width(), DEFAULT_F64));
+    let (margin, _border, _padding, content) = box_sizing::get_sizes(style, Size::new(suggested_size.width(), f64::INFINITY));
 
     // get min, max, flex-basis from each child
     let node = element.node_mut();
@@ -109,12 +107,12 @@ pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size:
     let range = 0..node.len();
     for i in range {
         let child = node.child_mut(i).unwrap();
-        let size = child.suggest_size(Size::new(child_min_max_basis_flex[i].width, content.height()), inline_allocator, false);
+        let size = child.position_offset.suggest_size(Size::new(child_min_max_basis_flex[i].width, content.height()), inline_allocator, false);
         if child_requested_height < size.height() { child_requested_height = size.height() };
     }
     node.position_offset.content_size = Size::new(0., child_requested_height);
 
-    if style.get_height() == DEFAULT_F64 {
+    if !style.get_height().is_finite() {
         margin + Size::new(0., child_requested_height)
     } else {
         margin
@@ -123,8 +121,9 @@ pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size:
 
 #[inline]
 pub fn allocate_position(element: &mut Element, style: &ElementStyle, allocated_point: Point, relative_point: Point) -> (Point, Bounds) {
-    let (_margin, _border, _padding, content) = box_sizing::get_offsets(style);
-    let requested_size = element.requested_size();
+    let requested_size = element.position_offset.requested_size;
+    let suggested_size = element.position_offset.suggested_size;
+    let (_margin, _border, _padding, content) = box_sizing::get_offsets(style, suggested_size, requested_size);
     let allocated_position = Position::from((allocated_point, requested_size));
     let mut drawing_bounds: Bounds = allocated_position.into();
     if element.content().is_terminated() {
@@ -136,7 +135,7 @@ pub fn allocate_position(element: &mut Element, style: &ElementStyle, allocated_
         node.for_each_child_mut(|child| {
             let align_self_offset = (current_height - child.position_offset.requested_size.height()) / 2.;
             let current_top = content.top() + align_self_offset;
-            let child_bounds = child.allocate_position(
+            let child_bounds = child.position_offset.allocate_position(
                 Point::new(current_left, current_top),
                 relative_point + Size::new(-current_left, -current_top)
             );

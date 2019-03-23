@@ -1,5 +1,4 @@
 use std::rc::Rc;
-use std::any::Any;
 use cssparser::{Delimiter, Token, ParserInput, Parser, ParseError, Color};
 use std::collections::HashMap;
 pub(self) use super::*;
@@ -177,21 +176,38 @@ impl StyleSheet {
                 }
             };
             parser.parse_until_after::<_, _, ()>(Delimiter::Semicolon, |parser| {
-                parse_value(parser, class, key.as_ref());
-                if !parser.is_exhausted() {
-                    {
-                        if parser.next().is_err() {
-                            // do nothing
+                // match parser.r#try(|parser| {
+                //     let r = parser.expect_ident();
+                //     match r {
+                //         Err(_) => Err(parser.new_custom_error::<_, ()>(())),
+                //         Ok(r) => {
+                //             if r.as_ref() == "inherit" {
+                //                 unimplemented!("Style value \"inherit\" is not supported yet");
+                //             } else {
+                //                 Err(parser.new_custom_error::<_, ()>(()))
+                //             }
+                //         }
+                //     }
+                // }) {
+                //     Ok(x) => Ok(x),
+                //     Err(_) => {
+                        parse_value(parser, class, key.as_ref());
+                        if !parser.is_exhausted() {
+                            {
+                                if parser.next().is_err() {
+                                    // do nothing
+                                }
+                            }
+                            warn!("CSS ParseError {:?}", parser.new_custom_error::<_, ()>(()));
                         }
-                    }
-                    warn!("CSS ParseError {:?}", parser.new_custom_error::<_, ()>(()));
-                }
-                while !parser.is_exhausted() {
-                    if parser.next().is_err() {
-                        // do nothing
-                    }
-                }
-                Ok(())
+                        while !parser.is_exhausted() {
+                            if parser.next().is_err() {
+                                // do nothing
+                            }
+                        }
+                        Ok(())
+                //     }
+                // }
             }).unwrap();
         }
         Ok(())

@@ -1,3 +1,4 @@
+use std::fmt;
 use std::mem;
 use std::cell::Cell;
 
@@ -10,8 +11,7 @@ pub enum StyleValueReferrer {
 
     // relative length
     RelativeToParentFontSize = 0x10,
-    RelativeToParentWidth = 0x11,
-    RelativeToParentHeight = 0x12,
+    RelativeToParentSize = 0x11,
     RelativeToViewportFontSize = 0x18,
     RelativeToViewportWidth = 0x19,
     RelativeToViewportHeight = 0x1a,
@@ -24,15 +24,28 @@ const INHERIT: u8 = 0x40;
 const DIRTY: u8 = 0x80;
 
 impl StyleValueReferrer {
-    pub(super) fn is_absolute_or_relative(&self) -> bool {
+    pub fn is_absolute_or_relative(&self) -> bool {
         *self == StyleValueReferrer::Absolute || (*self as u8) & RELATIVE_BIT_MASK == RELATIVE_BIT_MASK
+    }
+    pub fn is_parent_relative(&self) -> bool {
+        match self {
+            StyleValueReferrer::RelativeToParentSize => true,
+            StyleValueReferrer::RelativeToParentFontSize => true,
+            _ => false
+        }
     }
 }
 
-pub(super) struct StyleValue<T: Clone> {
+pub(crate) struct StyleValue<T: Clone> {
     cur_v: Cell<T>,
     v: Cell<T>,
     r: Cell<u8>,
+}
+
+impl<T: Clone + fmt::Debug> fmt::Debug for StyleValue<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}({:?})", self.r.get(), unsafe { (*self.v.as_ptr()).clone() })
+    }
 }
 
 impl<T: Clone> Clone for StyleValue<T> {

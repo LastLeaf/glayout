@@ -208,23 +208,23 @@ impl CharacterManager {
         FONT_FAMILY_ID_INC.set(ret + 1);
         ret
     }
-    pub fn font_family_id(&mut self, name: String) -> i32 {
+    pub fn font_family_id(&mut self, name: &str) -> i32 {
         // NOTE font-family is never released
         let mut font_family_map = FONT_FAMILY_MAP.borrow_mut();
         let mut need_insert = false;
-        let font_family_id = match font_family_map.get(&name) {
+        let font_family_id = match font_family_map.get(name) {
             Some(x) => {
                 *x
             },
             None => {
                 let font_family_id = Self::alloc_font_family_id();
-                lib!(text_bind_font_family(font_family_id, CString::new(name.clone()).unwrap().into_raw()));
+                lib!(text_bind_font_family(font_family_id, CString::new(name).unwrap().into_raw()));
                 need_insert = true;
                 font_family_id
             }
         };
         if need_insert {
-            font_family_map.insert(name, font_family_id);
+            font_family_map.insert(name.to_string(), font_family_id);
         }
         font_family_id
     }

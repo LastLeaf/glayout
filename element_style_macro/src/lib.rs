@@ -21,6 +21,11 @@ struct PropertyDefinition {
     num: LitInt,
     layout_dirty: bool,
     inherit: bool,
+    horizontal_relative: bool,
+    vertical_relative: bool,
+    font_size_relative: bool,
+    flex_direction_relative: bool,
+    font_size_inherit: bool,
 }
 fn has_option(options: &Punctuated<Ident, Token![,]>, name: &str) -> bool {
     options.iter().position(|x| x.to_string() == name).is_some()
@@ -53,6 +58,11 @@ impl Parse for PropertyDefinition {
             num,
             layout_dirty: has_option(&options, "layout_dirty"),
             inherit: has_option(&options, "inherit"),
+            horizontal_relative: has_option(&options, "horizontal_relative"),
+            vertical_relative: has_option(&options, "vertical_relative"),
+            font_size_relative: has_option(&options, "font_size_relative"),
+            flex_direction_relative: has_option(&options, "flex_direction_relative"),
+            font_size_inherit: has_option(&options, "font_size_inherit"),
         })
     }
 }
@@ -128,6 +138,11 @@ struct PropertyImplTokens {
     default_value: Expr,
     layout_dirty: bool,
     inherit: bool,
+    horizontal_relative: bool,
+    vertical_relative: bool,
+    font_size_relative: bool,
+    flex_direction_relative: bool,
+    font_size_inherit: bool,
 }
 impl Into<Vec<PropertyImplTokens>> for Properties {
     fn into(self) -> Vec<PropertyImplTokens> {
@@ -139,27 +154,56 @@ impl Into<Vec<PropertyImplTokens>> for Properties {
                 default_value: p.default_value,
                 layout_dirty: p.layout_dirty,
                 inherit: p.inherit,
+                horizontal_relative: p.horizontal_relative,
+                vertical_relative: p.vertical_relative,
+                font_size_relative: p.font_size_relative,
+                flex_direction_relative: p.flex_direction_relative,
+                font_size_inherit: p.font_size_inherit,
             }
         }).collect()
     }
 }
 impl ToTokens for PropertyImplTokens {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let Self { name, value_type, default_value_referrer, default_value, layout_dirty, inherit } = self;
+        let Self {
+            name,
+            value_type,
+            default_value_referrer,
+            default_value,
+            layout_dirty,
+            inherit,
+            horizontal_relative,
+            vertical_relative,
+            font_size_relative,
+            flex_direction_relative,
+            font_size_inherit,
+        } = self;
         let getter = Ident::new(&(String::from("get_") + &name.to_string()), Span::call_site());
         let setter = Ident::new(&(String::from("set_") + &name.to_string()), Span::call_site());
         let getter_advanced = Ident::new(&(String::from("get_") + &name.to_string() + "_advanced"), Span::call_site());
         let setter_advanced = Ident::new(&(String::from("set_") + &name.to_string() + "_advanced"), Span::call_site());
+        let setter_set_inherit = Ident::new(&(String::from("set_") + &name.to_string() + "_inherit"), Span::call_site());
         let getter_inner = Ident::new(&(String::from("get_") + &name.to_string() + "_inner"), Span::call_site());
         let setter_inner = Ident::new(&(String::from("set_") + &name.to_string() + "_inner"), Span::call_site());
         let update_inherit = Ident::new(&(String::from("update_inherit_") + &name.to_string()), Span::call_site());
+        let relative_type = if *horizontal_relative {
+            Ident::new("horizontal", Span::call_site())
+        } else if *vertical_relative {
+            Ident::new("vertical", Span::call_site())
+        } else if *font_size_relative {
+            Ident::new("font_size", Span::call_site())
+        } else if *flex_direction_relative {
+            Ident::new("flex_direction", Span::call_site())
+        } else {
+            Ident::new("none", Span::call_site())
+        };
         tokens.append_all(quote! {
             impl_style_item!(
                 #name,
-                #getter,
                 #setter,
                 #getter_advanced,
                 #setter_advanced,
+                #setter_set_inherit,
                 #getter_inner,
                 #setter_inner,
                 #update_inherit,
@@ -167,8 +211,10 @@ impl ToTokens for PropertyImplTokens {
                 StyleValueReferrer::#default_value_referrer,
                 #default_value,
                 #layout_dirty,
-                #inherit
+                #inherit,
+                #font_size_inherit,
             );
+            impl_style_item_getter!(#getter, #getter_advanced, #value_type, #relative_type);
         });
     }
 }
@@ -176,22 +222,24 @@ impl ToTokens for PropertyImplTokens {
 // parent updated impl
 struct PropertyParentUpdatedTokens {
     name: Ident,
+    font_size_inherit: bool,
 }
 impl Into<Vec<PropertyParentUpdatedTokens>> for Properties {
     fn into(self) -> Vec<PropertyParentUpdatedTokens> {
         self.p.into_iter().map(|p| {
             PropertyParentUpdatedTokens {
                 name: p.name,
+                font_size_inherit: p.font_size_inherit,
             }
         }).collect()
     }
 }
 impl ToTokens for PropertyParentUpdatedTokens {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let Self { name } = self;
+        let Self { name, font_size_inherit } = self;
         let update_inherit = Ident::new(&(String::from("update_inherit_") + &name.to_string()), Span::call_site());
         tokens.append_all(quote! {
-            impl_parent_updated_item!(self, #name, #update_inherit);
+            impl_parent_updated_item!(#name, #update_inherit, #font_size_inherit);
         });
     }
 }
@@ -268,9 +316,7 @@ pub fn element_style(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream
             #(#prop_impl)*
         );
         impl_parent_updated!(
-            fn parent_updated(&mut self) {
-                #(#parent_updated_impl)*
-            }
+            #(#parent_updated_impl)*
         );
         define_style_name!(
             #(#style_name_def)*

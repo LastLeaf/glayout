@@ -26,6 +26,7 @@ pub struct CanvasContext {
     canvas_config: Rc<CanvasConfig>,
     root_node: ForestNodeRc<Element>,
     need_redraw: bool,
+    all_dirty: bool,
     touching: bool,
     touch_point: element::Point,
     last_key: KeyDescriptor,
@@ -52,6 +53,7 @@ impl Canvas {
             canvas_config,
             root_node,
             need_redraw: false,
+            all_dirty: false,
             touching: false,
             touch_point: element::Point::new(0., 0.),
             last_key: Default::default(),
@@ -100,10 +102,13 @@ impl CanvasContext {
         log!("Canvas size changed: {}", self.canvas_config.index);
         self.canvas_config.canvas_size.set(element::Size::new(w as f64, h as f64));
         lib!(set_canvas_size(self.canvas_config.index, w, h, pixel_ratio, update_logical_size as i32));
-        self.root_node.borrow_mut().mark_layout_dirty();
+        if !self.all_dirty {
+            self.all_dirty = true;
+            self.root_node.borrow_mut().mark_layout_dirty_dfs();
+        }
     }
     pub fn set_canvas_size(&mut self, w: i32, h: i32, pixel_ratio: f64) {
-        self.set_canvas_size_inner(w, h, pixel_ratio, true)
+        self.set_canvas_size_inner(w, h, pixel_ratio, true);
     }
     #[inline]
     pub fn device_pixel_ratio(&self) -> f64 {
@@ -154,6 +159,7 @@ impl CanvasContext {
             let root_node_rc = self.root();
             let size = self.canvas_config.canvas_size.get();
             if dirty {
+                self.all_dirty = false;
                 root_node_rc.borrow_mut().dfs_update_position_offset(size);
             }
             root_node_rc.borrow_mut().draw(element::Position::new(0., 0., size.width(), size.height()), element::Transform::new());

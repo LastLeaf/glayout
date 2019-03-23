@@ -26,7 +26,6 @@ impl super::ElementContent for Empty {
     #[inline]
     fn draw(&mut self, _transform: &Transform) {
         // do nothing
-        // debug!("Attempted to draw an Empty");
     }
     fn drawing_bounds(&self) -> Bounds {
         Bounds::new(0., 0., 0., 0.) // not used because it is not a terminated

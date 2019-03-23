@@ -60,6 +60,8 @@ pub struct Element {
     event_receiver: EventReceiver,
     style: ElementStyle,
     position_offset: PositionOffset,
+    base_size: Size,
+    base_font_size: f32,
     draw_separate_tex: Cell<i32>,
     content: Box<ElementContent>,
 }
@@ -78,6 +80,8 @@ impl Clone for Element {
             event_receiver: EventReceiver::new(),
             style: ElementStyle::new(),
             position_offset: PositionOffset::new(),
+            base_size: Size::new(0., 0.),
+            base_font_size: 0.,
             draw_separate_tex: Cell::new(-1),
             content: self.content.clone(),
         }
@@ -92,6 +96,8 @@ impl Element {
             event_receiver: EventReceiver::new(),
             style: ElementStyle::new(),
             position_offset: PositionOffset::new(),
+            base_size: Size::new(0., 0.),
+            base_font_size: 0.,
             draw_separate_tex: Cell::new(-1),
             content,
         }
@@ -120,6 +126,24 @@ impl Element {
     #[inline]
     pub fn name(&self) -> &'static str {
         self.content.name()
+    }
+
+    #[inline]
+    pub(crate) fn get_base_width(&self) -> f64 {
+        self.base_size.width()
+    }
+    #[inline]
+    pub(crate) fn get_base_height(&self) -> f64 {
+        self.base_size.height()
+    }
+    #[inline]
+    pub(crate) fn get_base_font_size(&self) -> f32 {
+        self.base_font_size
+    }
+    #[inline]
+    fn set_base_size_and_font_size(&mut self, size: Size, font_size: f32) {
+        self.base_size = size;
+        self.base_font_size = font_size;
     }
 
     #[inline]
@@ -176,43 +200,33 @@ impl Element {
     }
 
     #[inline]
-    pub(crate) fn mark_layout_dirty(&mut self) {
+    pub(crate) fn mark_layout_dirty_dfs(&mut self) {
+        self.position_offset.get_and_mark_dirty();
+        self.node_mut().for_each_child_mut(|c| {
+            c.mark_layout_dirty_dfs();
+        });
+    }
+    #[inline]
+    pub(crate) fn mark_layout_dirty(&mut self) -> bool {
         if self.position_offset.get_and_mark_dirty() {
-            return;
+            return true;
         }
         match self.node_mut().parent_mut() {
             None => { },
-            Some(x) => x.mark_layout_dirty()
+            Some(x) => {
+                x.mark_layout_dirty();
+            }
         }
+        false
     }
     #[inline]
     pub(crate) fn is_layout_dirty(&self) -> bool {
         self.position_offset.is_dirty()
     }
     #[inline]
-    pub(crate) fn requested_size(&self) -> Size {
-        self.position_offset.requested_size()
-    }
-    #[inline]
-    pub(crate) fn drawing_bounds(&self) -> Bounds {
-        self.position_offset.drawing_bounds()
-    }
-    #[inline]
-    pub(crate) fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator, enable_inline: bool) -> Size {
-        self.position_offset.suggest_size(suggested_size, inline_allocator, enable_inline)
-    }
-    #[inline]
-    pub(crate) fn suggest_size_absolute(&mut self, relative_size: Size, inline_allocator: &mut InlineAllocator) {
-        self.position_offset.suggest_size_absolute(relative_size, inline_allocator)
-    }
-    #[inline]
-    pub(crate) fn allocate_position(&mut self, allocated_point: Point, relative_point: Point) -> Bounds {
-        self.position_offset.allocate_position(allocated_point, relative_point)
-    }
-    #[inline]
     pub(crate) fn dfs_update_position_offset(&mut self, suggested_size: Size) {
-        let _requested_size = self.suggest_size(suggested_size, &mut InlineAllocator::new(), false);
-        self.allocate_position(Point::new(0., 0.), Point::new(0., 0.));
+        let _requested_size = self.position_offset.suggest_size(suggested_size, &mut InlineAllocator::new(), false);
+        self.position_offset.allocate_position(Point::new(0., 0.), Point::new(0., 0.));
     }
 
     #[inline]

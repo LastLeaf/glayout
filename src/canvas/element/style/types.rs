@@ -36,3 +36,11 @@ pub enum BorderStyleType {
     None,
     Solid,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum FlexDirectionType {
+    Row,
+    RowReverse,
+    Column,
+    ColumnReverse,
+}

@@ -1,13 +1,13 @@
 use std::f64;
-use super::super::{Element, ElementStyle, DEFAULT_F64};
+use super::super::{Element, ElementStyle};
 use super::{Point, Size, Bounds, InlineAllocator, box_sizing};
 
 #[inline]
 pub fn get_min_max_width(element: &mut Element, style: &ElementStyle, inline_allocator: &mut InlineAllocator) -> (f64, f64) {
-    let (_margin, _border, _padding, content) = box_sizing::get_sizes(style, Size::new(DEFAULT_F64, DEFAULT_F64));
+    let (_margin, _border, _padding, content) = box_sizing::get_sizes(style, Size::new(f64::INFINITY, f64::INFINITY));
 
     let min_max_width = if element.is_terminated() {
-        element.content_mut().suggest_size(Size::new(f64::MAX, 0.), inline_allocator, style);
+        element.content_mut().suggest_size(Size::new(f64::MAX, f64::INFINITY), inline_allocator, style);
         inline_allocator.get_min_max_width()
     } else {
         let node = element.node_mut();
@@ -30,7 +30,7 @@ pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size:
     // the returned width is the current end width of the inline allocation
     // the returned height is the "added" height related to prev sibling
 
-    let child_suggested_size = Size::new(suggested_size.width(), 0.);
+    let child_suggested_size = Size::new(suggested_size.width(), f64::INFINITY);
 
     let mut child_requested_height = 0.;
     if element.is_terminated() {
@@ -40,7 +40,7 @@ pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size:
     } else {
         let node = element.node_mut();
         node.for_each_child_mut(|child| {
-            let size = child.suggest_size(child_suggested_size, inline_allocator, true);
+            let size = child.position_offset.suggest_size(child_suggested_size, inline_allocator, true);
             child_requested_height += size.height();
         });
     }
@@ -50,7 +50,7 @@ pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size:
 
 #[inline]
 pub fn allocate_position(element: &mut Element, _style: &ElementStyle, allocated_point: Point, relative_point: Point) -> (Point, Bounds) {
-    let requested_size = element.requested_size();
+    let requested_size = element.position_offset.requested_size();
     let drawing_bounds = if element.content().is_terminated() {
         element.content().drawing_bounds()
     } else {
@@ -58,8 +58,8 @@ pub fn allocate_position(element: &mut Element, _style: &ElementStyle, allocated
         let mut current_top = 0.;
         let node = element.node_mut();
         node.for_each_child_mut(|child| {
-            let requested_size = child.requested_size();
-            let child_bounds = child.allocate_position(
+            let requested_size = child.position_offset.requested_size();
+            let child_bounds = child.position_offset.allocate_position(
                 Point::new(0., current_top),
                 relative_point + Size::new(0., -current_top)
             );

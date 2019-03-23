@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+use std::borrow::Cow;
 use std::any::Any;
 use glayout_element_style_macro::*;
 use super::*;
@@ -106,6 +107,7 @@ style_value_syntax! {
 
 // base parsers
 mod ParseBase {
+    use std::ops::Mul;
     use super::*;
 
     #[inline]
@@ -146,7 +148,7 @@ mod ParseBase {
         Err(parser.new_custom_error(()))
     }
 
-    fn Length<'a, T: From<f32> + Clone + Send + Sized>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a, T> {
+    fn Length<'a, T: From<f32> + Mul + Clone + Send + Sized>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a, T> where <T as Mul>::Output: Into<T> {
         {
             let r = parser.next();
             if r.is_ok() {
@@ -160,8 +162,61 @@ mod ParseBase {
                     Token::Dimension {value, unit, has_sign: _, int_value: _} => {
                         let num: f32 = *value;
                         let num_t: T = num.into();
-                        if unit.as_ref() == "px" {
-                            return Ok(Box::new(absolute(num_t.clone())));
+                        return match unit.as_ref() {
+                            "px" => {
+                                Ok(Box::new(absolute(num_t.clone())))
+                            },
+                            "in" => {
+                                Ok(Box::new(absolute((num_t * T::from(96.)).into())))
+                            },
+                            "cm" => {
+                                Ok(Box::new(absolute((num_t * T::from(37.8)).into())))
+                            },
+                            "mm" => {
+                                Ok(Box::new(absolute((num_t * T::from(3.78)).into())))
+                            },
+                            "em" => {
+                                let v = StyleValue::new(StyleValueReferrer::RelativeToParentFontSize, num_t.clone(), false);
+                                Ok(Box::new(v))
+                            },
+                            // NOTE rem has problems on dirty-update
+                            // "rem" => {
+                            //     let v = StyleValue::new(StyleValueReferrer::RelativeToViewportFontSize, num_t.clone(), false);
+                            //     Ok(Box::new(v))
+                            // },
+                            "vw" => {
+                                let v = StyleValue::new(StyleValueReferrer::RelativeToViewportWidth, (num_t * T::from(0.01)).into(), false);
+                                Ok(Box::new(v))
+                            },
+                            "vh" => {
+                                let v = StyleValue::new(StyleValueReferrer::RelativeToViewportHeight, (num_t * T::from(0.01)).into(), false);
+                                Ok(Box::new(v))
+                            },
+                            "rpx" => {
+                                let v = StyleValue::new(StyleValueReferrer::RelativeToViewportWidth, (num_t * T::from(1. / 750.)).into(), false);
+                                Ok(Box::new(v))
+                            },
+                            _ => {
+                                Err(parser.new_custom_error(()))
+                            }
+                            // NOTE unimplemented ex, ch, vmin, vmax
+                        };
+                    },
+                    Token::Percentage {unit_value, has_sign: _, int_value: _} => {
+                        let num: f32 = *unit_value;
+                        let num_t: T = num.into();
+                        let v = StyleValue::new(StyleValueReferrer::RelativeToParentSize, num_t.clone(), false);
+                        return Ok(Box::new(v));
+                    },
+                    Token::Ident(s) => {
+                        return match s.as_ref() {
+                            "auto" => {
+                                let v = StyleValue::new(StyleValueReferrer::Auto, T::from(0.), false);
+                                Ok(Box::new(v))
+                            },
+                            _ => {
+                                Err(parser.new_custom_error(()))
+                            }
                         }
                     },
                     _ => { }
@@ -191,7 +246,7 @@ mod ParseBase {
         }
     }
 
-    pub(super) fn FontFamily<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a, String> {
+    pub(super) fn FontFamily<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a, Cow<'static, str>> {
         // TODO use Cow<String> for FontFamily
         {
             let mut ret = vec![];
@@ -241,7 +296,7 @@ mod ParseBase {
                 })
             });
             if r.is_ok() {
-                Ok(Box::new(absolute(ret.join(","))))
+                Ok(Box::new(absolute(Cow::from(ret.join(",")))))
             } else {
                 Err(r.unwrap_err())
             }
@@ -251,35 +306,32 @@ mod ParseBase {
 
 // post processors
 mod ParsePost {
+    use std::fmt::Debug;
     use super::*;
     type OptionValue<T> = Option<Box<StyleValue<T>>>;
 
     macro_rules! arround {
         ($class:expr, $top:ident, $right:ident, $bottom:ident, $left:ident) => {
-            let $right = match $right.1.clone() {
-                Some(_) => $right,
-                None => $top.clone(),
-            };
-            let $bottom = match $bottom.1.clone() {
-                Some(_) => $bottom,
-                None => $top.clone(),
-            };
-            let $left = match $left.1.clone() {
-                Some(_) => $left,
-                None => $right.clone(),
-            };
-            parse_append_rule($class, $top.0, $top.1.unwrap());
-            parse_append_rule($class, $right.0, $right.1.unwrap());
-            parse_append_rule($class, $bottom.0, $bottom.1.unwrap());
-            parse_append_rule($class, $left.0, $left.1.unwrap());
+            let (top_k, top_v) = $top;
+            let (right_k, right_v) = $right;
+            let (bottom_k, bottom_v) = $bottom;
+            let (left_k, left_v) = $left;
+            let top_v = top_v.unwrap();
+            let right_v = right_v.unwrap_or_else(|| top_v.clone());
+            let bottom_v = bottom_v.unwrap_or_else(|| top_v.clone());
+            let left_v = left_v.unwrap_or_else(|| right_v.clone());
+            parse_append_rule($class, top_k, top_v);
+            parse_append_rule($class, right_k, right_v);
+            parse_append_rule($class, bottom_k, bottom_v);
+            parse_append_rule($class, left_k, left_v);
         }
     }
 
-    pub(super) fn around<T: 'static + Clone + Send + Sized>(class: &mut ElementClass, top: (StyleName, Option<Box<T>>), right: (StyleName, Option<Box<T>>), bottom: (StyleName, Option<Box<T>>), left: (StyleName, Option<Box<T>>)) {
+    pub(super) fn around<T: 'static + Clone + Send + Sized + Debug>(class: &mut ElementClass, top: (StyleName, Option<Box<T>>), right: (StyleName, Option<Box<T>>), bottom: (StyleName, Option<Box<T>>), left: (StyleName, Option<Box<T>>)) {
         arround!(class, top, right, bottom, left);
     }
 
-    pub(super) fn border_around<T: 'static + Clone + Send + Sized>(class: &mut ElementClass,
+    pub(super) fn border_around<T: 'static + Clone + Send + Sized + Debug>(class: &mut ElementClass,
         top_width: (StyleName, Option<Box<T>>), top_style: (StyleName, OptionValue<BorderStyleType>), top_color: (StyleName, OptionValue<(f32, f32, f32, f32)>), _: (StyleName, Option<Box<T>>),
         right_width: (StyleName, Option<Box<T>>), right_style: (StyleName, OptionValue<BorderStyleType>), right_color: (StyleName, OptionValue<(f32, f32, f32, f32)>), _: (StyleName, Option<Box<T>>),
         bottom_width: (StyleName, Option<Box<T>>), bottom_style: (StyleName, OptionValue<BorderStyleType>), bottom_color: (StyleName, OptionValue<(f32, f32, f32, f32)>), _: (StyleName, Option<Box<T>>),

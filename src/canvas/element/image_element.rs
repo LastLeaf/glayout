@@ -4,7 +4,6 @@ use std::cell::RefCell;
 use super::super::CanvasConfig;
 use super::super::resource::ResourceManager;
 use super::{Element, ElementStyle, InlineAllocator, Transform, Position, Bounds, Size, Point};
-use super::style::{DEFAULT_F64};
 use rc_forest::{ForestNode, ForestNodeWeak};
 
 const IMAGE_SIZE_WARN: i32 = 4096;
@@ -143,8 +142,8 @@ impl super::ElementContent for Image {
     }
     fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator, style: &ElementStyle) -> Size {
         let base_requested_top = inline_allocator.get_current_height();
-        let spec_width = style.get_width() != DEFAULT_F64;
-        let spec_height = style.get_height() != DEFAULT_F64;
+        let spec_width = style.get_width().is_finite();
+        let spec_height = style.get_height().is_finite();
         let width;
         let height;
         if spec_width {

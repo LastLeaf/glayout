@@ -1,8 +1,8 @@
-use super::super::{ElementStyle, BoxSizingType, PositionType, DEFAULT_F64};
+use super::super::{ElementStyle, BoxSizingType, PositionType, StyleValueReferrer};
 use super::{Point, Size};
 
 #[inline]
-pub fn get_sizes(style: &ElementStyle, outer_size: Size) -> (Size, Size, Size, Size) {
+pub(super) fn get_sizes(style: &ElementStyle, outer_size: Size) -> (Size, Size, Size, Size) {
     let style_content_width = style.get_width();
     let style_content_height = style.get_height();
     let style_padding_width = style.get_padding_left() + style.get_padding_right();
@@ -12,8 +12,8 @@ pub fn get_sizes(style: &ElementStyle, outer_size: Size) -> (Size, Size, Size, S
     let style_margin_width = style.get_margin_left() + style.get_margin_right();
     let style_margin_height = style.get_margin_top() + style.get_margin_bottom();
     let content = Size::new(
-        if style_content_width == DEFAULT_F64 {
-            if outer_size.width() == DEFAULT_F64 {
+        if !style_content_width.is_finite() {
+            if !outer_size.width().is_finite() {
                 0.
             } else {
                 outer_size.width() - style_padding_width - style_border_width - style_margin_width
@@ -26,8 +26,8 @@ pub fn get_sizes(style: &ElementStyle, outer_size: Size) -> (Size, Size, Size, S
                 BoxSizingType::BorderBox => style_content_width - style_padding_width - style_border_width,
             }
         },
-        if style_content_height == DEFAULT_F64 {
-            if outer_size.height() == DEFAULT_F64 {
+        if !style_content_height.is_finite() {
+            if !outer_size.height().is_finite() {
                 0.
             } else {
                 outer_size.height() - style_padding_height - style_border_height - style_margin_height
@@ -57,11 +57,25 @@ pub fn get_sizes(style: &ElementStyle, outer_size: Size) -> (Size, Size, Size, S
 }
 
 #[inline]
-pub fn get_offsets(style: &ElementStyle) -> (Point, Point, Point, Point) {
+pub(super) fn get_offsets(style: &ElementStyle, suggested_size: Size, requested_size: Size) -> (Point, Point, Point, Point) {
     let margin = Point::new(0., 0.);
     let border = Point::new(
-        margin.left() + style.get_margin_left(),
-        margin.top() + style.get_margin_top(),
+        if style.get_margin_left_advanced().0 != StyleValueReferrer::Auto {
+            margin.left() + style.get_margin_left()
+        } else if style.get_margin_right_advanced().0 != StyleValueReferrer::Auto {
+            margin.left()
+        } else {
+            let r = (suggested_size.width() - requested_size.width()) / 2.;
+            if r > 0. { r } else { 0. }
+        },
+        if style.get_margin_top_advanced().0 != StyleValueReferrer::Auto {
+            margin.top() + style.get_margin_top()
+        } else if style.get_margin_bottom_advanced().0 != StyleValueReferrer::Auto {
+            margin.top()
+        } else {
+            let r = (suggested_size.height() - requested_size.height()) / 2.;
+            if r > 0. { r } else { 0. }
+        },
     );
     let padding = Point::new(
         border.left() + style.get_border_left_width(),
@@ -75,7 +89,7 @@ pub fn get_offsets(style: &ElementStyle) -> (Point, Point, Point, Point) {
 }
 
 #[inline]
-pub fn is_independent_positioning(style: &ElementStyle) -> bool {
+pub(super) fn is_independent_positioning(style: &ElementStyle) -> bool {
     let position = style.get_position();
     position == PositionType::Absolute || position == PositionType::Fixed
 }

@@ -1,4 +1,4 @@
-use super::style::{DisplayType, PositionType, DEFAULT_F64};
+use super::style::{DisplayType, PositionType};
 use super::{Element};
 use rc_forest::ForestNode;
 
@@ -54,7 +54,7 @@ impl PositionOffset {
         self.element = element;
     }
     #[inline]
-    fn element_mut<'a>(&'a mut self) -> &'a mut Element {
+    fn _element_mut<'a>(&'a mut self) -> &'a mut Element {
         unsafe { &mut *self.element }
     }
     #[inline]
@@ -62,8 +62,8 @@ impl PositionOffset {
         &mut *self.element
     }
     #[inline]
-    fn node_mut<'a>(&'a mut self) -> &'a mut ForestNode<Element> {
-        self.element_mut().node_mut()
+    fn _node_mut<'a>(&'a mut self) -> &'a mut ForestNode<Element> {
+        self._element_mut().node_mut()
     }
 
     #[inline]
@@ -100,7 +100,6 @@ impl PositionOffset {
         let style = unsafe { element.style().clone_ref_unsafe() };
 
         let display = style.get_display();
-        let position = style.get_position();
         let is_inline =
             !box_sizing::is_independent_positioning(style) &&
             (display == DisplayType::Inline || display == DisplayType::InlineBlock);
@@ -112,6 +111,7 @@ impl PositionOffset {
                 return self.min_max_width;
             }
         }
+        element.set_base_size_and_font_size(Size::new(0., 0.), element.style.get_font_size());
 
         self.min_max_width = {
             if display == DisplayType::None {
@@ -154,6 +154,7 @@ impl PositionOffset {
             }
         }
         self.suggested_size = suggested_size;
+        element.set_base_size_and_font_size(suggested_size, element.style.get_font_size());
 
         let requested_size = {
             if display == DisplayType::None {
@@ -178,7 +179,7 @@ impl PositionOffset {
                 let mut ia = InlineAllocator::new();
                 let node = element.node_mut();
                 node.for_each_child_mut(|child| {
-                    child.suggest_size_absolute(requested_size, &mut ia);
+                    child.position_offset.suggest_size_absolute(requested_size, &mut ia);
                 });
             }
         }
@@ -203,7 +204,7 @@ impl PositionOffset {
         } else {
             let node = element.node_mut();
             node.for_each_child_mut(|child| {
-                child.suggest_size_absolute(relative_size, inline_allocator);
+                child.position_offset.suggest_size_absolute(relative_size, inline_allocator);
             })
         }
     }
@@ -254,7 +255,7 @@ impl PositionOffset {
         drawing_bounds
     }
 
-    pub(crate) fn get_background_rect(&mut self, ) {
-
+    pub(crate) fn get_background_rect(&mut self) {
+        unimplemented!()
     }
 }

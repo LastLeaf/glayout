@@ -76,7 +76,7 @@ impl Text {
         }
         let cm = self.canvas_config.character_manager();
         let mut manager = cm.borrow_mut();
-        if self.font_family_id != manager.font_family_id(style.get_font_family().clone()) {
+        if self.font_family_id != manager.font_family_id(&*style.get_font_family()) {
             self.need_update = true;
             return;
         }
@@ -94,7 +94,7 @@ impl Text {
         // debug!("Attempted to regenerate Text: \"{}\" font {:?} size {:?}", self.text, style.get_font_family(), self.tex_font_size);
         let cm = self.canvas_config.character_manager();
         let mut manager = cm.borrow_mut();
-        self.font_family_id = manager.font_family_id(style.get_font_family().clone());
+        self.font_family_id = manager.font_family_id(&*style.get_font_family());
         self.characters = manager.alloc_chars(self.font_family_id, self.tex_font_size, FontStyle::Normal, self.text.chars());
     }
 }
@@ -136,7 +136,7 @@ impl super::ElementContent for Text {
         }
         let base_requested_top = inline_allocator.get_current_height();
         let initial_line_top = -inline_allocator.get_current_line_height();
-        let line_height = if style.get_line_height() == style::DEFAULT_F32 { style.get_font_size() * 1.5 } else { style.get_line_height() };
+        let line_height = if !style.get_line_height().is_finite() { style.get_font_size() * 1.5 } else { style.get_line_height() };
         let character_baseline_top = line_height / 2.;
         inline_allocator.start_node(self.node_mut(), line_height as f64, character_baseline_top as f64);
         self.line_first_char_index = 0;
