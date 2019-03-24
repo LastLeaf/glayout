@@ -4,22 +4,25 @@ use super::{Point, Size, Bounds, InlineAllocator, InlineAllocatorState, box_sizi
 
 #[inline]
 pub fn get_min_max_width(element: &mut Element, style: &ElementStyle, inline_allocator: &mut InlineAllocator) -> (f64, f64) {
-    let mut child_inline_allocator = InlineAllocator::new();
-    child_inline_allocator.reset(element.node_mut(), &inline_allocator.state());
+    let (offset, non_auto_width) = box_sizing::get_h_offset(style);
 
-    let min_max_width = if element.is_terminated() {
-        element.content_mut().suggest_size(Size::new(f64::MAX, f64::INFINITY), &mut child_inline_allocator, style);
-        child_inline_allocator.get_min_max_width()
+    let min_max_width = if non_auto_width {
+        (style.get_width(), style.get_width())
+    } else if element.is_terminated() {
+        element.content_mut().suggest_size(Size::new(f64::MAX, f64::NAN), inline_allocator, style);
+        let (min, max) = inline_allocator.get_min_max_width();
+        (min + offset, max + offset)
     } else {
+        // TODO impl a dedicated get_min_max_width to solve
         let node = element.node_mut();
         let mut min_width = 0.;
         let mut max_width = 0.;
         node.for_each_child_mut(|child| {
-            let (min, max) = child.position_offset.get_min_max_width(&mut child_inline_allocator);
+            let (min, max) = child.position_offset.min_max_width_dfs(inline_allocator, false);
             if min_width < min { min_width = min };
             if max_width < max { max_width = max };
         });
-        (min_width, max_width)
+        (min_width + offset, max_width + offset)
     };
 
     min_max_width
@@ -28,17 +31,16 @@ pub fn get_min_max_width(element: &mut Element, style: &ElementStyle, inline_all
 #[inline]
 pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size: Size, inline_allocator: &mut InlineAllocator) -> Size {
     // for inline nodes
-    // the returned width is the current end width of the inline allocation
     // the returned height is the "added" height related to prev sibling
 
-    let (margin, _border, _padding, content) = box_sizing::get_sizes(style, Size::new(suggested_size.width(), f64::INFINITY));
+    let (margin, _border, _padding, content, _non_auto_width, non_auto_height) = box_sizing::get_sizes(element, style, suggested_size);
 
     let width = {
-        let (_, max) = element.position_offset.get_min_max_width(&mut InlineAllocator::new());
+        let (_, max) = element.position_offset.min_max_width();
         if max > content.width() { content.width() } else { max }
     };
 
-    let child_suggested_size = Size::new(content.width(), f64::INFINITY);
+    let child_suggested_size = Size::new(content.width(), f64::NAN);
     let prev_filled_height = inline_allocator.get_current_height();
     let mut child_inline_allocator = InlineAllocator::new();
     child_inline_allocator.reset(element.node_mut(), &InlineAllocatorState::new(width, style.get_text_align()));
@@ -50,7 +52,7 @@ pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size:
     } else {
         let node = element.node_mut();
         node.for_each_child_mut(|child| {
-            let size = child.position_offset.suggest_size(child_suggested_size, &mut child_inline_allocator, true);
+            let size = child.position_offset.suggest_size(child_suggested_size, &mut child_inline_allocator, true, false);
             child_requested_height += size.height();
         });
     }
@@ -66,17 +68,12 @@ pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size:
     element.position_offset.inline_position_offset = Size::new(left, inline_baseline_top - baseline_offset - prev_filled_height);
     // TODO handle adjust_baseline_offset and adjust_text_align_offset
 
-    let width = if !style.get_width().is_finite() {
-        margin.width() + width
-    } else {
-        margin.width()
-    };
-    let height = if !style.get_height().is_finite() {
+    let height = if !non_auto_height {
         margin.height() + inline_allocator.get_current_height() - prev_filled_height
     } else {
         margin.height()
     };
-    Size::new(width, height)
+    Size::new(f64::NAN, height)
 }
 
 #[inline]

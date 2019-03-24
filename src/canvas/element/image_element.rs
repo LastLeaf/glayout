@@ -12,6 +12,7 @@ const IMAGE_SIZE_WARN: i32 = 4096;
 
 pub struct Image {
     element: *mut Element,
+    node_weak: Option<ForestNodeWeak<Element>>,
     canvas_config: Rc<CanvasConfig>,
     tex_id: i32,
     loader: Option<Rc<RefCell<ImageLoader>>>,
@@ -23,6 +24,7 @@ impl Image {
     pub fn new(cfg: &Rc<CanvasConfig>) -> Self {
         Image {
             element: 0 as *mut Element,
+            node_weak: None,
             canvas_config: cfg.clone(),
             tex_id: -1,
             loader: None,
@@ -64,13 +66,7 @@ impl Image {
     }
     pub fn set_loader(&mut self, loader: Rc<RefCell<ImageLoader>>) {
         self.need_update_from_loader();
-        let rc = self.node().rc();
-        match self.loader {
-            Some(ref mut loader) => {
-                loader.borrow_mut().unbind_tree_node(rc.downgrade());
-            },
-            None => { }
-        }
+        self.remove_from_loader();
         let loader_loaded = {
             let loader = loader.borrow();
             match loader.status {
@@ -95,17 +91,25 @@ impl Image {
         self.set_loader(Rc::new(RefCell::new(ImageLoader::new_with_canvas_config(cc))));
         ImageLoader::load(self.loader.as_mut().unwrap().clone(), url);
     }
+    fn remove_from_loader(&mut self) {
+        match &self.node_weak {
+            Some(x) => {
+                match self.loader {
+                    Some(ref mut loader) => {
+                        loader.borrow_mut().unbind_tree_node(x);
+                    },
+                    None => { }
+                }
+            },
+            None => { }
+        }
+    }
 }
 
 impl Drop for Image {
     fn drop(&mut self) {
-        let rc = self.node().rc();
-        match self.loader {
-            Some(ref mut loader) => {
-                loader.borrow_mut().unbind_tree_node(rc.downgrade());
-            },
-            None => { }
-        }
+        // NOTE when dropping, self.element is not usable, so keeping an weak ref in advance
+        self.remove_from_loader()
     }
 }
 
@@ -122,6 +126,7 @@ impl super::ElementContent for Image {
         let cfg = &self.canvas_config;
         let mut ret = Box::new(Image {
             element: 0 as *mut Element,
+            node_weak: None,
             canvas_config: cfg.clone(),
             tex_id: self.tex_id,
             loader: None,
@@ -139,6 +144,8 @@ impl super::ElementContent for Image {
     #[inline]
     fn associate_element(&mut self, element: *mut Element) {
         self.element = element;
+        let rc = self.node().rc();
+        self.node_weak = Some(rc.downgrade());
     }
     fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator, style: &ElementStyle) -> Size {
         let base_requested_top = inline_allocator.get_current_height();
@@ -244,9 +251,9 @@ impl ImageLoader {
     pub fn bind_tree_node(&mut self, tree_node: ForestNodeWeak<Element>) {
         self.binded_tree_nodes.push(tree_node)
     }
-    pub fn unbind_tree_node(&mut self, tree_node: ForestNodeWeak<Element>) {
+    pub fn unbind_tree_node(&mut self, tree_node: &ForestNodeWeak<Element>) {
         let pos = self.binded_tree_nodes.iter().position(|x| {
-            ForestNodeWeak::ptr_eq(x, &tree_node)
+            ForestNodeWeak::ptr_eq(x, tree_node)
         });
         match pos {
             None => { },

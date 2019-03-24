@@ -9,7 +9,7 @@ use std::fmt;
 use downcast_rs::Downcast;
 use super::CanvasConfig;
 use super::resource::DrawState;
-use rc_forest::{ForestNodeContent, ForestNode, ForestNodeRc, ForestNodeSelf};
+use rc_forest::{ForestNodeContent, ForestNode, ForestNodeRc, ForestNodeSelf, ForestNodeWeak};
 
 pub mod style;
 pub use self::style::*;
@@ -124,6 +124,15 @@ impl Element {
     }
 
     #[inline]
+    pub fn is_root_node(&self) -> bool {
+        let w = self.rc().downgrade();
+        match self.canvas_config.root_node() {
+            Some(x) => ForestNodeWeak::ptr_eq(&w, &x),
+            None => false,
+        }
+    }
+
+    #[inline]
     pub fn name(&self) -> &'static str {
         self.content.name()
     }
@@ -225,7 +234,8 @@ impl Element {
     }
     #[inline]
     pub(crate) fn dfs_update_position_offset(&mut self, suggested_size: Size) {
-        let _requested_size = self.position_offset.suggest_size(suggested_size, &mut InlineAllocator::new(), false);
+        self.position_offset.suggest_size(suggested_size, &mut InlineAllocator::new(), false, false);
+        self.position_offset.suggest_size_absolute(suggested_size, &mut InlineAllocator::new());
         self.position_offset.allocate_position(Point::new(0., 0.), Point::new(0., 0.));
     }
 
@@ -242,27 +252,23 @@ impl Element {
         );
     }
     #[inline]
-    fn draw_background_color(&mut self, requested_size: Size, child_transform: &Transform) {
+    fn draw_background_color(&mut self, child_transform: &Transform) {
         let color = self.style.get_background_color();
         if color.3 > 0. {
-            let position = Position::new(
-                self.style.get_margin_left() + self.style.get_border_left_width(),
-                self.style.get_margin_top() + self.style.get_border_top_width(),
-                requested_size.width() - self.style.get_margin_left() - self.style.get_margin_right() - self.style.get_border_left_width() - self.style.get_border_right_width(),
-                requested_size.height() - self.style.get_margin_top() - self.style.get_margin_bottom() - self.style.get_border_top_width() - self.style.get_border_bottom_width(),
-            );
+            let position = self.position_offset.get_background_rect();
             self.draw_rect(color, child_transform.apply_to_position(&position));
         }
     }
     #[inline]
-    fn draw_borders(&mut self, requested_size: Size, child_transform: &Transform) {
+    fn draw_borders(&mut self, child_transform: &Transform) {
         // TODO check border style
+        let position = self.position_offset.get_background_rect();
         if self.style.get_border_top_width() > 0. {
             let color = self.style.get_border_top_color();
             let position = Position::new(
-                self.style.get_margin_left(),
-                self.style.get_margin_top(),
-                requested_size.width() - self.style.get_margin_left() - self.style.get_margin_right(),
+                position.left() - self.style.get_border_left_width(),
+                position.top() - self.style.get_border_top_width(),
+                position.width() + self.style.get_border_left_width() + self.style.get_border_right_width(),
                 self.style.get_border_top_width(),
             );
             self.draw_rect(color, child_transform.apply_to_position(&position));
@@ -270,9 +276,9 @@ impl Element {
         if self.style.get_border_bottom_width() > 0. {
             let color = self.style.get_border_bottom_color();
             let position = Position::new(
-                self.style.get_margin_left(),
-                requested_size.height() - self.style.get_margin_bottom() - self.style.get_border_bottom_width(),
-                requested_size.width() - self.style.get_margin_left() - self.style.get_margin_right(),
+                position.left() - self.style.get_border_left_width(),
+                position.bottom(),
+                position.width() + self.style.get_border_left_width() + self.style.get_border_right_width(),
                 self.style.get_border_bottom_width(),
             );
             self.draw_rect(color, child_transform.apply_to_position(&position));
@@ -280,20 +286,20 @@ impl Element {
         if self.style.get_border_left_width() > 0. {
             let color = self.style.get_border_left_color();
             let position = Position::new(
-                self.style.get_margin_left(),
-                self.style.get_margin_top() + self.style.get_border_top_width(),
+                position.left() - self.style.get_border_left_width(),
+                position.top(),
                 self.style.get_border_left_width(),
-                requested_size.height() - self.style.get_margin_top() - self.style.get_margin_bottom() - self.style.get_border_top_width() - self.style.get_border_bottom_width(),
+                position.height(),
             );
             self.draw_rect(color, child_transform.apply_to_position(&position));
         }
         if self.style.get_border_right_width() > 0. {
             let color = self.style.get_border_right_color();
             let position = Position::new(
-                requested_size.width() - self.style.get_margin_right() - self.style.get_border_right_width(),
-                self.style.get_margin_top() + self.style.get_border_top_width(),
+                position.right(),
+                position.top(),
                 self.style.get_border_right_width(),
-                requested_size.height() - self.style.get_margin_top() - self.style.get_margin_bottom() - self.style.get_border_top_width() - self.style.get_border_bottom_width(),
+                position.height(),
             );
             self.draw_rect(color, child_transform.apply_to_position(&position));
         }
@@ -312,24 +318,20 @@ impl Element {
             self.disable_draw_separate_tex()
         }
         let tex_id = self.draw_separate_tex.get();
-        let (drawing_tex_position, drawing_tex_offset) = if tex_id >= 0 {
-            let drawing_bounds = self.style.transform_ref().apply_to_bounds(&self.position_offset.drawing_bounds());
-            let drawing_tex_position = Position::new(0., 0., (drawing_bounds.width() + 1.).floor(), (drawing_bounds.height() + 1.).floor());
-            // FIXME use drawing_bounds is incorrect because child's transform is not considered
+        let canvas_size = self.canvas_config.canvas_size.get();
+        let drawing_tex_position = Position::new(0., 0., canvas_size.width(), canvas_size.height());
+        if tex_id >= 0 {
             let rm = self.canvas_config.resource_manager();
             let mut rm = rm.borrow_mut();
             rm.bind_rendering_target(tex_id, drawing_tex_position.width() as i32, drawing_tex_position.height() as i32);
-            (drawing_tex_position, Size::new(drawing_bounds.left(), drawing_bounds.top()))
-        } else {
-            (allocated_position, Size::new(0., 0.))
-        };
+        }
 
-        let child_transform = transform.mul_clone(Transform::new().offset(drawing_tex_position.left_top() - Point::new(0., 0.))).mul_clone(&self.style.transform_ref());
+        let child_transform = transform.mul_clone(Transform::new().offset(allocated_position.left_top() - Point::new(0., 0.))).mul_clone(&self.style.transform_ref());
 
         // draw content and child
         if self.style.get_display() != DisplayType::Inline {
-            self.draw_background_color(requested_size, &child_transform);
-            self.draw_borders(requested_size, &child_transform);
+            self.draw_background_color(&child_transform);
+            self.draw_borders(&child_transform);
         }
         {
             self.content.draw(&child_transform);
@@ -359,7 +361,7 @@ impl Element {
             rm.request_draw(
                 tex_id, false,
                 0., 0., 1., 1.,
-                (allocated_position.left() + drawing_tex_offset.width(), allocated_position.top() + drawing_tex_offset.height(), drawing_tex_position.width(), drawing_tex_position.height())
+                drawing_tex_position.into()
             );
 
             // recover alpha
@@ -481,11 +483,11 @@ impl DerefMut for Element {
     }
 }
 
-// impl Drop for Element {
-//     fn drop(&mut self) {
-//         debug!("Drop element {:?}", self);
-//     }
-// }
+impl Drop for Element {
+    fn drop(&mut self) {
+        self.disable_draw_separate_tex();
+    }
+}
 
 
 #[macro_export]

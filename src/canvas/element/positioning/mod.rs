@@ -1,4 +1,5 @@
-use super::style::{DisplayType, PositionType};
+use std::f64;
+use super::style::*;
 use super::{Element};
 use rc_forest::ForestNode;
 
@@ -10,7 +11,6 @@ mod box_sizing;
 mod inline;
 mod inline_block;
 mod block;
-mod absolute;
 mod flex;
 mod none;
 
@@ -30,6 +30,7 @@ pub struct PositionOffset {
     min_max_width: (f64, f64), // min and max width
     position_dirty: bool,
     min_max_width_dirty: bool,
+    background_rect: Position,
 }
 
 impl PositionOffset {
@@ -47,6 +48,7 @@ impl PositionOffset {
             min_max_width: (0., 0.),
             position_dirty: true,
             min_max_width_dirty: true,
+            background_rect: Position::new(0., 0., 0., 0.),
         }
     }
     #[inline]
@@ -95,9 +97,13 @@ impl PositionOffset {
         self.drawing_bounds.union(&(child_bounds + offset));
     }
 
-    pub(crate) fn get_min_max_width(&mut self, inline_allocator: &mut InlineAllocator) -> (f64, f64) {
+    fn min_max_width_dfs(&mut self, inline_allocator: &mut InlineAllocator, handle_independent_positioning: bool) -> (f64, f64) {
         let element = unsafe { self.element_mut_unsafe() };
         let style = unsafe { element.style().clone_ref_unsafe() };
+
+        if !handle_independent_positioning && box_sizing::is_independent_positioning(style) {
+            return (0., 0.);
+        }
 
         let display = style.get_display();
         let is_inline =
@@ -122,8 +128,6 @@ impl PositionOffset {
                 } else {
                     inline::get_min_max_width(element, style, inline_allocator)
                 }
-            } else if box_sizing::is_independent_positioning(style) {
-                (0., 0.)
             } else if display == DisplayType::Flex && !element.is_terminated() {
                 flex::get_min_max_width(element, style, inline_allocator)
             } else {
@@ -132,12 +136,22 @@ impl PositionOffset {
         };
 
         self.min_max_width_dirty = false;
+        debug!("Get min max width from {:?}, get {:?}", element, self.min_max_width);
         self.min_max_width
     }
 
-    pub(crate) fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator, enable_inline: bool) -> Size {
+    fn min_max_width(&mut self) -> (f64, f64) {
+        self.min_max_width_dfs(&mut InlineAllocator::new(), true)
+    }
+
+    pub(crate) fn suggest_size(&mut self, suggested_size: Size, inline_allocator: &mut InlineAllocator, enable_inline: bool, handle_independent_positioning: bool) -> Size {
         let element = unsafe { self.element_mut_unsafe() };
         let style = unsafe { element.style().clone_ref_unsafe() };
+
+        let is_independent_positioning = box_sizing::is_independent_positioning(style);
+        if !handle_independent_positioning && is_independent_positioning {
+            return Size::new(0., 0.);
+        }
 
         let display = style.get_display();
         let position = style.get_position();
@@ -156,6 +170,18 @@ impl PositionOffset {
         self.suggested_size = suggested_size;
         element.set_base_size_and_font_size(suggested_size, element.style.get_font_size());
 
+        // collapse height if not specified
+        let flex_direction = style.get_flex_direction();
+        let is_vertical_flex = flex_direction == FlexDirectionType::Column || flex_direction == FlexDirectionType::ColumnReverse;
+        let keep_height =
+            is_independent_positioning ||
+            (display == DisplayType::Flex && !element.is_terminated() && is_vertical_flex);
+        let suggested_size = if keep_height {
+            suggested_size
+        } else {
+            Size::new(suggested_size.width(), f64::NAN)
+        };
+
         let requested_size = {
             if display == DisplayType::None {
                 none::suggest_size(element, style, suggested_size, inline_allocator)
@@ -165,10 +191,13 @@ impl PositionOffset {
                 } else {
                     inline::suggest_size(element, style, suggested_size, inline_allocator)
                 }
-            } else if box_sizing::is_independent_positioning(style) {
-                suggested_size
             } else if display == DisplayType::Flex && !element.is_terminated() {
-                flex::suggest_size(element, style, suggested_size, inline_allocator)
+                if is_vertical_flex {
+                    // TODO impl vertical flex
+                    unimplemented!("vertical flex is not supported yet")
+                } else {
+                    flex::suggest_size(element, style, suggested_size, inline_allocator)
+                }
             } else {
                 block::suggest_size(element, style, suggested_size, inline_allocator)
             }
@@ -200,7 +229,7 @@ impl PositionOffset {
         self.relative_size = relative_size;
 
         if box_sizing::is_independent_positioning(style) {
-            absolute::suggest_size(element, style, relative_size, inline_allocator);
+            element.position_offset.suggest_size(relative_size, inline_allocator, false, true);
         } else {
             let node = element.node_mut();
             node.for_each_child_mut(|child| {
@@ -212,6 +241,12 @@ impl PositionOffset {
     pub(crate) fn allocate_position(&mut self, allocated_point: Point, relative_point: Point) -> Bounds {
         let element = unsafe { self.element_mut_unsafe() };
         let style = unsafe { element.style().clone_ref_unsafe() };
+
+        let allocated_point = if box_sizing::is_independent_positioning(style) {
+            self.allocate_position_absolute(style, relative_point)
+        } else {
+            allocated_point
+        };
 
         let display = style.get_display();
         let position = style.get_position();
@@ -239,8 +274,6 @@ impl PositionOffset {
                 } else {
                     inline::allocate_position(element, style, allocated_point, relative_point)
                 }
-            } else if box_sizing::is_independent_positioning(style) {
-                absolute::allocate_position(element, style, allocated_point, relative_point)
             } else if display == DisplayType::Flex && !element.is_terminated() {
                 flex::allocate_position(element, style, allocated_point, relative_point)
             } else {
@@ -255,7 +288,24 @@ impl PositionOffset {
         drawing_bounds
     }
 
-    pub(crate) fn get_background_rect(&mut self) {
-        unimplemented!()
+    fn allocate_position_absolute(&mut self, style: &super::ElementStyle, relative_point: Point) -> Point {
+        let left = if style.get_left().is_finite() {
+            style.get_left()
+        } else {
+            0.
+        };
+        let top = if style.get_top().is_finite() {
+            style.get_top()
+        } else {
+            0.
+        };
+        Point::new(
+            relative_point.left() + left,
+            relative_point.top() + top,
+        )
+    }
+
+    pub(super) fn get_background_rect(&mut self) -> Position {
+        self.background_rect
     }
 }

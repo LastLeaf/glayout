@@ -13,13 +13,13 @@ pub use self::types::*;
 mod class;
 pub use self::class::ElementClass;
 mod style_sheet;
-pub use self::style_sheet::{StyleSheetGroup, StyleSheet};
+pub(crate) use self::style_sheet::{StyleSheetGroup, StyleSheet};
 mod style_value;
 pub(crate) use self::style_value::{StyleValue, StyleValueReferrer};
 
 const DEFAULT_FONT_SIZE: f32 = 16.;
-const DEFAULT_F64: f64 = f64::INFINITY;
-const DEFAULT_F32: f32 = f32::INFINITY;
+const DEFAULT_F64: f64 = f64::NAN;
+const DEFAULT_F32: f32 = f32::NAN;
 
 element_style! {
     display: DisplayType, Absolute(DisplayType::Inline), 0x02, (layout_dirty);

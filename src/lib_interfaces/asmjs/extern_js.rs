@@ -49,6 +49,12 @@ pub extern "C" fn canvas_context_append_style_sheet(context: *const RefCell<Canv
     ctx.canvas_config().append_style_sheet(str_from_c_char_ptr(style_text));
 }
 #[no_mangle]
+pub extern "C" fn canvas_context_clear_style_sheets(context: *const RefCell<CanvasContext>) {
+    let ctx = canvas_context_from_pointer(context);
+    let mut ctx = ctx.borrow_mut();
+    ctx.canvas_config().clear_style_sheets();
+}
+#[no_mangle]
 pub extern "C" fn canvas_context_root(context: *const RefCell<CanvasContext>) -> ForestNodePtr<Element> {
     let ctx = canvas_context_from_pointer(context);
     let mut ctx = ctx.borrow_mut();

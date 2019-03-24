@@ -32,6 +32,9 @@ export class CanvasContext {
     __glayoutAsm__.stringToUTF8(styleText, bufAddr, STR_BUF_LEN)
     __glayoutAsm__._canvas_context_append_style_sheet(this._ptr, bufAddr)
   }
+  clearStyleSheets() {
+    __glayoutAsm__._canvas_context_clear_style_sheets(this._ptr)
+  }
   getRootNode() {
     return Element._from_ptr(__glayoutAsm__._canvas_context_root(this._ptr))
   }

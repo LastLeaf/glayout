@@ -10,7 +10,7 @@ use self::rule::Rule;
 mod value_parser;
 use self::value_parser::parse_value;
 
-pub struct StyleSheet {
+pub(crate) struct StyleSheet {
     unindexed_classes: Vec<Rc<Rule>>,
     class_name_map: HashMap<String, Vec<Rc<Rule>>>,
 }
@@ -250,7 +250,7 @@ impl StyleSheet {
     }
 }
 
-pub struct StyleSheetGroup {
+pub(crate) struct StyleSheetGroup {
     sheets: Vec<StyleSheet>
 }
 
@@ -262,6 +262,9 @@ impl StyleSheetGroup {
     }
     pub fn append(&mut self, sheet: StyleSheet) {
         self.sheets.push(sheet);
+    }
+    pub fn clear(&mut self) {
+        self.sheets.truncate(0);
     }
     pub fn query_declarations<'a>(&'a self, tag_name: &'a str, id: &'a str, classes: Box<[&'a str]>) -> Vec<Rc<ElementClass>> {
         let sq = SelectorQuery::new(tag_name, id, classes);

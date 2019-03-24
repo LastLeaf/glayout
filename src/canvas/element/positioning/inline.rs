@@ -4,21 +4,24 @@ use super::{Point, Size, Bounds, InlineAllocator, box_sizing};
 
 #[inline]
 pub fn get_min_max_width(element: &mut Element, style: &ElementStyle, inline_allocator: &mut InlineAllocator) -> (f64, f64) {
-    let (_margin, _border, _padding, content) = box_sizing::get_sizes(style, Size::new(f64::INFINITY, f64::INFINITY));
+    let (offset, non_auto_width) = box_sizing::get_h_offset(style);
 
-    let min_max_width = if element.is_terminated() {
-        element.content_mut().suggest_size(Size::new(f64::MAX, f64::INFINITY), inline_allocator, style);
-        inline_allocator.get_min_max_width()
+    let min_max_width = if non_auto_width {
+        (style.get_width(), style.get_width())
+    } else if element.is_terminated() {
+        element.content_mut().suggest_size(Size::new(f64::MAX, f64::NAN), inline_allocator, style);
+        let (min, max) = inline_allocator.get_min_max_width();
+        (min + offset, max + offset)
     } else {
         let node = element.node_mut();
         let mut min_width = 0.;
         let mut max_width = 0.;
         node.for_each_child_mut(|child| {
-            let (min, max) = child.position_offset.get_min_max_width(inline_allocator);
+            let (min, max) = child.position_offset.min_max_width_dfs(inline_allocator, false);
             if min_width < min { min_width = min };
             if max_width < max { max_width = max };
         });
-        (min_width, max_width)
+        (min_width + offset, max_width + offset)
     };
 
     min_max_width
@@ -27,10 +30,9 @@ pub fn get_min_max_width(element: &mut Element, style: &ElementStyle, inline_all
 #[inline]
 pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size: Size, inline_allocator: &mut InlineAllocator) -> Size {
     // for inline nodes
-    // the returned width is the current end width of the inline allocation
     // the returned height is the "added" height related to prev sibling
 
-    let child_suggested_size = Size::new(suggested_size.width(), f64::INFINITY);
+    let child_suggested_size = suggested_size;
 
     let mut child_requested_height = 0.;
     if element.is_terminated() {
@@ -40,12 +42,12 @@ pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size:
     } else {
         let node = element.node_mut();
         node.for_each_child_mut(|child| {
-            let size = child.position_offset.suggest_size(child_suggested_size, inline_allocator, true);
+            let size = child.position_offset.suggest_size(child_suggested_size, inline_allocator, true, false);
             child_requested_height += size.height();
         });
     }
 
-    Size::new(inline_allocator.get_current_line_width(), child_requested_height)
+    Size::new(f64::NAN, child_requested_height)
 }
 
 #[inline]

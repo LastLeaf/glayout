@@ -8,7 +8,7 @@ mod config;
 mod character;
 mod resource;
 
-pub type CanvasConfig = config::CanvasConfig;
+pub(crate) type CanvasConfig = config::CanvasConfig;
 pub type Element = element::Element;
 pub type Empty = element::Empty;
 
@@ -49,6 +49,7 @@ impl Canvas {
         ));
         log!("Canvas binded: {}", index);
         let root_node = ForestNodeRc::new(&mut Forest::new(), Element::new(&canvas_config, Box::new(Empty::new(&canvas_config))));
+        canvas_config.set_root_node(root_node.downgrade());
         let ctx = Rc::new(RefCell::new(CanvasContext {
             canvas_config,
             root_node,
@@ -151,7 +152,9 @@ impl CanvasContext {
     }
 
     fn generate_frame(&mut self) {
-        let dirty = self.root_node.borrow().is_layout_dirty(); // any child or itself need update position offset
+        let style_sheet_dirty = self.canvas_config.clear_style_sheet_dirty();
+        // TODO handle style sheet change
+        let dirty = style_sheet_dirty || self.root_node.borrow().is_layout_dirty(); // any child or itself need update position offset
         if dirty || self.need_redraw {
             self.need_redraw = false;
             // let now = start_measure_time!();
