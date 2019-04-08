@@ -17,6 +17,18 @@ export class CanvasContext {
   constructor(canvas) {
     this._ptr = __glayoutAsm__._canvas_get_context(canvas._ptr)
   }
+  // eslint-disable-next-line class-methods-use-this
+  getWindowWidth() {
+    return document.documentElement.clientWidth
+  }
+  // eslint-disable-next-line class-methods-use-this
+  getWindowHeight() {
+    return document.documentElement.clientHeight
+  }
+  // eslint-disable-next-line class-methods-use-this
+  getDevicePixelRatio() {
+    return window.devicePixelRatio
+  }
   setCanvasSize(w, h, pixelRatio) {
     __glayoutAsm__._canvas_context_set_canvas_size(this._ptr, w, h, pixelRatio)
   }
@@ -30,7 +42,12 @@ export class CanvasContext {
   appendStyleSheet(styleText) {
     const bufAddr = __glayoutAsm__._get_swap_buffer(STR_BUF_LEN)
     __glayoutAsm__.stringToUTF8(styleText, bufAddr, STR_BUF_LEN)
-    __glayoutAsm__._canvas_context_append_style_sheet(this._ptr, bufAddr)
+    return __glayoutAsm__._canvas_context_append_style_sheet(this._ptr, bufAddr)
+  }
+  replaceStyleSheet(index, styleText) {
+    const bufAddr = __glayoutAsm__._get_swap_buffer(STR_BUF_LEN)
+    __glayoutAsm__.stringToUTF8(styleText, bufAddr, STR_BUF_LEN)
+    __glayoutAsm__._canvas_context_replace_style_sheet(this._ptr, index, bufAddr)
   }
   clearStyleSheets() {
     __glayoutAsm__._canvas_context_clear_style_sheets(this._ptr)

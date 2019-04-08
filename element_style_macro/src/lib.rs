@@ -184,14 +184,18 @@ impl ToTokens for PropertyImplTokens {
         let setter_advanced = Ident::new(&(String::from("set_") + &name.to_string() + "_advanced"), Span::call_site());
         let setter_set_inherit = Ident::new(&(String::from("set_") + &name.to_string() + "_inherit"), Span::call_site());
         let getter_inner = Ident::new(&(String::from("get_") + &name.to_string() + "_inner"), Span::call_site());
-        let setter_inner = Ident::new(&(String::from("set_") + &name.to_string() + "_inner"), Span::call_site());
+        let setter_update = Ident::new(&(String::from("apply_") + &name.to_string() + "_update"), Span::call_site());
         let update_inherit = Ident::new(&(String::from("update_inherit_") + &name.to_string()), Span::call_site());
         let relative_type = if *horizontal_relative {
             Ident::new("horizontal", Span::call_site())
         } else if *vertical_relative {
             Ident::new("vertical", Span::call_site())
         } else if *font_size_relative {
-            Ident::new("font_size", Span::call_site())
+            if *font_size_inherit {
+                Ident::new("parent_font_size", Span::call_site())
+            } else {
+                Ident::new("font_size", Span::call_site())
+            }
         } else if *flex_direction_relative {
             Ident::new("flex_direction", Span::call_site())
         } else {
@@ -205,7 +209,7 @@ impl ToTokens for PropertyImplTokens {
                 #setter_advanced,
                 #setter_set_inherit,
                 #getter_inner,
-                #setter_inner,
+                #setter_update,
                 #update_inherit,
                 #value_type,
                 StyleValueReferrer::#default_value_referrer,
@@ -286,9 +290,9 @@ impl Into<Vec<PropertyStyleNameImplTokens>> for Properties {
 impl ToTokens for PropertyStyleNameImplTokens {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self { name, value_type } = self;
-        let setter_inner = Ident::new(&(String::from("set_") + &name.to_string() + "_inner"), Span::call_site());
+        let setter_update = Ident::new(&(String::from("apply_") + &name.to_string() + "_update"), Span::call_site());
         tokens.append_all(quote! {
-            StyleName::#name => style_name!(#setter_inner, #value_type),
+            StyleName::#name => style_name!(#setter_update, #value_type),
         });
     }
 }

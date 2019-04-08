@@ -5,11 +5,12 @@ macro_rules! define_struct {
         pub struct ElementStyle {
             element: *mut Element,
             inline_class: Cell<ElementClass>,
-            classes: Vec<Rc<ElementClass>>,
+            classes: RefCell<Vec<Rc<ElementClass>>>,
             tag_name: String,
             id: String,
             class: String,
             all_dirty: Cell<bool>, // all inherit are marked dirty
+            class_dirty: Cell<ClassDirtyStatus>, // classes should be re-evaluated
             $($items)*
         }
     }
@@ -22,11 +23,12 @@ macro_rules! define_constructor {
                 Self {
                     element: 0 as *mut Element,
                     inline_class: Cell::new(ElementClass::new()),
-                    classes: vec![],
+                    classes: RefCell::new(vec![]),
                     tag_name: String::new(),
                     id: String::new(),
                     class: String::new(),
                     all_dirty: Cell::new(true),
+                    class_dirty: Cell::new(ClassDirtyStatus::NotDirty),
                     $($items)*
                 }
             }
@@ -107,6 +109,28 @@ macro_rules! impl_style_item_getter {
             }
         }
     };
+    ($getter:ident, $getter_advanced:ident, $value_type:ty, parent_font_size) => {
+        #[inline]
+        pub fn $getter(&self) -> $value_type {
+            let element = self.element();
+            let (r, v) = self.$getter_advanced();
+            match r {
+                StyleValueReferrer::RelativeToParentSize | StyleValueReferrer::RelativeToParentFontSize => {
+                    match element.node().parent() {
+                        Some(parent) => {
+                            parent.get_base_font_size() as $value_type * v
+                        },
+                        None => {
+                            DEFAULT_FONT_SIZE as $value_type * v
+                        }
+                    }
+                },
+                StyleValueReferrer::RelativeToViewportWidth => element.canvas_config.canvas_size.get().width() as $value_type * v,
+                StyleValueReferrer::RelativeToViewportHeight => element.canvas_config.canvas_size.get().height() as $value_type * v,
+                _ => v,
+            }
+        }
+    };
 }
 
 macro_rules! impl_style_item {
@@ -117,7 +141,7 @@ macro_rules! impl_style_item {
         $setter_advanced:ident,
         $setter_set_inherit: ident,
         $getter_inner:ident,
-        $setter_inner:ident,
+        $setter_update:ident,
         $update_inherit:ident,
         $value_type:ty,
         $default_value_referrer:expr,
@@ -128,19 +152,20 @@ macro_rules! impl_style_item {
     ) => {
         // getters
         pub(self) fn $getter_inner(&self) -> (StyleValueReferrer, $value_type) {
+            self.check_and_update_classes();
             if self.$name.is_dirty() {
-                self.all_dirty.set(false);
                 if self.$name.inherit() {
                     let value = {
                         let tree_node = self.node();
                         let parent = tree_node.parent();
                         match parent {
-                            Some(p) => p.style.$name.get(),
+                            Some(p) => p.style.$getter_inner(),
                             None => ($default_value_referrer, $default_value),
                         }
                     };
                     self.$name.set(value.0, value.1);
                 }
+                self.all_dirty.set(false);
                 self.$name.clear_dirty();
             }
             self.$name.get()
@@ -157,40 +182,46 @@ macro_rules! impl_style_item {
             let old_dirty = tree_node.style.$name.get_and_mark_dirty();
             if !old_dirty {
                 tree_node.for_each_child_mut(|child| {
-                    if child.style.$name.inherit() || ($font_size_inherit && child.style.$name.get_referrer().is_parent_relative())  {
+                    // changing font_size causes all nodes dirty if font_size related
+                    if child.style.$name.inherit() || ($font_size_inherit && child.style.$name.get_referrer().is_parent_relative()) {
                         Self::$update_inherit(child);
                     }
                 })
             }
         }
         // setters
-        pub(self) fn $setter_inner(&mut self, r: StyleValueReferrer, val: $value_type) {
-            let val = if r.is_absolute_or_relative() {
-                val
+        pub(self) fn $setter_update(&self, r: StyleValueReferrer, val: $value_type, inherit: bool) {
+            let changed = if inherit {
+                let changed = !self.$name.inherit();
+                self.$name.set_inherit(true);
+                changed
             } else {
-                $default_value
+                let val = if r.is_absolute_or_relative() {
+                    val
+                } else {
+                    $default_value
+                };
+                let changed = self.$name.equal(r, &val);
+                self.$name.set(r, val);
+                changed
             };
-            let changed = r == self.$name.get_referrer() && val == *self.$name.get_value_ref();
-            self.$name.set(r, val);
             if changed {
-                let tree_node = self.node_mut();
+                let elem = self.element();
                 if $layout_dirty {
-                    tree_node.mark_layout_dirty();
+                    elem.mark_layout_dirty();
                 }
             }
         }
         pub fn $setter_set_inherit(&mut self) {
-            let changed = !self.$name.inherit();
-            self.$name.set_inherit(true);
-            if changed {
-                let tree_node = self.node_mut();
-                Self::$update_inherit(tree_node);
-            }
+            let val = StyleValue::new($default_value_referrer, $default_value, true);
+            self.inline_class.get_mut().replace_rule(StyleName::$name, Box::new(val));
+            self.element().mark_self_class_dirty();
         }
         #[inline]
         pub fn $setter_advanced(&mut self, r: StyleValueReferrer, val: $value_type) {
-            self.inline_class.get_mut().replace_rule(StyleName::$name, Box::new(val.clone()));
-            self.$setter_inner(r, val);
+            let val = StyleValue::new(r, val, false);
+            self.inline_class.get_mut().replace_rule(StyleName::$name, Box::new(val));
+            self.element().mark_self_class_dirty();
         }
         #[inline]
         pub fn $setter(&mut self, val: $value_type) {
@@ -245,12 +276,13 @@ macro_rules! define_style_name {
 
 macro_rules! impl_style_name {
     ($($items:tt)*) => {
-        pub(self) fn apply_rule_from_class(style: &mut ElementStyle, name: &StyleName, value: &Box<dyn Any + Send>) {
+        pub(self) fn apply_rule_from_class(style: &ElementStyle, name: &StyleName, value: &Box<dyn Any + Send>) {
             macro_rules! style_name {
                 ($setter_inner: ident, $type: ty) => {
                     {
-                        let (r, v) = value.downcast_ref::<StyleValue<$type>>().unwrap().get();
-                        style.$setter_inner(r, v);
+                        let style_value = value.downcast_ref::<StyleValue<$type>>().unwrap();
+                        let (r, v) = style_value.get();
+                        style.$setter_inner(r, v, style_value.inherit());
                     }
                 }
             }

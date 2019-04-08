@@ -59,7 +59,10 @@ impl<T: ForestNodeContent> ForestNode<T> {
         match self.parent {
             None => None,
             Some(ref p) => {
-                Some(p.upgrade().unwrap().deref_with(self))
+                match p.upgrade() {
+                    None => None,
+                    Some(p) => Some(p.deref_with(self))
+                }
             },
         }
     }
@@ -97,6 +100,16 @@ impl<T: ForestNodeContent> ForestNode<T> {
         ForestNodeIter {
             parent: self,
             cur: 0,
+        }
+    }
+    #[inline]
+    pub fn for_each_child<F>(&self, mut f: F) where F: FnMut(&ForestNode<T>) {
+        let children = unsafe { &*(&self.children as *const Vec<ForestNodeRc<T>>) };
+        for child_rc in children.iter() {
+            {
+                let child = self.another(child_rc);
+                f(child);
+            }
         }
     }
     #[inline]

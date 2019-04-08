@@ -90,11 +90,11 @@ impl InlineAllocator {
         (self.min_width, self.expected_width)
     }
     #[inline]
-    pub(crate) fn get_current_width(&self) -> f64 {
+    pub(crate) fn _get_current_width(&self) -> f64 {
         self.expected_width
     }
     #[inline]
-    pub(crate) fn get_current_line_width(&self) -> f64 {
+    pub(crate) fn _get_current_line_width(&self) -> f64 {
         self.used_width
     }
     #[inline]
@@ -102,7 +102,7 @@ impl InlineAllocator {
         self.height + if self.used_width > 0. { self.line_height } else { 0. }
     }
     #[inline]
-    pub(crate) fn get_current_filled_height(&self) -> f64 {
+    pub(crate) fn _get_current_filled_height(&self) -> f64 {
         self.height
     }
     #[inline]
@@ -166,13 +166,13 @@ impl InlineAllocator {
     #[inline]
     fn adjust_baseline_offset(&mut self, current_node: &mut ForestNode<Element>, add_offset: f64) {
         for node in self.current_line_nodes.iter_mut() {
-            node.deref_mut_with(current_node).adjust_baseline_offset(add_offset); // TODO
+            node.deref_mut_with(current_node).adjust_baseline_offset(add_offset);
         }
     }
     #[inline]
     fn adjust_text_align_offset(&mut self, current_node: &mut ForestNode<Element>, add_offset: f64) {
         for node in self.current_line_nodes.iter_mut() {
-            node.deref_mut_with(current_node).adjust_text_align_offset(add_offset); // TODO
+            node.deref_mut_with(current_node).adjust_text_align_offset(add_offset);
         }
     }
 

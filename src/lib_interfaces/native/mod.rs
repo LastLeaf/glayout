@@ -5,9 +5,7 @@ use std::sync::{Arc, Mutex, RwLock, Barrier};
 use std::cell::RefCell;
 use std::time::{Instant, Duration};
 use glutin;
-use glutin::dpi;
-use glutin::GlContext;
-use glutin::WindowEvent;
+use glutin::{dpi, WindowEvent, ContextTrait};
 use super::Callback;
 use super::super::utils::PretendSend;
 
@@ -45,7 +43,7 @@ impl MainLoop {
 struct MainLoopWindow {
     canvas_index: i32,
     window_id: glutin::WindowId,
-    gl_window: glutin::GlWindow,
+    gl_window: glutin::WindowedContext,
     painting_thread: painting_thread::PaintingThread,
     redraw_needed: bool,
     keyboard_event_handler: PretendSend<Option<*mut Box<Callback>>>,
@@ -99,7 +97,7 @@ pub fn main_loop(f: fn() -> ()) {
                     return glutin::ControlFlow::Break;
                 },
                 glutin::Event::WindowEvent { event, window_id } => {
-                    let mut cm = MAIN_LOOP_WINDOWS.read().unwrap();
+                    let cm = MAIN_LOOP_WINDOWS.read().unwrap();
                     let window_mutex = cm.iter().find(|ref x| x.1.lock().unwrap().window_id == window_id).unwrap().1;
                     let window = window_mutex.lock().unwrap();
                     match event {
@@ -126,7 +124,7 @@ pub fn main_loop(f: fn() -> ()) {
                                             };
                                             let generate_touch_event = |touch_phase, loc| {
                                                 let (cb, touching, mouse_location) = {
-                                                    let mut cm = MAIN_LOOP_WINDOWS.read().unwrap();
+                                                    let cm = MAIN_LOOP_WINDOWS.read().unwrap();
                                                     let mut window = cm[&canvas_index].lock().unwrap();
                                                     let ret = ((*window.touch_event_handler).clone(), window.touching, window.mouse_location);
                                                     match touch_phase {
@@ -166,7 +164,7 @@ pub fn main_loop(f: fn() -> ()) {
                                                 },
                                                 WindowEvent::CursorMoved { device_id: _, position, modifiers: _ } => {
                                                     let touching = {
-                                                        let mut cm = MAIN_LOOP_WINDOWS.read().unwrap();
+                                                        let cm = MAIN_LOOP_WINDOWS.read().unwrap();
                                                         let mut window = cm[&canvas_index].lock().unwrap();
                                                         window.mouse_location = (position.x as i32, position.y as i32);
                                                         window.touching
@@ -188,7 +186,7 @@ pub fn main_loop(f: fn() -> ()) {
                                                 },
                                                 WindowEvent::KeyboardInput { device_id: _, input } => {
                                                     let cb = {
-                                                        let mut cm = MAIN_LOOP_WINDOWS.read().unwrap();
+                                                        let cm = MAIN_LOOP_WINDOWS.read().unwrap();
                                                         let window = cm[&canvas_index].lock().unwrap();
                                                         (*window.keyboard_event_handler).clone()
                                                     };
@@ -207,7 +205,7 @@ pub fn main_loop(f: fn() -> ()) {
                                                 },
                                                 WindowEvent::Resized(logical_size) => {
                                                     let (cb, dpi) = {
-                                                        let mut cm = MAIN_LOOP_WINDOWS.read().unwrap();
+                                                        let cm = MAIN_LOOP_WINDOWS.read().unwrap();
                                                         let window = cm[&canvas_index].lock().unwrap();
                                                         ((*window.window_size_listener).clone(), window.gl_window.get_hidpi_factor())
                                                     };
@@ -219,7 +217,7 @@ pub fn main_loop(f: fn() -> ()) {
                                                     };
                                                 },
                                                 WindowEvent::Refresh => {
-                                                    // NOTE here triggers a window size change event to simulate
+                                                    // FIXME here triggers a window size change event to simulate
                                                 },
                                                 _ => { }
                                             }
@@ -275,7 +273,7 @@ pub fn bind_canvas(canvas_index: i32) {
     layout_thread::exec_in_ui_thread(Box::new(move |events_loop| {
         let window = glutin::WindowBuilder::new().with_title("").with_dimensions(dpi::LogicalSize::new(DEFAULT_WINDOW_SIZE.0 as f64, DEFAULT_WINDOW_SIZE.1 as f64));
         let context = glutin::ContextBuilder::new().with_vsync(true);
-        let gl_window = glutin::GlWindow::new(window, context, events_loop).unwrap();
+        let gl_window = context.build_windowed(window, events_loop).unwrap();
         // gl_window.window().set_ime_spot(dpi::LogicalPosition::new(100., 100.));
 
         let barrier = Arc::new(Barrier::new(2));

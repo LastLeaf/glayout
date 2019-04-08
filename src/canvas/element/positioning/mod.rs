@@ -1,4 +1,5 @@
 use std::f64;
+use std::cell::Cell;
 use super::style::*;
 use super::{Element};
 use rc_forest::ForestNode;
@@ -28,8 +29,8 @@ pub struct PositionOffset {
     relative_point: Point, // left-top corner relative to content box of relative node
     drawing_bounds: Bounds, // drawing bounds relative to content box of parent node
     min_max_width: (f64, f64), // min and max width
-    position_dirty: bool,
-    min_max_width_dirty: bool,
+    position_dirty: Cell<bool>,
+    min_max_width_dirty: Cell<bool>,
     background_rect: Position,
 }
 
@@ -46,8 +47,8 @@ impl PositionOffset {
             relative_point: Point::new(0., 0.),
             drawing_bounds: Bounds::new(0., 0., 0., 0.),
             min_max_width: (0., 0.),
-            position_dirty: true,
-            min_max_width_dirty: true,
+            position_dirty: Cell::new(true),
+            min_max_width_dirty: Cell::new(true),
             background_rect: Position::new(0., 0., 0., 0.),
         }
     }
@@ -69,15 +70,14 @@ impl PositionOffset {
     }
 
     #[inline]
-    pub(crate) fn get_and_mark_dirty(&mut self) -> bool {
-        let ret = self.position_dirty;
-        self.position_dirty = true;
-        self.min_max_width_dirty = true;
+    pub(crate) fn get_and_mark_dirty(&self) -> bool {
+        let ret = self.position_dirty.replace(true);
+        self.min_max_width_dirty.set(true);
         ret
     }
     #[inline]
     pub(crate) fn is_dirty(&self) -> bool {
-        self.position_dirty
+        self.position_dirty.get()
     }
 
     #[inline]
@@ -93,7 +93,7 @@ impl PositionOffset {
         self.drawing_bounds
     }
     #[inline]
-    fn merge_drawing_bounds(&mut self, child_bounds: Bounds, offset: Size) {
+    fn _merge_drawing_bounds(&mut self, child_bounds: Bounds, offset: Size) {
         self.drawing_bounds.union(&(child_bounds + offset));
     }
 
@@ -113,7 +113,7 @@ impl PositionOffset {
         // layout edge-cutting
         if !is_inline {
             inline_allocator.reset_with_current_state(element.node_mut());
-            if !self.min_max_width_dirty {
+            if !self.min_max_width_dirty.get() {
                 return self.min_max_width;
             }
         }
@@ -135,7 +135,7 @@ impl PositionOffset {
             }
         };
 
-        self.min_max_width_dirty = false;
+        self.min_max_width_dirty.set(false);
         debug!("Get min max width from {:?}, get {:?}", element, self.min_max_width);
         self.min_max_width
     }
@@ -163,7 +163,7 @@ impl PositionOffset {
         // layout edge-cutting
         if !is_inline {
             inline_allocator.reset_with_current_state(element.node_mut());
-            if !self.position_dirty && suggested_size == self.suggested_size {
+            if !self.position_dirty.get() && suggested_size == self.suggested_size {
                 return self.requested_size;
             }
         }
@@ -204,7 +204,7 @@ impl PositionOffset {
         };
 
         if position != PositionType::Static {
-            if self.position_dirty || requested_size != self.relative_size {
+            if self.position_dirty.get() || requested_size != self.relative_size {
                 let mut ia = InlineAllocator::new();
                 let node = element.node_mut();
                 node.for_each_child_mut(|child| {
@@ -223,7 +223,7 @@ impl PositionOffset {
         let style = unsafe { element.style().clone_ref_unsafe() };
 
         // layout edge-cutting
-        if !self.position_dirty && relative_size == self.relative_size {
+        if !self.position_dirty.get() && relative_size == self.relative_size {
             return;
         }
         self.relative_size = relative_size;
@@ -243,7 +243,7 @@ impl PositionOffset {
         let style = unsafe { element.style().clone_ref_unsafe() };
 
         let allocated_point = if box_sizing::is_independent_positioning(style) {
-            self.allocate_position_absolute(style, relative_point)
+            self.allocate_position_absolute(style, allocated_point + Size::new(relative_point.left(), relative_point.top()))
         } else {
             allocated_point
         };
@@ -255,13 +255,13 @@ impl PositionOffset {
             (display == DisplayType::Inline || display == DisplayType::InlineBlock);
 
         // layout edge-cutting
-        if !self.position_dirty && !is_inline && allocated_point == self.allocated_point && relative_point == self.relative_point {
+        if !self.position_dirty.get() && !is_inline && allocated_point == self.allocated_point && relative_point == self.relative_point {
             return self.drawing_bounds
         }
 
         let relative_point = match position {
             PositionType::Static => relative_point,
-            _ => allocated_point, // TODO late handling independent_positioning
+            _ => allocated_point,
         };
         self.relative_point = relative_point;
 
@@ -283,7 +283,7 @@ impl PositionOffset {
 
         self.allocated_point = allocated_point;
         self.drawing_bounds = drawing_bounds;
-        self.position_dirty = false;
+        self.position_dirty.set(false);
         debug!("Allocated position for {:?} with {:?} drawing bounds {:?}", element, self.allocated_point, self.drawing_bounds);
         drawing_bounds
     }
@@ -291,11 +291,15 @@ impl PositionOffset {
     fn allocate_position_absolute(&mut self, style: &super::ElementStyle, relative_point: Point) -> Point {
         let left = if style.get_left().is_finite() {
             style.get_left()
+        } else if style.get_right().is_finite() {
+            self.relative_size.width() - style.get_right() - self.requested_size.width()
         } else {
             0.
         };
         let top = if style.get_top().is_finite() {
             style.get_top()
+        } else if style.get_bottom().is_finite() {
+            self.relative_size.height() - style.get_bottom() - self.requested_size.height()
         } else {
             0.
         };

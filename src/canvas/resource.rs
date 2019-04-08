@@ -137,7 +137,7 @@ impl ResourceManager {
         tex_left: f64, tex_top: f64, tex_width: f64, tex_height: f64,
         (left, top, width, height): (f64, f64, f64, f64)
     ) {
-        // TODO ignore draws that exceed viewport
+        // FIXME ignore draws that exceed viewport
         if self.pending_draws == self.tex_max_draws {
             self.flush_draw();
         }

@@ -24,7 +24,7 @@ rc_forest = { path = "./rc_forest" }
 glayout_element_style_macro = { path = "./element_style_macro" }
 
 [target.'cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))'.dependencies]
-glutin = "*"
-image = "*"
-font-kit = "*"
-euclid = "*"
+glutin = "0.20"
+image = "0.20"
+font-kit = "0.1"
+euclid = "0.19"

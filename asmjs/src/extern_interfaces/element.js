@@ -67,6 +67,11 @@ export class Element {
   length() {
     return __glayoutAsm__._element_length(this._ptr)
   }
+  getNodeById(id) {
+    const bufAddr = __glayoutAsm__._get_swap_buffer(STR_BUF_LEN)
+    __glayoutAsm__.stringToUTF8(id, bufAddr, STR_BUF_LEN)
+    return Element._from_ptr(__glayoutAsm__._element_node_by_id(this._ptr, bufAddr))
+  }
   nodeUnderPoint(x, y) {
     return Element._from_ptr(__glayoutAsm__._element_node_under_point(this._ptr, x, y))
   }

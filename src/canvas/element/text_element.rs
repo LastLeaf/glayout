@@ -2,7 +2,7 @@ use std::rc::Rc;
 use super::super::CanvasConfig;
 use super::super::resource::DrawState;
 use super::super::character::{Character, FontStyle};
-use super::{Element, ElementStyle, InlineAllocator, Transform, style, Position, Size, Point, Bounds};
+use super::{Element, ElementStyle, InlineAllocator, Transform, Position, Size, Point, Bounds};
 use rc_forest::ForestNode;
 
 const DEFAULT_DPR: f64 = 2.;
@@ -46,7 +46,7 @@ impl Text {
         unsafe { &*self.element }
     }
     #[inline]
-    fn node<'a>(&'a self) -> &'a ForestNode<Element> {
+    fn _node<'a>(&'a self) -> &'a ForestNode<Element> {
         self.element().node()
     }
     #[inline]

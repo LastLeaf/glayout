@@ -13,10 +13,10 @@ pub fn init() {
 
         let elem = {
             let cfg = context.canvas_config();
-            cfg.append_style_sheet("
+            let mut root = context.root().borrow_mut();
+            cfg.append_style_sheet(&mut root, "
                 .abs { position: absolute }
             ");
-            let mut root = context.root().borrow_mut();
             let elem = element!(&mut root, &cfg, Empty {
                 font_family: "serif, 宋体";
                 Empty {

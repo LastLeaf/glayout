@@ -247,7 +247,6 @@ mod ParseBase {
     }
 
     pub(super) fn FontFamily<'a>(parser: &mut Parser<'a, '_>) -> ValueParsingResult<'a, Cow<'static, str>> {
-        // TODO use Cow<String> for FontFamily
         {
             let mut ret = vec![];
             let r = parser.parse_comma_separated(|parser| {
@@ -296,7 +295,8 @@ mod ParseBase {
                 })
             });
             if r.is_ok() {
-                Ok(Box::new(absolute(Cow::from(ret.join(",")))))
+                let v: Cow<'static, str> = Cow::from(ret.join(","));
+                Ok(Box::new(absolute(v)))
             } else {
                 Err(r.unwrap_err())
             }

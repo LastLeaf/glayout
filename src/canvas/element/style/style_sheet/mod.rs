@@ -260,8 +260,14 @@ impl StyleSheetGroup {
             sheets: vec![]
         }
     }
+    pub fn len(&self) -> usize {
+        self.sheets.len()
+    }
     pub fn append(&mut self, sheet: StyleSheet) {
         self.sheets.push(sheet);
+    }
+    pub fn replace(&mut self, index: usize, sheet: StyleSheet) {
+        self.sheets[index] = sheet;
     }
     pub fn clear(&mut self) {
         self.sheets.truncate(0);
@@ -298,8 +304,8 @@ mod test {
         ssg.append(ss);
         let classes = ssg.query_declarations("", "", Box::new(["a"]));
         assert_eq!(classes.len(), 3);
-        assert_eq!(classes[0].iter_rules().next().unwrap().0, StyleName::position);
-        assert_eq!(classes[1].iter_rules().next().unwrap().0, StyleName::display);
-        assert_eq!(classes[2].iter_rules().next().unwrap().0, StyleName::left);
+        assert_eq!(classes[0]._iter_rules().next().unwrap().0, StyleName::position);
+        assert_eq!(classes[1]._iter_rules().next().unwrap().0, StyleName::display);
+        assert_eq!(classes[2]._iter_rules().next().unwrap().0, StyleName::left);
     }
 }

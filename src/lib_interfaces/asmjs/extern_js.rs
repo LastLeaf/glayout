@@ -43,10 +43,16 @@ pub extern "C" fn canvas_context_set_clear_color(context: *const RefCell<CanvasC
     ctx.borrow_mut().set_clear_color(r, g, b, a);
 }
 #[no_mangle]
-pub extern "C" fn canvas_context_append_style_sheet(context: *const RefCell<CanvasContext>, style_text: *mut c_char) {
+pub extern "C" fn canvas_context_append_style_sheet(context: *const RefCell<CanvasContext>, style_text: *mut c_char) -> i32 {
     let ctx = canvas_context_from_pointer(context);
     let mut ctx = ctx.borrow_mut();
-    ctx.canvas_config().append_style_sheet(str_from_c_char_ptr(style_text));
+    ctx.canvas_config().append_style_sheet_alone(str_from_c_char_ptr(style_text)) as i32
+}
+#[no_mangle]
+pub extern "C" fn canvas_context_replace_style_sheet(context: *const RefCell<CanvasContext>, index: i32, style_text: *mut c_char) {
+    let ctx = canvas_context_from_pointer(context);
+    let mut ctx = ctx.borrow_mut();
+    ctx.canvas_config().replace_style_sheet_alone(index as usize, str_from_c_char_ptr(style_text));
 }
 #[no_mangle]
 pub extern "C" fn canvas_context_clear_style_sheets(context: *const RefCell<CanvasContext>) {
@@ -87,7 +93,7 @@ pub extern "C" fn element_new(context: *const RefCell<CanvasContext>, elem_type:
     macro_rules! create_element {
         ($t: tt) => {
             {
-                let mut temp_content = Box::new($t::new(&cfg));
+                let temp_content = Box::new($t::new(&cfg));
                 root.create_another(Element::new(&cfg, temp_content))
             }
         }
@@ -157,6 +163,14 @@ pub extern "C" fn element_splice(node_pointer: ForestNodePtr<Element>, pos: i32,
         let other = node_rc_from_pointer(other_node_pointer);
         let children = other.deref_with(node).clone_children();
         node.splice(pos, length as usize, children);
+    }
+}
+#[no_mangle]
+pub extern "C" fn element_node_by_id(node_pointer: ForestNodePtr<Element>, id: *mut c_char) -> ForestNodePtr<Element> {
+    let node = node_from_pointer(node_pointer);
+    match node.node_by_id(str_from_c_char_ptr(id)) {
+        Some(ret) => ForestNodeRc::into_ptr(ret),
+        None => 0 as ForestNodePtr<Element>
     }
 }
 #[no_mangle]

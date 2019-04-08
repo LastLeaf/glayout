@@ -208,19 +208,59 @@ impl Element {
         self.style.inline_text(text)
     }
 
+    pub(crate) fn mark_class_dirty_dfs(&self) {
+        // class dirty always causes layout dirty, so we can do this
+        self.style.get_and_mark_class_dirty(true);
+        self.node().for_each_child(|c| {
+            c.mark_class_dirty_dfs();
+        });
+    }
     #[inline]
-    pub(crate) fn mark_layout_dirty_dfs(&mut self) {
+    pub(crate) fn mark_self_class_dirty(&self) -> bool {
+        if self.style.get_and_mark_class_dirty(true) {
+            return true;
+        }
+        match self.node().parent() {
+            None => { },
+            Some(x) => {
+                x.mark_child_class_dirty();
+            }
+        }
+        false
+    }
+    pub(crate) fn mark_child_class_dirty(&self) -> bool {
+        if self.style.get_and_mark_class_dirty(false) {
+            return true;
+        }
+        match self.node().parent() {
+            None => { },
+            Some(x) => {
+                x.mark_child_class_dirty();
+            }
+        }
+        false
+    }
+    #[inline]
+    pub(crate) fn clear_class_dirty(&self) {
+        if !self.style.clear_class_dirty() {
+            return;
+        }
+        self.node().for_each_child(|c| {
+            c.clear_class_dirty();
+        });
+    }
+    pub(crate) fn mark_layout_dirty_dfs(&self) {
         self.position_offset.get_and_mark_dirty();
-        self.node_mut().for_each_child_mut(|c| {
+        self.node().for_each_child(|c| {
             c.mark_layout_dirty_dfs();
         });
     }
     #[inline]
-    pub(crate) fn mark_layout_dirty(&mut self) -> bool {
+    pub(crate) fn mark_layout_dirty(&self) -> bool {
         if self.position_offset.get_and_mark_dirty() {
             return true;
         }
-        match self.node_mut().parent_mut() {
+        match self.node().parent() {
             None => { },
             Some(x) => {
                 x.mark_layout_dirty();
@@ -261,9 +301,8 @@ impl Element {
     }
     #[inline]
     fn draw_borders(&mut self, child_transform: &Transform) {
-        // TODO check border style
         let position = self.position_offset.get_background_rect();
-        if self.style.get_border_top_width() > 0. {
+        if self.style.get_border_top_style() == BorderStyleType::Solid {
             let color = self.style.get_border_top_color();
             let position = Position::new(
                 position.left() - self.style.get_border_left_width(),
@@ -273,7 +312,7 @@ impl Element {
             );
             self.draw_rect(color, child_transform.apply_to_position(&position));
         }
-        if self.style.get_border_bottom_width() > 0. {
+        if self.style.get_border_bottom_style() == BorderStyleType::Solid {
             let color = self.style.get_border_bottom_color();
             let position = Position::new(
                 position.left() - self.style.get_border_left_width(),
@@ -283,7 +322,7 @@ impl Element {
             );
             self.draw_rect(color, child_transform.apply_to_position(&position));
         }
-        if self.style.get_border_left_width() > 0. {
+        if self.style.get_border_left_style() == BorderStyleType::Solid {
             let color = self.style.get_border_left_color();
             let position = Position::new(
                 position.left() - self.style.get_border_left_width(),
@@ -293,7 +332,7 @@ impl Element {
             );
             self.draw_rect(color, child_transform.apply_to_position(&position));
         }
-        if self.style.get_border_right_width() > 0. {
+        if self.style.get_border_right_style() == BorderStyleType::Solid {
             let color = self.style.get_border_right_color();
             let position = Position::new(
                 position.right(),

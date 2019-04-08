@@ -12,7 +12,7 @@ extern crate euclid;
 #[cfg(not(any(target_arch = "asmjs", target_arch = "wasm32")))]
 extern crate font_kit;
 
-extern crate rc_forest;
+pub extern crate rc_forest;
 extern crate glayout_element_style_macro;
 
 mod utils;

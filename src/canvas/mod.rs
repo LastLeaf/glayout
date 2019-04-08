@@ -9,8 +9,7 @@ mod character;
 mod resource;
 
 pub(crate) type CanvasConfig = config::CanvasConfig;
-pub type Element = element::Element;
-pub type Empty = element::Empty;
+pub use element::*;
 
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct KeyDescriptor {
@@ -25,7 +24,7 @@ pub struct KeyDescriptor {
 pub struct CanvasContext {
     canvas_config: Rc<CanvasConfig>,
     root_node: ForestNodeRc<Element>,
-    need_redraw: bool,
+    need_redraw: u32,
     all_dirty: bool,
     touching: bool,
     touch_point: element::Point,
@@ -53,7 +52,7 @@ impl Canvas {
         let ctx = Rc::new(RefCell::new(CanvasContext {
             canvas_config,
             root_node,
-            need_redraw: false,
+            need_redraw: 0,
             all_dirty: false,
             touching: false,
             touch_point: element::Point::new(0., 0.),
@@ -106,6 +105,8 @@ impl CanvasContext {
         if !self.all_dirty {
             self.all_dirty = true;
             self.root_node.borrow_mut().mark_layout_dirty_dfs();
+            // need redraw two frames on some pc opengl
+            self.redraw_times(2);
         }
     }
     pub fn set_canvas_size(&mut self, w: i32, h: i32, pixel_ratio: f64) {
@@ -134,7 +135,13 @@ impl CanvasContext {
     }
     #[inline]
     pub fn redraw(&mut self) {
-        self.need_redraw = true;
+        self.need_redraw = 1;
+    }
+    #[inline]
+    pub fn redraw_times(&mut self, times: u32) {
+        if self.need_redraw < times {
+            self.need_redraw = times;
+        }
     }
     #[inline]
     pub fn touching(&self) -> bool {
@@ -152,12 +159,13 @@ impl CanvasContext {
     }
 
     fn generate_frame(&mut self) {
-        let style_sheet_dirty = self.canvas_config.clear_style_sheet_dirty();
-        // TODO handle style sheet change
-        let dirty = style_sheet_dirty || self.root_node.borrow().is_layout_dirty(); // any child or itself need update position offset
-        if dirty || self.need_redraw {
-            self.need_redraw = false;
-            // let now = start_measure_time!();
+        self.root_node.borrow().clear_class_dirty(); // any child or itself need update style
+        let dirty = self.root_node.borrow().is_layout_dirty(); // any child or itself need update position offset
+        if dirty || self.need_redraw > 0 {
+            if self.need_redraw > 0 {
+                self.need_redraw -= 1;
+            }
+            let now = start_measure_time!();
             self.clear();
             let root_node_rc = self.root();
             let size = self.canvas_config.canvas_size.get();
@@ -168,7 +176,7 @@ impl CanvasContext {
             root_node_rc.borrow_mut().draw(element::Position::new(0., 0., size.width(), size.height()), element::Transform::new());
             let rm = self.canvas_config.resource_manager();
             rm.borrow_mut().flush_draw();
-            // debug!("Redraw time: {}ms", end_measure_time!(now));
+            debug!("Redraw time: {}ms", end_measure_time!(now));
         }
     }
 }

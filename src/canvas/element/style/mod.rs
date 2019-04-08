@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::borrow::Cow;
 use std::{f32, f64};
@@ -21,6 +21,13 @@ const DEFAULT_FONT_SIZE: f32 = 16.;
 const DEFAULT_F64: f64 = f64::NAN;
 const DEFAULT_F32: f32 = f32::NAN;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum ClassDirtyStatus {
+    NotDirty,
+    ChildDirty,
+    SelfDirty,
+}
+
 element_style! {
     display: DisplayType, Absolute(DisplayType::Inline), 0x02, (layout_dirty);
     opacity: f32, Absolute(1.), 0x03, ();
@@ -42,7 +49,7 @@ element_style! {
     flex_basis: f64, Auto(DEFAULT_F64), 0x23, (layout_dirty, flex_direction_relative);
 
     font_family: Cow<'static, str>, Absolute(Cow::from(String::from("sans-serif"))), 0x30, (layout_dirty, inherit);
-    font_size: f32, Absolute(DEFAULT_FONT_SIZE), 0x31, (layout_dirty, inherit, font_size_relative, font_size_inherit);
+    font_size: f32, RelativeToParentFontSize(1.), 0x31, (layout_dirty, font_size_relative, font_size_inherit);
     line_height: f32, Auto(DEFAULT_F32), 0x32, (layout_dirty, inherit, font_size_relative);
     text_align: TextAlignType, Absolute(TextAlignType::Left), 0x33, (layout_dirty, inherit);
     color: (f32, f32, f32, f32), Absolute((0., 0., 0., 1.)), 0x34, (inherit);
@@ -77,49 +84,70 @@ impl ElementStyle {
     }
     pub fn tag_name(&mut self, s: String) {
         self.tag_name = s;
-        self.reload_classes();
+        self.element().mark_self_class_dirty();
     }
     pub fn get_id(&self) -> String {
         self.id.clone()
     }
     pub fn id(&mut self, s: String) {
         self.id = s;
-        self.reload_classes();
+        self.element().mark_self_class_dirty();
     }
     pub fn get_class(&self) -> String {
         self.class.clone()
     }
     pub fn class(&mut self, s: String) {
         self.class = s;
-        self.reload_classes();
+        self.element().mark_self_class_dirty();
     }
-    fn reload_classes(&mut self) {
-        // FIXME only do queries when needed
+    fn reload_classes(&self) {
         let s = unsafe { self.clone_ref_unsafe() };
-        self.classes = self.node_mut().canvas_config.query_classes(&s.tag_name, &s.id, &s.class);
-
-        // FIXME if there is a class removed, here is no reset
+        let classes = self.element().canvas_config.query_classes(&s.tag_name, &s.id, &s.class);
         {
-            let cs = self.classes.clone();
-            for c in cs {
-                c.apply_to_style(self);
-            }
+            let mut c = self.classes.borrow_mut();
+            *c = classes.clone();
+        }
+        // TODO reset styles to default
+        for c in classes {
+            c.apply_to_style(self);
         }
         let c = self.inline_class.take();
         c.apply_to_style(self);
         self.inline_class.set(c);
     }
+    #[inline]
+    fn check_and_update_classes(&self) {
+        let dirty_status = self.class_dirty.get();
+        if dirty_status != ClassDirtyStatus::SelfDirty {
+            return;
+        }
+        self.class_dirty.set(ClassDirtyStatus::ChildDirty);
+        self.reload_classes();
+    }
     pub(super) fn inline_text(&mut self, text: &str) {
         let mut c = ElementClass::new();
         StyleSheet::parse_inline_style(&mut c, text);
         self.inline_class.set(c);
+        self.element().mark_self_class_dirty();
+    }
+    pub(super) fn get_and_mark_class_dirty(&self, is_self_dirty: bool) -> bool {
+        match is_self_dirty {
+            false => self.class_dirty.replace(ClassDirtyStatus::ChildDirty) == ClassDirtyStatus::ChildDirty,
+            true => self.class_dirty.replace(ClassDirtyStatus::SelfDirty) == ClassDirtyStatus::SelfDirty,
+        }
+    }
+    pub(super) fn clear_class_dirty(&self) -> bool {
+        if self.class_dirty.replace(ClassDirtyStatus::NotDirty) != ClassDirtyStatus::SelfDirty {
+            return false;
+        }
         self.reload_classes();
+        true
     }
 }
 
 impl ElementStyle {
     #[inline]
-    pub fn associate_element(&mut self, element: *mut Element) {
+    pub(super) fn associate_element(&mut self, element: *mut Element) {
         self.element = element;
     }
     #[inline]
@@ -147,7 +175,7 @@ impl ElementStyle {
         &mut *(self as *mut Self)
     }
     #[inline]
-    pub fn parent_node_changed(&mut self) {
+    pub(super) fn parent_node_changed(&mut self) {
         self.parent_updated();
     }
     #[inline]

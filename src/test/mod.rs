@@ -74,9 +74,9 @@ fn show_list(rc_context: Rc<RefCell<CanvasContext>>) {
     context.set_clear_color(0.5, 0.5, 0.5, 1.);
 
     let cfg = context.canvas_config();
-    cfg.append_style_sheet(".red { color: red; font-size: 36px }");
     {
         let mut root = context.root().borrow_mut();
+        cfg.append_style_sheet(&mut root, ".red { color: red; font-size: 36px }");
         let wrapper = element! (&mut root, &cfg, Empty {
             Empty {
                 class: "red";

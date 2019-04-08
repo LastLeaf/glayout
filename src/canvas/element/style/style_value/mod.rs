@@ -109,6 +109,10 @@ impl<T: Clone> StyleValue<T> {
     }
 
     #[inline]
+    pub(super) fn equal(&self, r: StyleValueReferrer, v: &T) -> bool where T: PartialEq {
+        r == self.get_referrer() && unsafe { *v == *self.cur_v.as_ptr() }
+    }
+    #[inline]
     pub(super) fn get_value_ref(&mut self) -> &T {
         &*self.v.get_mut()
     }
@@ -117,7 +121,7 @@ impl<T: Clone> StyleValue<T> {
         self.v.get_mut()
     }
     #[inline]
-    pub(super) fn get_current_value(&self) -> T {
+    pub(super) fn _get_current_value(&self) -> T {
         unsafe { (*self.cur_v.as_ptr()).clone() }
     }
     #[inline]

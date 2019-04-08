@@ -52,7 +52,7 @@ pub fn suggest_size(element: &mut Element, style: &ElementStyle, suggested_size:
     let mut flex_grow_total = 0.;
     let mut flex_shrink_total = 0.;
     node.for_each_child_mut(|child| {
-        if box_sizing::is_independent_positioning(style) {
+        if box_sizing::is_independent_positioning(&child.style) {
             child_min_max_basis_flex.push(FlexParams {
                 is_independent_positioning: true,
                 width: 0.,

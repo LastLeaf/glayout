@@ -200,7 +200,7 @@ impl CharacterManager {
     }
 
     fn _gabbage_collect() {
-        // TODO gabbage collect chars when needed
+        // FIXME gabbage collect chars when needed
     }
 
     fn alloc_font_family_id() -> i32 {
